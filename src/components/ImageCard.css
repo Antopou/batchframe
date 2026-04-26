@@ -42,6 +42,16 @@
   object-fit: cover;
   object-position: center;
   pointer-events: none;
+  will-change: transform;
+}
+
+.image-card.updating img {
+  opacity: 0.4;
+  filter: blur(0.5px);
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+.image-card:not(.updating) img {
   animation: cardFadeIn 0.2s ease-out both;
 }
 
@@ -113,6 +123,23 @@
   cursor: help;
 }
 
+/* ── Order badge ── */
+.order-badge {
+  width: 22px;
+  height: 22px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px var(--accent-glow);
+  margin-left: 6px;
+  pointer-events: none;
+}
+
 /* ── Lock indicator ── */
 .lock-indicator {
   width: 22px;
@@ -179,17 +206,22 @@
 .image-loading-placeholder {
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg,
-    var(--bg-elevated) 25%,
-    var(--bg-highlight) 50%,
-    var(--bg-elevated) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  background: var(--bg-elevated);
+  position: relative;
+  overflow: hidden;
+}
+
+.image-loading-placeholder::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, var(--bg-highlight) 50%, transparent 100%);
+  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 @keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
 }
 
 /* ── Image error placeholder ── */
@@ -225,12 +257,6 @@
 
 
 @keyframes cardFadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
 }

@@ -1,21 +1,41 @@
-import React, { useEffect, useState, memo } from 'react';
+import React, { useEffect, useState, useRef, memo } from 'react';
 import './ImageCard.css';
 
 const imageCache = new Map();
 
-function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardClick, onToggleLock, onDragMouseDown, onDragMouseEnter, onPreview, size, imageFitMode }) {
+function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardClick, onToggleLock, onDragMouseDown, onDragMouseEnter, onPreview, size, imageFitMode, orderNumber, orderSelectMode, onContextMenu }) {
   const [src, setSrc] = useState(image.previewSrc || '');
   const [imageError, setImageError] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const prevSrcRef  = useRef('');
+  const isFirstLoad = useRef(true);
 
   useEffect(() => {
     let cancelled = false;
 
+    const cacheKey = image.mtime != null ? `${image.path}::${image.mtime}` : image.path;
+
     const load = async () => {
-      if (image.previewSrc) { setSrc(image.previewSrc); return; }
+      setImageError(false);
+      if (image.previewSrc) {
+        setSrc(image.previewSrc);
+        prevSrcRef.current = image.previewSrc;
+        isFirstLoad.current = false;
+        return;
+      }
       if (!window.electronAPI || !image.path) { setSrc(''); return; }
 
-      const cached = imageCache.get(image.path);
-      if (cached) { setSrc(cached); return; }
+      const cached = imageCache.get(cacheKey);
+      if (cached) {
+        setSrc(cached);
+        prevSrcRef.current = cached;
+        isFirstLoad.current = false;
+        return;
+      }
+
+      // If we already showed an image, this is a mtime-change update — dim old, don't shimmer
+      const isUpdate = !isFirstLoad.current && !!prevSrcRef.current;
+      if (isUpdate) setIsUpdating(true);
 
       try {
         const base64 = await window.electronAPI.getImageData(image.path);
@@ -30,20 +50,23 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
           : 'image/jpeg';
 
         const dataUrl = `data:${mime};base64,${base64}`;
-        imageCache.set(image.path, dataUrl);
+        if (imageCache.size >= 500) {
+          imageCache.delete(imageCache.keys().next().value);
+        }
+        imageCache.set(cacheKey, dataUrl);
         setSrc(dataUrl);
+        prevSrcRef.current = dataUrl;
+        isFirstLoad.current = false;
       } catch (err) {
         if (!cancelled) console.error('Failed to load image:', err);
+      } finally {
+        if (!cancelled) setIsUpdating(false);
       }
     };
 
     load();
     return () => { cancelled = true; };
-  }, [image.path, image.previewSrc, image.name]);
-
-  useEffect(() => {
-    setImageError(false);
-  }, [src]);
+  }, [image.path, image.previewSrc, image.name, image.mtime]);
 
   const handleClick = (event) => {
     if (event.detail === 2) { // Double click
@@ -76,18 +99,23 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
 
   const handleRetryLoad = () => {
     setImageError(false);
-    // Force reload by clearing cache for this image
     if (image.path) {
       imageCache.delete(image.path);
     }
   };
 
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    if (onContextMenu) onContextMenu(e, image);
+  };
+
   return (
     <div
-      className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'}`}
+      className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'} ${isUpdating ? 'updating' : ''}`}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onMouseEnter={handleMouseEnter}
+      onContextMenu={handleContextMenu}
       title={`${image.name}${isLocked ? ' (locked)' : ''}`}
     >
       {!src ? (
@@ -121,6 +149,9 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
             </svg>
           )}
         </div>
+        {orderSelectMode && orderNumber != null && (
+          <div className="order-badge">{orderNumber}</div>
+        )}
         {isLocked && (
           <div className="lock-indicator" onClick={handleLockClick} title="Click to unlock">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

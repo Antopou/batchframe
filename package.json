@@ -41,5 +41,21 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "build": {
+    "appId": "com.user.image-dataset-selector",
+    "productName": "ImageSelector",
+    "files": [
+      "src/**/*",
+      "build/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable"
+    },
+    "directories": {
+      "output": "dist"
+    }
   }
 }

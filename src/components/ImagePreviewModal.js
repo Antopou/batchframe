@@ -1,13 +1,33 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './ImagePreviewModal.css';
 
 function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPrev, onLock, onDelete }) {
-  const [zoom, setZoom] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const zoomRef = useRef(1);
+  const positionRef = useRef({ x: 0, y: 0 });
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const imageRef = useRef(null);
+  const rafRef = useRef(null);
+
+  const [zoomDisplay, setZoomDisplay] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imageSrc, setImageSrc] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  const updateImageTransform = () => {
+    if (imageRef.current) {
+      const { x, y } = positionRef.current;
+      const z = zoomRef.current;
+      imageRef.current.style.transform = `scale(${z}) translate(${x / z}px, ${y / z}px)`;
+    }
+  };
+
+  // Reset zoom and position when image changes
+  useEffect(() => {
+    zoomRef.current = 1;
+    positionRef.current = { x: 0, y: 0 };
+    setZoomDisplay(1);
+    updateImageTransform();
+  }, [image?.path]);
 
   // Load image data when image changes
   useEffect(() => {
@@ -67,27 +87,32 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   const handleWheel = useCallback((e) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setZoom(prevZoom => Math.max(0.5, Math.min(3, prevZoom + delta)));
+    zoomRef.current = Math.max(0.5, Math.min(3, zoomRef.current + delta));
+    setZoomDisplay(zoomRef.current);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(updateImageTransform);
   }, []);
 
   const handleMouseDown = useCallback((e) => {
-    if (zoom > 1) {
+    if (zoomRef.current > 1) {
       setIsDragging(true);
-      setDragStart({
-        x: e.clientX - position.x,
-        y: e.clientY - position.y
-      });
+      dragStartRef.current = {
+        x: e.clientX - positionRef.current.x,
+        y: e.clientY - positionRef.current.y
+      };
     }
-  }, [zoom, position]);
+  }, []);
 
   const handleMouseMove = useCallback((e) => {
     if (isDragging) {
-      setPosition({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      });
+      positionRef.current = {
+        x: e.clientX - dragStartRef.current.x,
+        y: e.clientY - dragStartRef.current.y
+      };
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(updateImageTransform);
     }
-  }, [isDragging, dragStart]);
+  }, [isDragging]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -96,25 +121,41 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   const handleKeydown = useCallback((e) => {
     switch(e.key) {
       case 'Escape':
+        e.preventDefault();
+        e.stopImmediatePropagation();
         onClose();
-        break;
+        return;
       case 'ArrowLeft':
+        e.preventDefault();
         onPrev();
-        break;
+        return;
       case 'ArrowRight':
+        e.preventDefault();
         onNext();
-        break;
+        return;
       case '=':
       case '+':
-        setZoom(prev => Math.min(3, prev + 0.1));
-        break;
+        e.preventDefault();
+        zoomRef.current = Math.min(3, zoomRef.current + 0.1);
+        setZoomDisplay(zoomRef.current);
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(updateImageTransform);
+        return;
       case '-':
-        setZoom(prev => Math.max(0.5, prev - 0.1));
-        break;
+        e.preventDefault();
+        zoomRef.current = Math.max(0.5, zoomRef.current - 0.1);
+        setZoomDisplay(zoomRef.current);
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(updateImageTransform);
+        return;
       case '0':
-        setZoom(1);
-        setPosition({ x: 0, y: 0 });
-        break;
+        e.preventDefault();
+        zoomRef.current = 1;
+        positionRef.current = { x: 0, y: 0 };
+        setZoomDisplay(1);
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(updateImageTransform);
+        return;
     }
   }, [onClose, onNext, onPrev]);
 
@@ -151,7 +192,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
           className="preview-image-container"
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
-          style={{ cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+          style={{ cursor: zoomRef.current > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
         >
           {isLoading ? (
             <div className="preview-loading">
@@ -159,12 +200,12 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
             </div>
           ) : (
             <img
+              ref={imageRef}
               src={imageSrc}
               alt={image.name}
               className="preview-image"
               style={{
-                transform: `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
-                cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+                cursor: zoomRef.current > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
               }}
               draggable={false}
             />
@@ -183,22 +224,38 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
 
           <div className="preview-zoom-controls">
             <button
-              onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))}
-              disabled={zoom <= 0.5}
+              onClick={() => {
+                zoomRef.current = Math.max(0.5, zoomRef.current - 0.1);
+                setZoomDisplay(zoomRef.current);
+                if (rafRef.current) cancelAnimationFrame(rafRef.current);
+                rafRef.current = requestAnimationFrame(updateImageTransform);
+              }}
+              disabled={zoomRef.current <= 0.5}
               title="Zoom out (-)"
             >
               −
             </button>
-            <span className="zoom-level">{Math.round(zoom * 100)}%</span>
+            <span className="zoom-level">{Math.round(zoomDisplay * 100)}%</span>
             <button
-              onClick={() => setZoom(prev => Math.min(3, prev + 0.1))}
-              disabled={zoom >= 3}
+              onClick={() => {
+                zoomRef.current = Math.min(3, zoomRef.current + 0.1);
+                setZoomDisplay(zoomRef.current);
+                if (rafRef.current) cancelAnimationFrame(rafRef.current);
+                rafRef.current = requestAnimationFrame(updateImageTransform);
+              }}
+              disabled={zoomRef.current >= 3}
               title="Zoom in (+)"
             >
               +
             </button>
             <button
-              onClick={() => { setZoom(1); setPosition({ x: 0, y: 0 }); }}
+              onClick={() => {
+                zoomRef.current = 1;
+                positionRef.current = { x: 0, y: 0 };
+                setZoomDisplay(1);
+                if (rafRef.current) cancelAnimationFrame(rafRef.current);
+                rafRef.current = requestAnimationFrame(updateImageTransform);
+              }}
               title="Reset zoom (0)"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

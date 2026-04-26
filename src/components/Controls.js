@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 function IconBtn({ active, onClick, disabled, title, children }) {
   return (
@@ -51,11 +51,43 @@ function Controls({
   lockedCount,
   onLockSelected,
   onUnlockSelected,
+  subfolderBarPinned,
+  onToggleSubfolderBar,
+  hasSubfolders,
+  sortBy,
+  onSortByChange,
+  sortDir,
+  onSortDirChange,
+  orderSelectMode,
+  onOrderSelectModeChange,
+  orderedSelection,
+  onRenameByOrder,
+  photoshopPath,
+  onSetPhotoshopPath,
+  onOpenInPhotoshop,
+  searchQuery,
+  onSearchQueryChange,
+  filteredCount,
+  onMoveSelected,
+  isMoving,
+  autoReloadEnabled,
+  onAutoReloadChange,
 }) {
   const [editPath, setEditPath] = useState(folderPath || '');
   const [isEditing, setIsEditing] = useState(false);
+  const [renamePrefix, setRenamePrefix] = useState('img_');
+  const [renameDigits, setRenameDigits] = useState(3);
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  const handleBrowsePsPath = useCallback(async () => {
+    if (!window.electronAPI?.selectFile) return;
+    const p = await window.electronAPI.selectFile({
+      filters: [{ name: 'Executables', extensions: ['exe'] }],
+      title: 'Select Photoshop.exe',
+    });
+    if (p && onSetPhotoshopPath) onSetPhotoshopPath(p);
+  }, [onSetPhotoshopPath]);
 
   useEffect(() => {
     setEditPath(folderPath || '');
@@ -160,10 +192,34 @@ function Controls({
         )}
 
         {totalCount > 0 && (
+          <div className="search-box">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+            </svg>
+            <input
+              type="text"
+              value={searchQuery || ''}
+              onChange={(e) => onSearchQueryChange(e.target.value)}
+              placeholder="Search by name…"
+              className="search-input"
+            />
+            {searchQuery && (
+              <button onClick={() => onSearchQueryChange('')} className="search-clear" title="Clear">×</button>
+            )}
+          </div>
+        )}
+
+        {totalCount > 0 && (
           <div className="selection-stats">
             <div className="stat-badge">
               <span className="count">{selectedCount}</span>
               <span className="sep">/</span>
+              {searchQuery && (
+                <>
+                  <span className="filtered" title="Filtered">{filteredCount}</span>
+                  <span className="sep">/</span>
+                </>
+              )}
               <span className="total">{totalCount}</span>
             </div>
             <div className="button-group mini">
@@ -177,6 +233,55 @@ function Controls({
       {/* ── Section 2: Image Actions ── */}
       {totalCount > 0 && (
         <div className="controls-section image-actions">
+          {/* Sort controls */}
+          <div className="button-group">
+            <select
+              value={sortBy}
+              onChange={(e) => onSortByChange(e.target.value)}
+              className="page-select-modern"
+              title="Sort by"
+              disabled={loading}
+            >
+              <option value="none">Unsorted</option>
+              <option value="name">Name</option>
+              <option value="date">Date</option>
+              <option value="size">Size</option>
+            </select>
+            <button
+              className="icon-btn-modern"
+              onClick={() => onSortDirChange(sortDir === 'asc' ? 'desc' : 'asc')}
+              title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+              disabled={loading || sortBy === 'none'}
+            >
+              {sortDir === 'asc' ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/><path d="M11 12h4"/><path d="M11 16h7"/><path d="M11 20h10"/></svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="M11 4h10"/><path d="M11 8h7"/><path d="M11 12h4"/></svg>
+              )}
+            </button>
+          </div>
+
+          <div className="divider-v" />
+
+          {/* Order-select mode */}
+          <div className="button-group">
+            <button
+              className={`icon-btn-modern${orderSelectMode ? ' active' : ''}`}
+              onClick={() => onOrderSelectModeChange(!orderSelectMode)}
+              title={orderSelectMode ? 'Exit Order Select mode' : 'Order Select: click images in sequence to assign rename order'}
+              disabled={loading}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15 21 21"/><path d="M4 4l5 5"/></svg>
+            </button>
+            {orderSelectMode && orderedSelection.length > 0 && (
+              <div className="locked-badge" title={`${orderedSelection.length} image${orderedSelection.length !== 1 ? 's' : ''} in order`}>
+                {orderedSelection.length}
+              </div>
+            )}
+          </div>
+
+          <div className="divider-v" />
+
           <div className="button-group">
             <button
               onClick={onLockSelected}
@@ -209,7 +314,7 @@ function Controls({
           <div className="button-group">
             <button
               onClick={onDeleteSelected}
-              className="btn-modern danger sm"
+              className="action-btn del"
               disabled={loading || selectedCount === 0 || browserMode}
               title="Delete selected"
             >
@@ -218,12 +323,96 @@ function Controls({
             </button>
             <button
               onClick={onKeepSelected}
-              className="btn-modern success sm"
+              className="action-btn keep"
               disabled={loading || selectedCount === 0 || browserMode}
               title="Keep selected, delete others"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
               Keep
+            </button>
+            {!browserMode && (
+              <button
+                onClick={onMoveSelected}
+                className="action-btn move"
+                disabled={loading || selectedCount === 0 || isMoving}
+                title="Move selected to another folder"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M19 9l3 3-3 3"/><path d="M5 9l-3 3 3 3"/></svg>
+                Move
+              </button>
+            )}
+            {!browserMode && (
+              photoshopPath ? (
+                <button
+                  onClick={onOpenInPhotoshop}
+                  className="action-btn ps"
+                  disabled={loading || selectedCount === 0}
+                  title={`Open in Photoshop: ${photoshopPath}`}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 2 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                  PS
+                </button>
+              ) : (
+                <button
+                  onClick={handleBrowsePsPath}
+                  className="action-btn ps"
+                  disabled={loading}
+                  title="Locate Photoshop.exe"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 2 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                  Set PS
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Order-select rename panel ── */}
+      {totalCount > 0 && orderSelectMode && orderedSelection.length > 0 && (
+        <div className="controls-section image-actions">
+          <div className="button-group">
+            <input
+              type="text"
+              value={renamePrefix}
+              onChange={(e) => setRenamePrefix(e.target.value)}
+              className="rename-input"
+              placeholder="prefix"
+              title="Filename prefix"
+              style={{ width: '80px' }}
+            />
+            <input
+              type="number"
+              value={renameDigits}
+              onChange={(e) => setRenameDigits(Math.max(1, Math.min(9, Number(e.target.value))))}
+              className="rename-input"
+              min="1"
+              max="9"
+              title="Number of digits (zero-padding)"
+              style={{ width: '44px' }}
+            />
+            <span className="rename-preview" title="Preview of first and last filename">
+              {renamePrefix}{String(1).padStart(renameDigits, '0')}
+              {orderedSelection.length > 1 && ` … ${renamePrefix}${String(orderedSelection.length).padStart(renameDigits, '0')}`}
+            </span>
+          </div>
+          <div className="button-group">
+            <button
+              onClick={() => onRenameByOrder(renamePrefix, renameDigits)}
+              className="btn-modern success sm"
+              disabled={loading || !renamePrefix}
+              title="Rename files by order sequence"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              Rename
+            </button>
+            <button
+              onClick={() => onOrderSelectModeChange(false)}
+              className="btn-modern ghost sm"
+              disabled={loading}
+              title="Clear order selection"
+            >
+              Clear
             </button>
           </div>
         </div>
@@ -280,13 +469,22 @@ function Controls({
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m3 3 18 18"/><path d="m21 3-18 18"/></svg>
               </button>
             </div>
-            <button 
+            <button
               className={`icon-btn-modern ${dragSelectEnabled ? 'active' : ''}`}
               onClick={() => onDragSelectEnabledChange(!dragSelectEnabled)}
               title="Drag Select"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9"/><path d="M12 2v8"/><path d="M12 10 9 7"/><path d="m12 10 3-3"/><path d="M18 21v-8a2 2 0 0 0-2-2h-4"/></svg>
             </button>
+            {!browserMode && (
+              <button
+                className={`icon-btn-modern ${autoReloadEnabled ? 'active' : ''}`}
+                onClick={() => onAutoReloadChange(!autoReloadEnabled)}
+                title={autoReloadEnabled ? 'Auto-Reload: ON (refresh thumbnails when files change on disk)' : 'Auto-Reload: OFF'}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              </button>
+            )}
             <button 
               className={`icon-btn-modern ${!confirmRequired ? 'warning' : ''}`}
               onClick={() => onConfirmRequiredChange(!confirmRequired)}
@@ -320,13 +518,22 @@ function Controls({
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
               </button>
             </div>
-            <button 
+            <button
               className={`help-btn-modern ${showShortcuts ? 'active' : ''}`}
               onClick={onToggleShortcuts}
               title="Keyboard shortcuts"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
             </button>
+            {hasSubfolders && (
+              <button
+                className={`help-btn-modern ${subfolderBarPinned ? 'active' : ''}`}
+                onClick={onToggleSubfolderBar}
+                title={subfolderBarPinned ? 'Auto-hide subfolder bar' : 'Pin subfolder bar'}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+              </button>
+            )}
           </div>
         </div>
       )}

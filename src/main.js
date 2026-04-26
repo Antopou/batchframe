@@ -76,6 +76,41 @@ app.on('activate', () => {
   }
 });
 
+// ── Image dimension reader (PNG/JPEG/WebP header parsing) ──────────
+function readImageDimensions(buf, ext) {
+  try {
+    if (ext === 'png') {
+      if (buf.length < 24) return null;
+      const sig = [137,80,78,71,13,10,26,10];
+      for (let i = 0; i < 8; i++) if (buf[i] !== sig[i]) return null;
+      return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+    }
+    if (ext === 'jpg' || ext === 'jpeg') {
+      if (buf[0] !== 0xFF || buf[1] !== 0xD8) return null;
+      let i = 2;
+      while (i + 8 < buf.length) {
+        if (buf[i] !== 0xFF) break;
+        const marker = buf[i+1];
+        const len = buf.readUInt16BE(i+2);
+        if (marker >= 0xC0 && marker <= 0xC3)
+          return { h: buf.readUInt16BE(i+5), w: buf.readUInt16BE(i+7) };
+        i += 2 + len;
+      }
+    }
+    if (ext === 'webp') {
+      if (buf.toString('ascii',0,4) !== 'RIFF' || buf.toString('ascii',8,12) !== 'WEBP') return null;
+      const fmt = buf.toString('ascii',12,16);
+      if (fmt === 'VP8 ' && buf.length >= 30)
+        return { w: buf.readUInt16LE(26) & 0x3FFF, h: buf.readUInt16LE(28) & 0x3FFF };
+      if (fmt === 'VP8L' && buf.length >= 25) {
+        const bits = buf.readUInt32LE(21);
+        return { w: (bits & 0x3FFF) + 1, h: ((bits >> 14) & 0x3FFF) + 1 };
+      }
+    }
+  } catch {}
+  return null;
+}
+
 // IPC Handlers
 ipcMain.handle('select-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -91,8 +126,17 @@ ipcMain.handle('get-images', async (event, folderPath) => {
     const imageFiles = files.filter(file => imageExtensions.includes(path.extname(file).toLowerCase()));
     return await Promise.all(imageFiles.map(async name => {
       const filePath = path.join(folderPath, name);
+      const ext = path.extname(name).toLowerCase().slice(1);
       const stat = await fs.stat(filePath);
-      return { name, path: filePath, size: stat.size, mtime: stat.mtimeMs };
+      const headerBuf = Buffer.alloc(512);
+      let dims = null;
+      try {
+        const fd = await fs.open(filePath, 'r');
+        const { bytesRead } = await fd.read(headerBuf, 0, 512, 0);
+        await fd.close();
+        dims = readImageDimensions(headerBuf.slice(0, bytesRead), ext);
+      } catch {}
+      return { name, path: filePath, size: stat.size, mtime: stat.mtimeMs, width: dims?.w ?? null, height: dims?.h ?? null };
     }));
   } catch (error) {
     console.error(error);
@@ -241,6 +285,43 @@ ipcMain.handle('move-images', async (event, { filePaths, destFolder }) => {
     event.sender.send('move-progress', { current: i + 1, total: filePaths.length });
   }
   return { success: results.failed.length === 0, ...results };
+});
+
+ipcMain.handle('copy-images', async (event, { filePaths, destFolder }) => {
+  const results = { success: true, copied: [], failed: [] };
+  const exists = (p) => fs.access(p).then(() => true).catch(() => false);
+  for (let i = 0; i < filePaths.length; i++) {
+    const src = filePaths[i];
+    const name = path.basename(src);
+    let dest = path.join(destFolder, name);
+    if (await exists(dest)) {
+      const ext = path.extname(name);
+      const base = path.basename(name, ext);
+      let n = 1;
+      while (await exists(path.join(destFolder, `${base} (${n})${ext}`))) n++;
+      dest = path.join(destFolder, `${base} (${n})${ext}`);
+    }
+    try {
+      await fs.copyFile(src, dest);
+      results.copied.push(dest);
+    } catch (err) {
+      results.failed.push({ src, error: err.message });
+    }
+    event.sender.send('copy-progress', { current: i + 1, total: filePaths.length });
+  }
+  if (results.failed.length > 0) results.success = false;
+  return results;
+});
+
+ipcMain.handle('export-paths', async (event, { filePaths }) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export selected paths',
+    defaultPath: 'selected_images.txt',
+    filters: [{ name: 'Text files', extensions: ['txt'] }],
+  });
+  if (result.canceled || !result.filePath) return { success: false, canceled: true };
+  await fs.writeFile(result.filePath, filePaths.join('\n'), 'utf8');
+  return { success: true, filePath: result.filePath };
 });
 
 // ── Folder watcher (auto-reload on external changes, e.g. Photoshop save) ──

@@ -161,6 +161,9 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
           </div>
         )}
       </div>
+      {image.width && image.height && (
+        <div className="dimension-badge">{image.width}×{image.height}</div>
+      )}
       <div className="image-card-name">{image.name}</div>
     </div>
   );

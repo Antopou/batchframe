@@ -98,6 +98,13 @@ function App() {
   const [contextMenu, setContextMenu]     = useState(null); // { x, y, image } | null
   const [metadataModal, setMetadataModal] = useState(null); // { imageName, metadata } | null
 
+  // Copy state
+  const [isCopying, setIsCopying]       = useState(false);
+  const [copyProgress, setCopyProgress] = useState({ current: 0, total: 0 });
+
+  // Aspect ratio filter state
+  const [aspectFilter, setAspectFilter] = useState('all');
+
   // ── Init ────────────────────────────────────────────────────────
   useEffect(() => { setBrowserMode(!window.electronAPI); }, []);
 
@@ -203,12 +210,24 @@ function App() {
     });
   }, [images, sortBy, sortDir]);
 
-  // ── Search filter ───────────────────────────────────────────────
+  // ── Search + aspect filter ──────────────────────────────────────
   const filteredImages = useMemo(() => {
-    if (!searchQuery.trim()) return sortedImages;
-    const q = searchQuery.toLowerCase();
-    return sortedImages.filter(img => img.name.toLowerCase().includes(q));
-  }, [sortedImages, searchQuery]);
+    let result = sortedImages;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(img => img.name.toLowerCase().includes(q));
+    }
+    if (aspectFilter !== 'all') {
+      result = result.filter(img => {
+        if (!img.width || !img.height) return true;
+        if (aspectFilter === 'portrait')  return img.height > img.width;
+        if (aspectFilter === 'landscape') return img.width  > img.height;
+        if (aspectFilter === 'square')    return img.width  === img.height;
+        return true;
+      });
+    }
+    return result;
+  }, [sortedImages, searchQuery, aspectFilter]);
 
   useEffect(() => { setCurrentPage(1); }, [searchQuery]);
 
@@ -518,6 +537,53 @@ function App() {
       setMoveProgress({ current: 0, total: 0 });
     }
   }, [selectedImages, images, lockedImages, folderPath, confirmRequired, showConfirm]);
+
+  // ── Copy selected to folder ────────────────────────────────────
+  const handleCopySelected = useCallback(async () => {
+    if (!window.electronAPI || selectedImages.size === 0) return;
+    const dest = await window.electronAPI.selectFolder();
+    if (!dest) return;
+    const filePaths = [...selectedImages].filter(p => !lockedImages.has(p));
+    if (filePaths.length === 0) return;
+    setIsCopying(true);
+    setCopyProgress({ current: 0, total: filePaths.length });
+    window.electronAPI.onCopyProgress(data => setCopyProgress(data));
+    try {
+      await window.electronAPI.copyImages(filePaths, dest);
+    } catch (err) {
+      console.error('Copy failed:', err);
+    } finally {
+      window.electronAPI.removeCopyListeners();
+      setIsCopying(false);
+      setCopyProgress({ current: 0, total: 0 });
+    }
+  }, [selectedImages, lockedImages]);
+
+  // ── Export selected paths to .txt ─────────────────────────────
+  const handleExportPaths = useCallback(async () => {
+    const paths = [...selectedImages];
+    if (paths.length === 0) return;
+    await window.electronAPI.exportPaths(paths);
+  }, [selectedImages]);
+
+  // ── Invert selection (across all filtered images) ─────────────
+  const handleInvertSelection = useCallback(() => {
+    setSelectedImages(prev => {
+      const next = new Set();
+      for (const img of filteredImages) {
+        if (!prev.has(img.path)) next.add(img.path);
+      }
+      return next;
+    });
+  }, [filteredImages]);
+
+  // ── Select all filtered images across all pages ───────────────
+  const handleSelectAllFiltered = useCallback(() => {
+    setSelectedImages(prev => {
+      const allSelected = filteredImages.every(img => prev.has(img.path));
+      return allSelected ? new Set() : new Set(filteredImages.map(img => img.path));
+    });
+  }, [filteredImages]);
 
   // ── Auto-reload toggle ─────────────────────────────────────────
   const handleAutoReloadChange = useCallback((enabled) => {
@@ -945,6 +1011,13 @@ function App() {
         filteredCount={filteredImages.length}
         onMoveSelected={handleMoveSelected}
         isMoving={isMoving}
+        onCopySelected={handleCopySelected}
+        isCopying={isCopying}
+        onExportPaths={handleExportPaths}
+        onInvertSelection={handleInvertSelection}
+        onSelectAllFiltered={handleSelectAllFiltered}
+        aspectFilter={aspectFilter}
+        onAspectFilterChange={setAspectFilter}
         autoReloadEnabled={autoReloadEnabled}
         onAutoReloadChange={handleAutoReloadChange}
       />

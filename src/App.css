@@ -772,6 +772,29 @@ input[type="range"]::-webkit-slider-thumb:hover {
   pointer-events: none;
 }
 
+.action-btn.copy:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: rgba(92, 124, 255, 0.3);
+  background: rgba(92, 124, 255, 0.06);
+}
+
+.search-select-btn {
+  padding: 0 7px;
+  height: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.85;
+  transition: opacity var(--transition);
+}
+.search-select-btn:hover { opacity: 1; }
+
 /* ── Responsive ─────────────────────────────────── */
 @media (max-width: 768px) {
   .controls-modern { padding: 8px 12px; gap: 6px; }

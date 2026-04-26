@@ -70,6 +70,13 @@ function Controls({
   filteredCount,
   onMoveSelected,
   isMoving,
+  onCopySelected,
+  isCopying,
+  onExportPaths,
+  onInvertSelection,
+  onSelectAllFiltered,
+  aspectFilter,
+  onAspectFilterChange,
   autoReloadEnabled,
   onAutoReloadChange,
 }) {
@@ -206,6 +213,11 @@ function Controls({
             {searchQuery && (
               <button onClick={() => onSearchQueryChange('')} className="search-clear" title="Clear">×</button>
             )}
+            {searchQuery && filteredCount > 0 && (
+              <button onClick={onSelectAllFiltered} className="search-select-btn" title={`Select all ${filteredCount} matches`}>
+                {filteredCount}
+              </button>
+            )}
           </div>
         )}
 
@@ -223,8 +235,16 @@ function Controls({
               <span className="total">{totalCount}</span>
             </div>
             <div className="button-group mini">
-              <button onClick={onSelectAll} className="btn-modern ghost sm" disabled={loading} title="Select All">All</button>
+              <button onClick={onSelectAll} className="btn-modern ghost sm" disabled={loading} title="Select All (current page)">All</button>
               <button onClick={onDeselectAll} className="btn-modern ghost sm" disabled={loading} title="Deselect All">None</button>
+              <button onClick={onInvertSelection} className="btn-modern ghost sm" disabled={loading} title="Invert selection">Inv</button>
+              {selectedCount > 0 && !browserMode && (
+                <button onClick={onExportPaths} className="icon-btn-modern" disabled={loading} title={`Export ${selectedCount} paths to .txt`}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -233,7 +253,7 @@ function Controls({
       {/* ── Section 2: Image Actions ── */}
       {totalCount > 0 && (
         <div className="controls-section image-actions">
-          {/* Sort controls */}
+          {/* Sort & aspect filter controls */}
           <div className="button-group">
             <select
               value={sortBy}
@@ -259,6 +279,18 @@ function Controls({
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="M11 4h10"/><path d="M11 8h7"/><path d="M11 12h4"/></svg>
               )}
             </button>
+            <select
+              value={aspectFilter}
+              onChange={(e) => onAspectFilterChange(e.target.value)}
+              className="page-select-modern"
+              title="Filter by aspect ratio"
+              disabled={loading}
+            >
+              <option value="all">All ratios</option>
+              <option value="portrait">Portrait</option>
+              <option value="landscape">Landscape</option>
+              <option value="square">Square</option>
+            </select>
           </div>
 
           <div className="divider-v" />
@@ -330,6 +362,19 @@ function Controls({
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
               Keep
             </button>
+            {!browserMode && (
+              <button
+                onClick={onCopySelected}
+                className="action-btn copy"
+                disabled={loading || selectedCount === 0 || isCopying}
+                title="Copy selected to another folder"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                </svg>
+                Copy
+              </button>
+            )}
             {!browserMode && (
               <button
                 onClick={onMoveSelected}

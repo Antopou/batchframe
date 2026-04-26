@@ -24,9 +24,13 @@ try {
     onInitialFolder: (callback) => ipcRenderer.on('initial-folder', (event, p) => callback(p)),
     onFolderChange: (callback) => ipcRenderer.on('folder-change', (event, data) => callback(data)),
     removeFolderChangeListeners: () => ipcRenderer.removeAllListeners('folder-change'),
-    openPath:         (filePath) => ipcRenderer.invoke('open-path', filePath),
-    showInFolder:     (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
-    getImageMetadata: (filePath) => ipcRenderer.invoke('get-image-metadata', filePath),
+    openPath:            (filePath) => ipcRenderer.invoke('open-path', filePath),
+    showInFolder:        (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
+    getImageMetadata:    (filePath) => ipcRenderer.invoke('get-image-metadata', filePath),
+    copyImages:          (filePaths, destFolder) => ipcRenderer.invoke('copy-images', { filePaths, destFolder }),
+    onCopyProgress:      (cb) => ipcRenderer.on('copy-progress', (event, data) => cb(data)),
+    removeCopyListeners: () => ipcRenderer.removeAllListeners('copy-progress'),
+    exportPaths:         (filePaths) => ipcRenderer.invoke('export-paths', { filePaths }),
   };
 
   contextBridge.exposeInMainWorld('electronAPI', apis);

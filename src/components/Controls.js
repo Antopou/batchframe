@@ -79,6 +79,7 @@ function Controls({
   onAspectFilterChange,
   autoReloadEnabled,
   onAutoReloadChange,
+  onBulkRename,
 }) {
   const [editPath, setEditPath] = useState(folderPath || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -384,6 +385,19 @@ function Controls({
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M19 9l3 3-3 3"/><path d="M5 9l-3 3 3 3"/></svg>
                 Move
+              </button>
+            )}
+            {!browserMode && (
+              <button
+                onClick={onBulkRename}
+                className="action-btn rename"
+                disabled={loading || selectedCount === 0}
+                title="Bulk rename selected images"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                </svg>
+                Rename
               </button>
             )}
             {!browserMode && (

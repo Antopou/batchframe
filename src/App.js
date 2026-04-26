@@ -7,6 +7,7 @@ import ImagePreviewModal from './components/ImagePreviewModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import ContextMenu from './components/ContextMenu';
 import MetadataModal from './components/MetadataModal';
+import RenameModal from './components/RenameModal';
 
 const LAST_FOLDER_KEY = 'images-selector-last-folder';
 const CONFIRM_REQUIRED_KEY = 'images-selector-confirm-required';
@@ -97,6 +98,7 @@ function App() {
   // Context menu state
   const [contextMenu, setContextMenu]     = useState(null); // { x, y, image } | null
   const [metadataModal, setMetadataModal] = useState(null); // { imageName, metadata } | null
+  const [renameModal, setRenameModal]     = useState(null); // { images: [...] } | null
 
   // Copy state
   const [isCopying, setIsCopying]       = useState(false);
@@ -585,6 +587,29 @@ function App() {
     });
   }, [filteredImages]);
 
+  // ── Bulk rename ────────────────────────────────────────────────
+  const handleOpenBulkRename = useCallback(() => {
+    if (selectedImages.size === 0) return;
+    const orderedSelected = filteredImages.filter(img => selectedImages.has(img.path));
+    setRenameModal({ images: orderedSelected });
+  }, [selectedImages, filteredImages]);
+
+  const handleConfirmBulkRename = useCallback(async (prefix, startN, digits) => {
+    if (!renameModal) return;
+    const renames = renameModal.images.map((img, i) => {
+      const ext = img.name.slice(img.name.lastIndexOf('.'));
+      return { oldPath: img.path, newName: `${prefix}${String(startN + i).padStart(digits, '0')}${ext}` };
+    });
+    setRenameModal(null);
+    try {
+      await window.electronAPI.renameImages(renames);
+      setSelectedImages(new Set());
+      await loadElectronFolder(folderPath, false);
+    } catch (err) {
+      console.error('Bulk rename failed:', err);
+    }
+  }, [renameModal, folderPath, loadElectronFolder]);
+
   // ── Auto-reload toggle ─────────────────────────────────────────
   const handleAutoReloadChange = useCallback((enabled) => {
     setAutoReloadEnabled(enabled);
@@ -1020,6 +1045,7 @@ function App() {
         onAspectFilterChange={setAspectFilter}
         autoReloadEnabled={autoReloadEnabled}
         onAutoReloadChange={handleAutoReloadChange}
+        onBulkRename={handleOpenBulkRename}
       />
 
       <SubfolderBar
@@ -1087,6 +1113,14 @@ function App() {
           imageName={metadataModal.imageName}
           metadata={metadataModal.metadata}
           onClose={() => setMetadataModal(null)}
+        />
+      )}
+
+      {renameModal && (
+        <RenameModal
+          images={renameModal.images}
+          onConfirm={handleConfirmBulkRename}
+          onClose={() => setRenameModal(null)}
         />
       )}
     </div>

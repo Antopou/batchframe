@@ -1,5 +1,50 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
+function Dropdown({ value, onChange, options, disabled }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  const selected = options.find(o => o.value === value);
+
+  return (
+    <div className={`custom-dropdown${open ? ' open' : ''}${disabled ? ' disabled' : ''}`} ref={ref}>
+      <button
+        className="dropdown-trigger"
+        onClick={() => !disabled && setOpen(v => !v)}
+        type="button"
+      >
+        <span>{selected?.label ?? value}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="dropdown-panel">
+          {options.map(opt => (
+            <button
+              key={opt.value}
+              className={`dropdown-item${opt.value === value ? ' active' : ''}`}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              type="button"
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IconBtn({ active, onClick, disabled, title, children }) {
   return (
     <button
@@ -256,18 +301,17 @@ function Controls({
         <div className="controls-section image-actions">
           {/* Sort & aspect filter controls */}
           <div className="button-group">
-            <select
+            <Dropdown
               value={sortBy}
-              onChange={(e) => onSortByChange(e.target.value)}
-              className="page-select-modern"
-              title="Sort by"
+              onChange={onSortByChange}
               disabled={loading}
-            >
-              <option value="none">Unsorted</option>
-              <option value="name">Name</option>
-              <option value="date">Date</option>
-              <option value="size">Size</option>
-            </select>
+              options={[
+                { value: 'none', label: 'Unsorted' },
+                { value: 'name', label: 'Name' },
+                { value: 'date', label: 'Date' },
+                { value: 'size', label: 'Size' },
+              ]}
+            />
             <button
               className="icon-btn-modern"
               onClick={() => onSortDirChange(sortDir === 'asc' ? 'desc' : 'asc')}
@@ -280,18 +324,17 @@ function Controls({
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="M11 4h10"/><path d="M11 8h7"/><path d="M11 12h4"/></svg>
               )}
             </button>
-            <select
+            <Dropdown
               value={aspectFilter}
-              onChange={(e) => onAspectFilterChange(e.target.value)}
-              className="page-select-modern"
-              title="Filter by aspect ratio"
+              onChange={onAspectFilterChange}
               disabled={loading}
-            >
-              <option value="all">All ratios</option>
-              <option value="portrait">Portrait</option>
-              <option value="landscape">Landscape</option>
-              <option value="square">Square</option>
-            </select>
+              options={[
+                { value: 'all', label: 'All ratios' },
+                { value: 'portrait', label: 'Portrait' },
+                { value: 'landscape', label: 'Landscape' },
+                { value: 'square', label: 'Square' },
+              ]}
+            />
           </div>
 
           <div className="divider-v" />
@@ -560,14 +603,18 @@ function Controls({
           <div className="divider-v" />
 
           <div className="pagination-modern">
-            <select
+            <Dropdown
               value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="page-select-modern"
-            >
-              {[100, 200, 300, 500, 1000].map(v => <option key={v} value={v}>{v}</option>)}
-              <option value={99999}>All</option>
-            </select>
+              onChange={onPageSizeChange}
+              options={[
+                { value: 100, label: '100' },
+                { value: 200, label: '200' },
+                { value: 300, label: '300' },
+                { value: 500, label: '500' },
+                { value: 1000, label: '1000' },
+                { value: 99999, label: 'All' },
+              ]}
+            />
             <div className="nav-group">
               <button onClick={onPrevPage} disabled={loading || currentPage <= 1} className="nav-btn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>

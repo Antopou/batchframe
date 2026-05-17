@@ -643,12 +643,6 @@ function Controls({
           </div>
         </div>
       )}
-      
-      {loading && (
-        <div className="loading-indicator-modern">
-          <div className="spinner"></div>
-        </div>
-      )}
     </div>
   );
 }

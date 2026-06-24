@@ -68,7 +68,9 @@ function App() {
 
   // Spacebar scrolling state
   const [spacebarPressed, setSpacebarPressed] = useState(false);
-  const scrollIntervalRef = useRef(null);
+  const scrollIntervalRef   = useRef(null);
+  const autoScrollBottom    = useRef(false);
+  const folderPathRef       = useRef(null);
 
   // Delete operation state
   const [isDeleting, setIsDeleting] = useState(false);
@@ -106,6 +108,16 @@ function App() {
 
   // Aspect ratio filter state
   const [aspectFilter, setAspectFilter] = useState('all');
+
+  // AI scan state
+  const [aiScores, setAiScores]           = useState({});
+  const [aiThreshold, setAiThreshold]     = useState(0.70);
+  const [scanning, setScanning]           = useState(false);
+  const [scanProgress, setScanProgress]   = useState({ done: 0, total: 0 });
+  const [profilesVersion, setProfilesVersion] = useState(0);
+  const [scanningPath, setScanningPath]   = useState(null);
+  const [scanStatus, setScanStatus]       = useState('');
+  const [activeCharacter, setActiveCharacter] = useState(null);
 
   // ── Init ────────────────────────────────────────────────────────
   useEffect(() => { setBrowserMode(!window.electronAPI); }, []);
@@ -165,6 +177,10 @@ function App() {
 
     const handleChange = ({ folderPath: changedFolder, changes }) => {
       if (changedFolder !== folderPath) return;
+      const hasAdditions = changes.some(c => c.kind !== 'remove');
+      if (hasAdditions) {
+        autoScrollBottom.current = gridRef.current?.isNearBottom(300) ?? true;
+      }
       setImages((prev) => {
         let next = prev;
         const byPath = new Map(prev.map((img, i) => [img.path, i]));
@@ -200,6 +216,15 @@ function App() {
     };
   }, [autoReloadEnabled, folderPath]);
 
+  // ── Auto-scroll to newest image when folder watch adds files ────
+  useEffect(() => {
+    if (!autoScrollBottom.current) return;
+    autoScrollBottom.current = false;
+    requestAnimationFrame(() => {
+      gridRef.current?.scrollToBottom();
+    });
+  }, [images]);
+
   // ── Sort ────────────────────────────────────────────────────────
   const sortedImages = useMemo(() => {
     if (sortBy === 'none') return images;
@@ -230,6 +255,40 @@ function App() {
     }
     return result;
   }, [sortedImages, searchQuery, aspectFilter]);
+
+  const filteredImagesRef = useRef(filteredImages);
+  useEffect(() => { filteredImagesRef.current = filteredImages; }, [filteredImages]);
+
+  useEffect(() => { folderPathRef.current = folderPath; }, [folderPath]);
+
+  // ── Follow scanning position during AI scan ────────────────────
+  useEffect(() => {
+    if (!scanning || !scanningPath) return;
+    const vp = gridRef.current?.getViewport();
+    if (!vp) return;
+    const index = filteredImages.findIndex(img => img.path === scanningPath);
+    if (index < 0) return;
+
+    const gap = 10, padV = 16, padH = 40;
+    const gridW = vp.clientWidth - padH;
+    const cols  = Math.max(1, Math.floor((gridW + gap) / (previewSize + gap)));
+    const row   = Math.floor(index / cols);
+    const rowTop = padV + row * (previewSize + gap);
+    const rowBot = rowTop + previewSize;
+    const { scrollTop, clientHeight } = vp;
+
+    // Only follow if scan is within one card-height of the viewport
+    const near = rowTop <= scrollTop + clientHeight + previewSize + gap &&
+                 rowTop >= scrollTop - previewSize - gap;
+    if (!near) return;
+
+    // Instant scroll: nudge just enough to keep card visible
+    if (rowBot > scrollTop + clientHeight) {
+      vp.scrollTo({ top: rowBot - clientHeight + gap });
+    } else if (rowTop < scrollTop) {
+      vp.scrollTo({ top: Math.max(0, rowTop - padV) });
+    }
+  }, [scanningPath, scanning, filteredImages, previewSize]);
 
   useEffect(() => { setCurrentPage(1); }, [searchQuery]);
 
@@ -610,7 +669,101 @@ function App() {
     }
   }, [renameModal, folderPath, loadElectronFolder]);
 
-  // ── Auto-reload toggle ─────────────────────────────────────────
+  // ── AI character scan ──────────────────────────────────────────
+  const handleAIScan = useCallback(async (threshold, characters) => {
+    const paths = filteredImagesRef.current.map(i => i.path);
+    if (paths.length === 0 || !characters?.length) return;
+
+    setScanning(true);
+    setAiThreshold(threshold);
+    setAiScores({});
+    setSelectedImages(new Set());
+    setScanProgress({ done: 0, total: paths.length });
+
+    // Register once — covers main scan + all tail batches
+    window.electronAPI.onScanProgress((data) => {
+      if (data.type === 'status') {
+        setScanStatus(data.text);
+      } else if (data.type === 'scanning') {
+        setScanStatus('');
+        setScanningPath(data.path);
+      } else if (data.type === 'done') {
+        setScanningPath(null);
+        setScanProgress(p => ({ ...p, done: p.done + 1 }));
+        if (data.score != null) {
+          setAiScores(prev => ({ ...prev, [data.path]: { score: data.score, character: data.character } }));
+          if (data.score >= threshold) {
+            setSelectedImages(prev => { const s = new Set(prev); s.add(data.path); return s; });
+          }
+        }
+      }
+    });
+
+    try {
+      const folder      = folderPathRef.current;
+      const scannedPaths = new Set(paths);
+      await window.electronAPI.scanCharacter(paths, characters);
+
+      // Tail phase: poll filesystem every 500 ms; stop after 1 s of idle
+      let idleSince = Date.now();
+      while (folder && Date.now() - idleSince < 1000) {
+        await new Promise(r => setTimeout(r, 500));
+        const current  = await window.electronAPI.getImages(folder) || [];
+        const newPaths = current.map(i => i.path).filter(p => !scannedPaths.has(p));
+        if (newPaths.length > 0) {
+          idleSince = Date.now();
+          newPaths.forEach(p => scannedPaths.add(p));
+          setScanProgress(prev => ({ ...prev, total: prev.total + newPaths.length }));
+          setScanStatus('');
+          await window.electronAPI.scanCharacter(newPaths, characters);
+        } else {
+          setScanStatus('Watching…');
+        }
+      }
+    } catch (err) {
+      console.error('AI scan failed:', err);
+      alert(`AI scan failed: ${err.message}`);
+    } finally {
+      window.electronAPI.removeScanListeners();
+      setScanningPath(null);
+      setScanStatus('');
+      setScanning(false);
+      setScanProgress({ done: 0, total: 0 });
+    }
+  }, []);
+
+  const handleClearAiScores = useCallback(() => {
+    setAiScores({});
+  }, []);
+
+  const handleAddToRefs = useCallback(async (imagePaths) => {
+    if (!window.electronAPI?.addToRefs || !activeCharacter) return;
+    await window.electronAPI.addToRefs({ imagePaths, character: activeCharacter });
+    setProfilesVersion(v => v + 1);
+  }, [activeCharacter]);
+
+  const handleNavigateFolder = useCallback((delta) => {
+    if (!folderPath) return;
+    const sep = folderPath.includes('\\') ? '\\' : '/';
+    const lastSep = folderPath.lastIndexOf(sep);
+    const parent = folderPath.slice(0, lastSep);
+    const name   = folderPath.slice(lastSep + 1);
+    const match  = name.match(/^(.*?)(\d+)$/);
+    if (!match) return;
+    const [, prefix, numStr] = match;
+    const next = parseInt(numStr, 10) + delta;
+    if (next < 0) return;
+    const newName = prefix + String(next).padStart(numStr.length, '0');
+    loadElectronFolder(parent + sep + newName, true);
+  }, [folderPath, loadElectronFolder]);
+
+  const handleClearRefs = useCallback(async (character) => {
+    if (!window.electronAPI?.clearRefs) return;
+    await window.electronAPI.clearRefs(character);
+    setProfilesVersion(v => v + 1);
+  }, []);
+
+  // ── Auto-reload toggle ─────────────────────────────────────────────────────
   const handleAutoReloadChange = useCallback((enabled) => {
     setAutoReloadEnabled(enabled);
     localStorage.setItem('autoReloadEnabled', String(enabled));
@@ -941,6 +1094,21 @@ function App() {
         icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,
         onClick: () => navigator.clipboard.writeText(image.path),
       },
+      {
+        label: (() => {
+          const charSuffix = activeCharacter ? ` → ${activeCharacter}` : ' (set character first)';
+          return isSelected && selectedImages.size > 1
+            ? `Use ${selectedImages.size} as reference${charSuffix}`
+            : `Use as reference${charSuffix}`;
+        })(),
+        icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>,
+        disabled: !activeCharacter,
+        onClick: () => handleAddToRefs(
+          isSelected && selectedImages.size > 1
+            ? [...selectedImages]
+            : [image.path]
+        ),
+      },
       { separator: true },
       {
         label: isSelected ? 'Deselect' : 'Select',
@@ -1046,6 +1214,17 @@ function App() {
         autoReloadEnabled={autoReloadEnabled}
         onAutoReloadChange={handleAutoReloadChange}
         onBulkRename={handleOpenBulkRename}
+        onNavigateFolder={handleNavigateFolder}
+        aiScores={aiScores}
+        scanning={scanning}
+        scanProgress={scanProgress}
+        scanStatus={scanStatus}
+        onAIScan={handleAIScan}
+        onClearAiScores={handleClearAiScores}
+        profilesVersion={profilesVersion}
+        onClearRefs={handleClearRefs}
+        activeCharacter={activeCharacter}
+        onSetActiveCharacter={setActiveCharacter}
       />
 
       <SubfolderBar
@@ -1074,6 +1253,9 @@ function App() {
         orderedSelection={orderedSelection}
         orderSelectMode={orderSelectMode}
         onContextMenu={handleContextMenu}
+        aiScores={aiScores}
+        aiThreshold={aiThreshold}
+        scanningPath={scanningPath}
       />
 
       {previewImage && (

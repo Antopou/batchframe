@@ -23,6 +23,9 @@ const ImageGrid = forwardRef(function ImageGrid({
   orderedSelection,
   orderSelectMode,
   onContextMenu,
+  aiScores,
+  aiThreshold,
+  scanningPath,
 }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
@@ -35,6 +38,14 @@ const ImageGrid = forwardRef(function ImageGrid({
   useImperativeHandle(ref, () => ({
     scrollToTop() {
       if (viewportRef.current) viewportRef.current.scrollTop = 0;
+    },
+    scrollToBottom() {
+      if (viewportRef.current) viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+    },
+    isNearBottom(threshold = 300) {
+      if (!viewportRef.current) return true;
+      const vp = viewportRef.current;
+      return vp.scrollHeight - vp.scrollTop - vp.clientHeight < threshold;
     },
     getViewport() {
       return viewportRef.current;
@@ -122,8 +133,12 @@ const ImageGrid = forwardRef(function ImageGrid({
       orderNumber={orderMap.get(image.path) ?? null}
       orderSelectMode={orderSelectMode}
       onContextMenu={onContextMenu}
+      aiScore={aiScores?.[image.path]?.score}
+      aiCharacter={aiScores?.[image.path]?.character}
+      aiHit={aiScores && aiThreshold != null && (aiScores[image.path]?.score ?? -1) >= aiThreshold}
+      isScanning={image.path === scanningPath}
     />
-  )), [images, selectedImages, lockedImages, anchorIndex, handleCardClick, onToggleLock, dragSelectEnabled, handleCardMouseDown, handleCardMouseEnter, onPreview, previewSize, imageFitMode, orderMap, orderSelectMode, onContextMenu]);
+  )), [images, selectedImages, lockedImages, anchorIndex, handleCardClick, onToggleLock, dragSelectEnabled, handleCardMouseDown, handleCardMouseEnter, onPreview, previewSize, imageFitMode, orderMap, orderSelectMode, onContextMenu, aiScores, aiThreshold, scanningPath]);
 
   if (loading) {
     return (

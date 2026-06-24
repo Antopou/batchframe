@@ -31,6 +31,15 @@ try {
     onCopyProgress:      (cb) => ipcRenderer.on('copy-progress', (event, data) => cb(data)),
     removeCopyListeners: () => ipcRenderer.removeAllListeners('copy-progress'),
     exportPaths:         (filePaths) => ipcRenderer.invoke('export-paths', { filePaths }),
+    pathExists:            (p) => ipcRenderer.invoke('path-exists', p),
+    getCharacterProfiles:  () => ipcRenderer.invoke('get-character-profiles'),
+    createCharacter:       (character) => ipcRenderer.invoke('create-character', character),
+    openRefsFolder:        (character) => ipcRenderer.invoke('open-refs-folder', character),
+    addToRefs:             ({ imagePaths, character }) => ipcRenderer.invoke('add-to-refs', { imagePaths, character }),
+    clearRefs:             (character) => ipcRenderer.invoke('clear-refs', character),
+    scanCharacter:         (imagePaths, characters) => ipcRenderer.invoke('scan-character', { imagePaths, characters }),
+    onScanProgress:        (cb) => ipcRenderer.on('scan-progress', (_, p) => cb(p)),
+    removeScanListeners:   () => ipcRenderer.removeAllListeners('scan-progress'),
   };
 
   contextBridge.exposeInMainWorld('electronAPI', apis);

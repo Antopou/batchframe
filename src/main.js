@@ -7,6 +7,7 @@ const shell = electron.shell;
 const fs = require('fs').promises;
 const path = require('path');
 const isDev = require('electron-is-dev');
+const { spawn } = require('child_process');
 
 // Disable GPU acceleration to fix GPU process errors
 app.disableHardwareAcceleration();
@@ -386,6 +387,95 @@ ipcMain.handle('open-path', async (event, filePath) => {
 ipcMain.handle('show-in-folder', (event, filePath) => {
   shell.showItemInFolder(filePath);
   return { success: true };
+});
+
+const REFS_BASE  = path.join(__dirname, '..', 'references');
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+
+ipcMain.handle('path-exists', async (_, p) => {
+  try { await fs.access(p); return true; } catch { return false; }
+});
+
+ipcMain.handle('get-character-profiles', async () => {
+  await fs.mkdir(REFS_BASE, { recursive: true });
+  try {
+    const entries  = await fs.readdir(REFS_BASE, { withFileTypes: true });
+    const profiles = [];
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const charPath = path.join(REFS_BASE, e.name);
+      const files    = await fs.readdir(charPath);
+      const count    = files.filter(f => IMAGE_EXTS.has(path.extname(f).toLowerCase())).length;
+      profiles.push({ name: e.name, count, folder: charPath });
+    }
+    return profiles;
+  } catch { return []; }
+});
+
+ipcMain.handle('create-character', async (_, character) => {
+  await fs.mkdir(path.join(REFS_BASE, character), { recursive: true });
+  return { success: true };
+});
+
+ipcMain.handle('open-refs-folder', async (_, character) => {
+  const target = character ? path.join(REFS_BASE, character) : REFS_BASE;
+  await fs.mkdir(target, { recursive: true });
+  shell.openPath(target);
+  return { success: true };
+});
+
+ipcMain.handle('add-to-refs', async (_, { imagePaths, character }) => {
+  const charFolder = path.join(REFS_BASE, character);
+  await fs.mkdir(charFolder, { recursive: true });
+  const paths = Array.isArray(imagePaths) ? imagePaths : [imagePaths];
+  await Promise.all(paths.map(p => fs.copyFile(p, path.join(charFolder, path.basename(p)))));
+  const files = await fs.readdir(charFolder);
+  const count = files.filter(f => IMAGE_EXTS.has(path.extname(f).toLowerCase())).length;
+  return { success: true, count };
+});
+
+ipcMain.handle('clear-refs', async (_, character) => {
+  const charFolder = path.join(REFS_BASE, character);
+  try {
+    const files = await fs.readdir(charFolder);
+    await Promise.all(
+      files
+        .filter(f => IMAGE_EXTS.has(path.extname(f).toLowerCase()))
+        .map(f => fs.unlink(path.join(charFolder, f)))
+    );
+  } catch {}
+  return { success: true };
+});
+
+ipcMain.handle('scan-character', async (event, { imagePaths, characters }) => {
+  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, '..', 'ai_scan.py');
+
+  return new Promise((resolve, reject) => {
+    const py = spawn(pyCmd, [scriptPath]);
+    py.stdin.write(JSON.stringify({ imagePaths, characters }));
+    py.stdin.end();
+
+    let buf = '';
+    py.stdout.on('data', (data) => {
+      const lines = (buf + data.toString()).split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (msg.status   !== undefined) mainWindow?.webContents.send('scan-progress', { type: 'status',   text: msg.status });
+          if (msg.scanning !== undefined) mainWindow?.webContents.send('scan-progress', { type: 'scanning', path: msg.scanning });
+          if (msg.done     !== undefined) mainWindow?.webContents.send('scan-progress', { type: 'done',     path: msg.done, score: msg.score, character: msg.character });
+          if (msg.scores) resolve(msg.scores);
+          if (msg.error)  reject(new Error(msg.error));
+        } catch {}
+      }
+    });
+
+    py.stderr.on('data', d => console.error('[ai_scan]', d.toString()));
+    py.on('close', code => { if (code !== 0) reject(new Error(`ai_scan.py exited with code ${code}`)); });
+  });
 });
 
 ipcMain.handle('get-image-metadata', async (event, filePath) => {

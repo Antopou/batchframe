@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import AIScanPanel from './AIScanPanel';
 
 function Dropdown({ value, onChange, options, disabled }) {
   const [open, setOpen] = useState(false);
@@ -125,11 +126,23 @@ function Controls({
   autoReloadEnabled,
   onAutoReloadChange,
   onBulkRename,
+  onNavigateFolder,
+  aiScores,
+  scanning,
+  scanProgress,
+  scanStatus,
+  onAIScan,
+  onClearAiScores,
+  profilesVersion,
+  onClearRefs,
+  activeCharacter,
+  onSetActiveCharacter,
 }) {
   const [editPath, setEditPath] = useState(folderPath || '');
   const [isEditing, setIsEditing] = useState(false);
   const [renamePrefix, setRenamePrefix] = useState('img_');
   const [renameDigits, setRenameDigits] = useState(3);
+  const [showAIScan, setShowAIScan] = useState(false);
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
 
@@ -182,6 +195,9 @@ function Controls({
     };
   }, [isEditing]);
 
+  const folderName = folderPath ? folderPath.replace(/\\/g, '/').split('/').pop() : '';
+  const hasNumericSuffix = /\d+$/.test(folderName);
+
   return (
     <div className="controls-modern">
       {/* ── Section 1: Folder & Selection ── */}
@@ -195,6 +211,26 @@ function Controls({
             <button onClick={onOpenLastFolder} className="btn-modern secondary icon-only" disabled={loading} title={lastFolderPath}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             </button>
+          )}
+          {!browserMode && hasNumericSuffix && (
+            <>
+              <button
+                onClick={() => onNavigateFolder(-1)}
+                className="btn-modern secondary icon-only"
+                disabled={loading}
+                title="Previous folder (−1)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <button
+                onClick={() => onNavigateFolder(1)}
+                className="btn-modern secondary icon-only"
+                disabled={loading}
+                title="Next folder (+1)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </>
           )}
         </div>
 
@@ -444,6 +480,17 @@ function Controls({
               </button>
             )}
             {!browserMode && (
+              <button
+                className={`action-btn${showAIScan ? ' active' : ''}`}
+                onClick={() => setShowAIScan(v => !v)}
+                title="AI character scan"
+                disabled={loading}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+                AI
+              </button>
+            )}
+            {!browserMode && (
               photoshopPath ? (
                 <button
                   onClick={onOpenInPhotoshop}
@@ -517,6 +564,25 @@ function Controls({
               Clear
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── AI Scan Panel ── */}
+      {totalCount > 0 && !browserMode && showAIScan && (
+        <div className="controls-section">
+          <AIScanPanel
+            totalCount={totalCount}
+            aiScores={aiScores || {}}
+            scanning={scanning}
+            scanProgress={scanProgress}
+            scanStatus={scanStatus}
+            onScan={onAIScan}
+            onClearScores={onClearAiScores}
+            profilesVersion={profilesVersion}
+            onClearRefs={onClearRefs}
+            activeCharacter={activeCharacter}
+            onSetActiveCharacter={onSetActiveCharacter}
+          />
         </div>
       )}
 

@@ -26,7 +26,7 @@
   "devDependencies": {
     "concurrently": "^8.2.0",
     "cross-env": "^7.0.3",
-    "electron": "^27.0.0",
+    "electron": "^27.3.11",
     "electron-builder": "^24.4.0",
     "wait-on": "^7.0.1"
   },
@@ -57,5 +57,8 @@
     "directories": {
       "output": "dist"
     }
+  },
+  "allowScripts": {
+    "electron@27.3.11": true
   }
 }

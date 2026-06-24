@@ -3,7 +3,7 @@ import './ImageCard.css';
 
 const imageCache = new Map();
 
-function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardClick, onToggleLock, onDragMouseDown, onDragMouseEnter, onPreview, size, imageFitMode, orderNumber, orderSelectMode, onContextMenu }) {
+function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardClick, onToggleLock, onDragMouseDown, onDragMouseEnter, onPreview, size, imageFitMode, orderNumber, orderSelectMode, onContextMenu, aiScore, aiCharacter, aiHit, isScanning }) {
   const [src, setSrc] = useState(image.previewSrc || '');
   const [imageError, setImageError] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -111,7 +111,8 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
 
   return (
     <div
-      className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'} ${isUpdating ? 'updating' : ''}`}
+      data-path={image.path}
+      className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'} ${isUpdating ? 'updating' : ''} ${isScanning ? 'scanning' : ''}`}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onMouseEnter={handleMouseEnter}
@@ -161,6 +162,12 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
           </div>
         )}
       </div>
+      {aiScore != null && (
+        <div className={`ai-score-badge${aiHit ? ' ai-hit' : ''}`} title={`AI similarity: ${(aiScore * 100).toFixed(1)}%${aiCharacter ? ` (${aiCharacter})` : ''}`}>
+          {aiCharacter && <span className="ai-badge-char">{aiCharacter}</span>}
+          {Math.round(aiScore * 100)}%
+        </div>
+      )}
       {image.width && image.height && (
         <div className="dimension-badge">{image.width}×{image.height}</div>
       )}

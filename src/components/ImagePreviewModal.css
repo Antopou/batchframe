@@ -10,7 +10,6 @@
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  backdrop-filter: blur(4px);
 }
 
 .preview-modal-content {
@@ -91,10 +90,123 @@
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
-  will-change: transform;
   transform-origin: center;
-  backface-visibility: hidden;
-  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Crop tool ──────────────────────────────────── */
+.preview-image-container.cropping {
+  cursor: default;
+}
+
+.crop-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.crop-box {
+  position: absolute;
+  pointer-events: auto;
+  cursor: move;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  box-sizing: border-box;
+}
+
+.crop-third {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+.crop-third-v1 { top: 0; bottom: 0; left: 33.33%; width: 1px; }
+.crop-third-v2 { top: 0; bottom: 0; left: 66.66%; width: 1px; }
+.crop-third-h1 { left: 0; right: 0; top: 33.33%; height: 1px; }
+.crop-third-h2 { left: 0; right: 0; top: 66.66%; height: 1px; }
+
+.crop-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--accent, #4f8cff);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  pointer-events: auto;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.crop-handle-nw { top: -7px; left: -7px; cursor: nwse-resize; }
+.crop-handle-ne { top: -7px; right: -7px; cursor: nesw-resize; }
+.crop-handle-sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+.crop-handle-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+
+.crop-controls {
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.crop-aspects {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.crop-aspect-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.crop-aspect-btn:hover { background: var(--bg-highlight); color: var(--text-primary); }
+.crop-aspect-btn.active {
+  background: var(--accent, #4f8cff);
+  border-color: var(--accent, #4f8cff);
+  color: #fff;
+}
+
+.crop-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.crop-cancel-btn,
+.crop-apply-btn {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition);
+  border: 1px solid var(--border);
+}
+.crop-cancel-btn {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+.crop-cancel-btn:hover:not(:disabled) { background: var(--bg-highlight); color: var(--text-primary); }
+.crop-apply-btn {
+  background: var(--accent, #4f8cff);
+  border-color: var(--accent, #4f8cff);
+  color: #fff;
+}
+.crop-apply-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.crop-cancel-btn:disabled,
+.crop-apply-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.preview-crop-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px !important;
+  font-weight: 600;
+  padding: 6px 10px !important;
+  min-width: auto !important;
 }
 
 .preview-loading {

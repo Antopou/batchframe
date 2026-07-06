@@ -29,7 +29,7 @@ function App() {
   const [previewSize, setPreviewSize] = useState(150);
   const [imageFitMode, setImageFitMode] = useState('contain');
   const [dragSelectEnabled, setDragSelectEnabled] = useState(true);
-  const [pageSize, setPageSize] = useState(300);
+  const [pageSize, setPageSize] = useState(99999); // default to "All"
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [browserMode, setBrowserMode] = useState(false);
@@ -50,6 +50,10 @@ function App() {
   const [subfolders, setSubfolders] = useState([]);
   const [parentFolderPath, setParentFolderPath] = useState(null);
 
+  // Folder management state (context menu + inline rename)
+  const [folderMenu, setFolderMenu] = useState(null);
+  const [editingFolderPath, setEditingFolderPath] = useState(null);
+
   // Subfolder bar visibility state
   const [subfolderBarVisible, setSubfolderBarVisible] = useState(true);
   const [subfolderBarPinned, setSubfolderBarPinned] = useState(true);
@@ -66,11 +70,11 @@ function App() {
   // Help state
   const [showShortcuts, setShowShortcuts] = useState(false);
 
-  // Spacebar scrolling state
-  const [spacebarPressed, setSpacebarPressed] = useState(false);
-  const scrollIntervalRef   = useRef(null);
   const autoScrollBottom    = useRef(false);
   const folderPathRef       = useRef(null);
+
+  // Smooth spacebar page-scroll animation state
+  const scrollAnim = useRef({ target: 0, raf: null, minStep: 0 });
 
   // Delete operation state
   const [isDeleting, setIsDeleting] = useState(false);
@@ -332,7 +336,8 @@ function App() {
         window.electronAPI.getImages(pathToLoad),
         window.electronAPI.getSubfolders(pathToLoad),
       ]);
-      setImages(list.map((img) => ({ ...img, previewSrc: '', source: 'electron' })));
+      const mapped = list.map((img) => ({ ...img, previewSrc: '', source: 'electron' }));
+      setImages(mapped);
       setSubfolders(folderInfo.subfolders);
       setParentFolderPath(folderInfo.parentPath);
       setSubfolderBarVisible(true);
@@ -342,7 +347,7 @@ function App() {
       if (persist) {
         localStorage.setItem(LAST_FOLDER_KEY, pathToLoad);
         setLastFolderPath(pathToLoad);
-        
+
         // Update recent folders
         setRecentFolders((prev) => {
           const updated = [pathToLoad, ...prev.filter((f) => f !== pathToLoad)].slice(0, 10);
@@ -350,10 +355,82 @@ function App() {
           return updated;
         });
       }
+      return mapped;
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // Navigate to a folder from the subfolder bar and reset the grid scroll to top
+  const handleNavigateToFolder = useCallback(async (pathToLoad) => {
+    await loadElectronFolder(pathToLoad, true);
+    setTimeout(() => gridRef.current?.scrollToTop(), 0);
+  }, [loadElectronFolder]);
+
+  // ── Folder management ─────────────────────────────────────────────
+  const computeNextFolderName = useCallback(() => {
+    const numeric = subfolders
+      .map((f) => f.name)
+      .filter((n) => /^\d+$/.test(n));
+    if (numeric.length === 0) return '01';
+    const max = Math.max(...numeric.map((n) => parseInt(n, 10)));
+    const width = Math.max(2, ...numeric.map((n) => n.length));
+    const existing = new Set(subfolders.map((f) => f.name));
+    let next = max + 1;
+    let name = String(next).padStart(width, '0');
+    while (existing.has(name)) {
+      next += 1;
+      name = String(next).padStart(width, '0');
+    }
+    return name;
+  }, [subfolders]);
+
+  const handleCreateFolder = useCallback(async () => {
+    if (!window.electronAPI || !folderPath) return;
+    const name = computeNextFolderName();
+    const result = await window.electronAPI.createFolder(folderPath, name);
+    if (result?.success) {
+      await loadElectronFolder(folderPath, false);
+    }
+  }, [folderPath, computeNextFolderName, loadElectronFolder]);
+
+  const handleFolderContextMenu = useCallback((e, folder) => {
+    e.preventDefault();
+    setFolderMenu({ x: e.clientX, y: e.clientY, folder });
+  }, []);
+
+  const handleCloseFolderMenu = useCallback(() => setFolderMenu(null), []);
+
+  const handleRenameFolderCommit = useCallback(async (folder, newName) => {
+    setEditingFolderPath(null);
+    if (!window.electronAPI || !newName || newName === folder.name) return;
+    const result = await window.electronAPI.renameFolder(folder.path, newName);
+    if (result?.success) {
+      await loadElectronFolder(folderPath, false);
+    }
+  }, [folderPath, loadElectronFolder]);
+
+  const handleDeleteFolder = useCallback(async (folder) => {
+    if (!window.electronAPI) return;
+    const ok = await showConfirm(
+      'Delete folder',
+      `Move '${folder.name}' to the Recycle Bin? Everything inside it will be moved too.`,
+      'Delete'
+    );
+    if (!ok) return;
+    const result = await window.electronAPI.deleteFolder(folder.path);
+    if (result?.success) {
+      await loadElectronFolder(folderPath, false);
+    }
+  }, [folderPath, loadElectronFolder, showConfirm]);
+
+  const buildFolderMenuItems = useCallback((folder) => [
+    { label: 'Rename', icon: '✏️', onClick: () => setEditingFolderPath(folder.path) },
+    { label: 'Delete', icon: '🗑️', onClick: () => handleDeleteFolder(folder) },
+    { separator: true },
+    { label: 'Show in Explorer', icon: '📂', onClick: () => window.electronAPI?.showInFolder(folder.path) },
+    { label: 'New folder', icon: '➕', onClick: () => handleCreateFolder() },
+  ], [handleDeleteFolder, handleCreateFolder]);
 
   // Initial folder from CLI arg (e.g. `app.exe C:\images\foo`)
   useEffect(() => {
@@ -444,6 +521,29 @@ function App() {
       setPreviewImage(pagedImages[prevIndex]);
     }
   }, [previewIndex, pagedImages]);
+
+  // Save a cropped image as a new file next to the original, refresh the grid,
+  // and open the freshly-cropped image in the preview so the result is visible.
+  const handleSaveCrop = useCallback(async (originalPath, dataUrl) => {
+    if (!window.electronAPI?.saveCroppedImage) {
+      return { success: false, error: 'Crop saving is unavailable — fully restart the app (quit and re-launch) so the updated Electron backend loads.' };
+    }
+    const result = await window.electronAPI.saveCroppedImage({ originalPath, dataUrl });
+    if (result?.success) {
+      // Show the crop instantly from the in-memory data URL — no disk re-read,
+      // no waiting on a full folder rescan.
+      const name = result.path.split(/[\\/]/).pop();
+      setPreviewImage({ name, path: result.path, previewSrc: dataUrl, source: 'electron' });
+      // Refresh the grid in the background so the new file appears there too.
+      if (folderPath) {
+        loadElectronFolder(folderPath, false).then((mapped) => {
+          const idx = mapped ? mapped.findIndex((img) => img.path === result.path) : -1;
+          if (idx >= 0) setPreviewIndex(idx);
+        });
+      }
+    }
+    return result;
+  }, [folderPath, loadElectronFolder]);
 
   const handleToggleShortcuts = useCallback(() => {
     setShowShortcuts(prev => !prev);
@@ -742,6 +842,12 @@ function App() {
     setProfilesVersion(v => v + 1);
   }, [activeCharacter]);
 
+  // Toolbar shortcut: add the current selection as references in one click
+  const handleUseSelectedAsRefs = useCallback(() => {
+    if (selectedImages.size === 0) return;
+    handleAddToRefs([...selectedImages]);
+  }, [selectedImages, handleAddToRefs]);
+
   const handleNavigateFolder = useCallback((delta) => {
     if (!folderPath) return;
     const sep = folderPath.includes('\\') ? '\\' : '/';
@@ -754,8 +860,8 @@ function App() {
     const next = parseInt(numStr, 10) + delta;
     if (next < 0) return;
     const newName = prefix + String(next).padStart(numStr.length, '0');
-    loadElectronFolder(parent + sep + newName, true);
-  }, [folderPath, loadElectronFolder]);
+    handleNavigateToFolder(parent + sep + newName);
+  }, [folderPath, handleNavigateToFolder]);
 
   const handleClearRefs = useCallback(async (character) => {
     if (!window.electronAPI?.clearRefs) return;
@@ -964,47 +1070,61 @@ function App() {
         handleSelectAll();
       } else if (e.key === ' ') {
         e.preventDefault();
-        
-        // Smooth, controllable scrolling
-        const scrollStep = () => {
-          const grid = gridRef.current;
-          if (grid) {
-            const viewport = grid.getViewport();
-            if (viewport) {
-              // Moderate scroll amount for control
-              viewport.scrollTop += e.shiftKey ? -80 : 80;
-            }
+
+        // Browser-like page scroll: one viewport jump per press (Shift = up).
+        // Custom rAF tween: starts immediately (no native smooth-scroll lag) and
+        // when the key is held, each repeat just extends the target so the motion
+        // stays continuous instead of stuttering.
+        const viewport = gridRef.current?.getViewport();
+        if (viewport) {
+          const anim = scrollAnim.current;
+          const max = viewport.scrollHeight - viewport.clientHeight;
+          const page = Math.max(80, viewport.clientHeight - 80);
+          // If no tween is running, start from the real position (handles user's
+          // own scrolling between presses); otherwise stack onto the live target.
+          const base = anim.raf != null ? anim.target : viewport.scrollTop;
+          anim.target = Math.min(max, Math.max(0, base + (e.shiftKey ? -page : page)));
+          // Steady floor speed so a single press has no slow tail (~one page in
+          // ~0.14s). Catch-up below scales above this when presses stack up.
+          anim.minStep = page / 8;
+
+          if (anim.raf == null) {
+            const tick = () => {
+              const dist = anim.target - viewport.scrollTop;
+              // Speed grows with the backlog so rapid/held presses stay instant,
+              // but never drops below the floor — no decelerating tail.
+              const speed = Math.max(anim.minStep, Math.abs(dist) * 0.3);
+              viewport.scrollTop += Math.sign(dist) * Math.min(Math.abs(dist), speed);
+              if (Math.abs(anim.target - viewport.scrollTop) < 1) {
+                viewport.scrollTop = anim.target;
+                anim.raf = null;
+                return;
+              }
+              anim.raf = requestAnimationFrame(tick);
+            };
+            anim.raf = requestAnimationFrame(tick);
           }
-        };
-        
-        scrollStep(); // Scroll immediately
-        // Continue scrolling while key is held - smooth and controllable
-        if (!spacebarPressed) {
-          setSpacebarPressed(true);
-          const interval = setInterval(scrollStep, 60); // ~16 FPS for smooth control
-          scrollIntervalRef.current = interval;
         }
       }
     };
     window.addEventListener('keydown', handler);
-    
-    const keyupHandler = (e) => {
-      if (e.key === ' ') {
-        e.preventDefault();
-        setSpacebarPressed(false);
-        if (scrollIntervalRef.current) {
-          clearInterval(scrollIntervalRef.current);
-          scrollIntervalRef.current = null;
-        }
+
+    // If the user scrolls manually (wheel/trackpad), stop the tween so it
+    // doesn't fight them and pull the view back to its target.
+    const cancelAnim = () => {
+      if (scrollAnim.current.raf != null) {
+        cancelAnimationFrame(scrollAnim.current.raf);
+        scrollAnim.current.raf = null;
       }
     };
-    window.addEventListener('keyup', keyupHandler);
-    
+    window.addEventListener('wheel', cancelAnim, { passive: true });
+
     return () => {
       window.removeEventListener('keydown', handler);
-      window.removeEventListener('keyup', keyupHandler);
+      window.removeEventListener('wheel', cancelAnim);
+      cancelAnim();
     };
-  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, spacebarPressed, previewImage]);
+  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, previewImage]);
 
   // ── Ctrl+Wheel zoom ─────────────────────────────────────────────
   useEffect(() => {
@@ -1127,7 +1247,11 @@ function App() {
   return (
     <div className="App">
       <header className={`App-header ${headerVisible ? 'header-visible' : 'header-hidden'}`}>
-        <img src="/app_icon.png" alt="App Icon" className="header-icon" />
+        <svg className="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="App Icon">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+          <circle cx="9" cy="9" r="2" />
+          <path d="m21 15-3.5-3.5a2 2 0 0 0-2.8 0L4 21" />
+        </svg>
         <h1>Image Dataset Selector</h1>
         <div className="header-divider" />
         <p>Select images for your training dataset</p>
@@ -1223,6 +1347,7 @@ function App() {
         onClearAiScores={handleClearAiScores}
         profilesVersion={profilesVersion}
         onClearRefs={handleClearRefs}
+        onUseSelectedAsRefs={handleUseSelectedAsRefs}
         activeCharacter={activeCharacter}
         onSetActiveCharacter={setActiveCharacter}
       />
@@ -1230,8 +1355,13 @@ function App() {
       <SubfolderBar
         subfolders={subfolders}
         parentFolderPath={parentFolderPath}
-        onNavigate={loadElectronFolder}
+        onNavigate={handleNavigateToFolder}
         visible={subfolderBarVisible}
+        onContextMenu={handleFolderContextMenu}
+        onCreateFolder={!browserMode ? handleCreateFolder : undefined}
+        editingFolderPath={editingFolderPath}
+        onRenameCommit={handleRenameFolderCommit}
+        onRenameCancel={() => setEditingFolderPath(null)}
       />
 
       <ImageGrid
@@ -1268,6 +1398,8 @@ function App() {
           onPrev={handlePrevPreview}
           onLock={handleToggleLock}
           onDelete={handleDeleteSelected}
+          onSaveCrop={handleSaveCrop}
+          canCrop={!browserMode}
         />
       )}
 
@@ -1287,6 +1419,14 @@ function App() {
           items={buildContextItems(contextMenu.image)}
           position={{ x: contextMenu.x, y: contextMenu.y }}
           onClose={handleCloseContextMenu}
+        />
+      )}
+
+      {folderMenu && !browserMode && (
+        <ContextMenu
+          items={buildFolderMenuItems(folderMenu.folder)}
+          position={{ x: folderMenu.x, y: folderMenu.y }}
+          onClose={handleCloseFolderMenu}
         />
       )}
 

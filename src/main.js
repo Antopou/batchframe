@@ -159,6 +159,39 @@ ipcMain.handle('get-subfolders', async (event, folderPath) => {
   }
 });
 
+ipcMain.handle('create-folder', async (event, { parentPath, name }) => {
+  try {
+    const newPath = path.join(parentPath, name);
+    await fs.mkdir(newPath);
+    return { success: true, path: newPath };
+  } catch (error) {
+    console.error('Create folder error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('rename-folder', async (event, { oldPath, newName }) => {
+  try {
+    const newPath = path.join(path.dirname(oldPath), newName);
+    await fs.rename(oldPath, newPath);
+    return { success: true, path: newPath };
+  } catch (error) {
+    console.error('Rename folder error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-folder', async (event, folderPath) => {
+  try {
+    const { default: trash } = await import('trash');
+    await trash(folderPath);
+    return { success: true };
+  } catch (error) {
+    console.error('Delete folder error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('delete-images', async (event, filePaths) => {
   const total = filePaths.length;
   const chunkSize = 20; // Smaller chunks for more frequent progress updates
@@ -206,6 +239,34 @@ ipcMain.handle('get-image-data', async (event, imagePath) => {
   } catch (error) {
     console.error(error);
     return null;
+  }
+});
+
+ipcMain.handle('save-cropped-image', async (event, { originalPath, dataUrl }) => {
+  try {
+    const existsSync = require('fs').existsSync;
+    const match = /^data:image\/(\w+);base64,(.+)$/s.exec(dataUrl || '');
+    if (!match) return { success: false, error: 'Invalid image data' };
+    const buffer = Buffer.from(match[2], 'base64');
+
+    const dir = path.dirname(originalPath);
+    const origExt = path.extname(originalPath);
+    // PNG for lossless crops; keep jpg for jpg sources to match dataset format
+    const ext = /^\.jpe?g$/i.test(origExt) ? origExt : '.png';
+    const base = path.basename(originalPath, origExt);
+
+    let outPath = path.join(dir, `${base}_crop${ext}`);
+    let n = 1;
+    while (existsSync(outPath)) {
+      n += 1;
+      outPath = path.join(dir, `${base}_crop${n}${ext}`);
+    }
+
+    await fs.writeFile(outPath, buffer);
+    return { success: true, path: outPath };
+  } catch (error) {
+    console.error('Save cropped image error:', error);
+    return { success: false, error: error.message };
   }
 });
 

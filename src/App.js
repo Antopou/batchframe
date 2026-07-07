@@ -115,7 +115,7 @@ function App() {
 
   // AI scan state
   const [aiScores, setAiScores]           = useState({});
-  const [aiThreshold, setAiThreshold]     = useState(0.70);
+  const [aiThreshold, setAiThreshold]     = useState(0.80);
   const [scanning, setScanning]           = useState(false);
   const [scanProgress, setScanProgress]   = useState({ done: 0, total: 0 });
   const [profilesVersion, setProfilesVersion] = useState(0);
@@ -770,7 +770,7 @@ function App() {
   }, [renameModal, folderPath, loadElectronFolder]);
 
   // ── AI character scan ──────────────────────────────────────────
-  const handleAIScan = useCallback(async (threshold, characters) => {
+  const handleAIScan = useCallback(async (threshold, characters, gate) => {
     const paths = filteredImagesRef.current.map(i => i.path);
     if (paths.length === 0 || !characters?.length) return;
 
@@ -802,7 +802,7 @@ function App() {
     try {
       const folder      = folderPathRef.current;
       const scannedPaths = new Set(paths);
-      await window.electronAPI.scanCharacter(paths, characters);
+      await window.electronAPI.scanCharacter(paths, characters, gate);
 
       // Tail phase: poll filesystem every 500 ms; stop after 1 s of idle
       let idleSince = Date.now();
@@ -815,7 +815,7 @@ function App() {
           newPaths.forEach(p => scannedPaths.add(p));
           setScanProgress(prev => ({ ...prev, total: prev.total + newPaths.length }));
           setScanStatus('');
-          await window.electronAPI.scanCharacter(newPaths, characters);
+          await window.electronAPI.scanCharacter(newPaths, characters, gate);
         } else {
           setScanStatus('Watching…');
         }

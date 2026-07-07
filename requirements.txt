@@ -1,0 +1,11 @@
+# AI character scan (ai_scan.py) — Python dependencies.
+# Install with:  python3 -m pip install --user -r requirements.txt
+
+# Primary engine: anime character-identity matching (CCIP) + anime face/head
+# detection. ONNX-based; models auto-download from HuggingFace on first run.
+dghs-imgutils
+
+# Offline fallback engine: whole-image CLIP embedding. Used only if imgutils /
+# its models are unavailable (e.g. no network on first run).
+torch
+open_clip_torch

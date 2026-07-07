@@ -508,13 +508,13 @@ ipcMain.handle('clear-refs', async (_, character) => {
   return { success: true };
 });
 
-ipcMain.handle('scan-character', async (event, { imagePaths, characters }) => {
+ipcMain.handle('scan-character', async (event, { imagePaths, characters, clipGate }) => {
   const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
   const scriptPath = path.join(__dirname, '..', 'ai_scan.py');
 
   return new Promise((resolve, reject) => {
     const py = spawn(pyCmd, [scriptPath]);
-    py.stdin.write(JSON.stringify({ imagePaths, characters }));
+    py.stdin.write(JSON.stringify({ imagePaths, characters, clipGate }));
     py.stdin.end();
 
     let buf = '';

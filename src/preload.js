@@ -41,7 +41,7 @@ try {
     openRefsFolder:        (character) => ipcRenderer.invoke('open-refs-folder', character),
     addToRefs:             ({ imagePaths, character }) => ipcRenderer.invoke('add-to-refs', { imagePaths, character }),
     clearRefs:             (character) => ipcRenderer.invoke('clear-refs', character),
-    scanCharacter:         (imagePaths, characters) => ipcRenderer.invoke('scan-character', { imagePaths, characters }),
+    scanCharacter:         (imagePaths, characters, clipGate) => ipcRenderer.invoke('scan-character', { imagePaths, characters, clipGate }),
     onScanProgress:        (cb) => ipcRenderer.on('scan-progress', (_, p) => cb(p)),
     removeScanListeners:   () => ipcRenderer.removeAllListeners('scan-progress'),
   };

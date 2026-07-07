@@ -116,3 +116,7 @@ datasets/
 images/
 raw_images/
 scene_images/
+
+# Archives and reference dumps (keep large binaries out of git)
+*.zip
+references/

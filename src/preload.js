@@ -5,6 +5,7 @@ try {
   console.log('[Preload] Starting preload script...');
 
   const apis = {
+    platform: process.platform,
     selectFolder: () => ipcRenderer.invoke('select-folder'),
     selectFile: (options) => ipcRenderer.invoke('select-file', options),
     getImages: (folderPath) => ipcRenderer.invoke('get-images', folderPath),
@@ -44,6 +45,9 @@ try {
     scanCharacter:         (imagePaths, characters, clipGate) => ipcRenderer.invoke('scan-character', { imagePaths, characters, clipGate }),
     onScanProgress:        (cb) => ipcRenderer.on('scan-progress', (_, p) => cb(p)),
     removeScanListeners:   () => ipcRenderer.removeAllListeners('scan-progress'),
+    detectFaces:           (imagePaths) => ipcRenderer.invoke('detect-faces', { imagePaths }),
+    onDetectProgress:      (cb) => ipcRenderer.on('detect-progress', (_, p) => cb(p)),
+    removeDetectListeners: () => ipcRenderer.removeAllListeners('detect-progress'),
   };
 
   contextBridge.exposeInMainWorld('electronAPI', apis);

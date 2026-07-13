@@ -1,24 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './ImagePreviewModal.css';
+import { boxToCropRect, ASPECT_PRESETS } from '../utils/faceCrop';
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 8;
 
-// Crop aspect presets. ratio = width / height in pixels; null = free-form.
-const ASPECT_PRESETS = [
-  { key: 'free', label: 'Free', ratio: null },
-  { key: '1:1', label: '1:1', ratio: 1 },
-  { key: '16:9', label: '16:9', ratio: 16 / 9 },
-  { key: '9:16', label: '9:16', ratio: 9 / 16 },
-  { key: '4:3', label: '4:3', ratio: 4 / 3 },
-  { key: '3:2', label: '3:2', ratio: 3 / 2 },
-  { key: '2:3', label: '2:3', ratio: 2 / 3 },
-];
-
 const clampZoom = (z) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
-function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPrev, onLock, onDelete, onSaveCrop, canCrop }) {
+function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPrev, onLock, onDelete, onToggleSelect, selected, locked, onSaveCrop, canCrop }) {
   const zoomRef = useRef(1);
   const positionRef = useRef({ x: 0, y: 0 });
   const dragStartRef = useRef({ x: 0, y: 0 });
@@ -40,6 +30,8 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   // Crop rect as fractions (0..1) of the natural image
   const [cropRect, setCropRect] = useState({ x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
   const [saving, setSaving] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+  const [noFace, setNoFace] = useState(false);
   const cropDragRef = useRef(null); // { handle, startPx, startRect, layout }
 
   const applyTransform = () => {
@@ -249,6 +241,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
     setCropMode(true);
     setCropAspect(null);
     setCropRect(fitCropToAspect(null));
+    setNoFace(false);
   }, [resetZoom, fitCropToAspect]);
 
   const exitCrop = useCallback(() => setCropMode(false), []);
@@ -256,7 +249,43 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   const chooseAspect = useCallback((ratio) => {
     setCropAspect(ratio);
     setCropRect(fitCropToAspect(ratio));
+    setNoFace(false);
   }, [fitCropToAspect]);
+
+  // Snap the crop box onto the detected face/head at the current aspect.
+  const autoCropToFace = useCallback(async () => {
+    const img = imageRef.current;
+    if (!img || !img.naturalWidth || !image?.path || detecting) return;
+    setNoFace(false);
+    if (!window.electronAPI?.detectFaces) {
+      // Backend unavailable — fall back to a centered aspect crop.
+      setCropRect(fitCropToAspect(cropAspect));
+      setNoFace(true);
+      return;
+    }
+    setDetecting(true);
+    try {
+      const boxes = await window.electronAPI.detectFaces([image.path]);
+      const box = boxes?.[image.path];
+      if (box) {
+        setCropRect(boxToCropRect({
+          box,
+          ratio: cropAspect,
+          natW: img.naturalWidth,
+          natH: img.naturalHeight,
+        }));
+      } else {
+        setCropRect(fitCropToAspect(cropAspect));
+        setNoFace(true);
+      }
+    } catch (err) {
+      console.error('Face detection failed:', err);
+      setCropRect(fitCropToAspect(cropAspect));
+      setNoFace(true);
+    } finally {
+      setDetecting(false);
+    }
+  }, [image?.path, cropAspect, detecting, fitCropToAspect]);
 
   // Pointer-driven move/resize of the crop rectangle
   const onCropPointerDown = useCallback((e, handle) => {
@@ -385,11 +414,22 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   // ── Keyboard ─────────────────────────────────────────────────
   const handleKeydown = useCallback((e) => {
     if (cropMode) {
+      if (e.key >= '0' && e.key <= '6') {
+        const preset = ASPECT_PRESETS[Number(e.key)];
+        if (preset) { e.preventDefault(); chooseAspect(preset.ratio); }
+        return;
+      }
+      if (e.key === 'f' || e.key === 'F') { e.preventDefault(); autoCropToFace(); return; }
       if (e.key === 'Escape') { e.preventDefault(); setCropMode(false); }
       else if (e.key === 'Enter') { e.preventDefault(); applyCrop(); }
       return;
     }
     switch (e.key) {
+      case 'c':
+      case 'C':
+        e.preventDefault();
+        if (canCrop) enterCrop();
+        return;
       case 'Escape':
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -402,6 +442,16 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       case 'ArrowRight':
         e.preventDefault();
         onNext();
+        return;
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault();
+        if (!locked) onDelete();
+        return;
+      case 's':
+      case 'S':
+        e.preventDefault();
+        onToggleSelect();
         return;
       case '=':
       case '+':
@@ -419,7 +469,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       default:
         return;
     }
-  }, [cropMode, applyCrop, onClose, onNext, onPrev, setZoom, resetZoom]);
+  }, [cropMode, applyCrop, chooseAspect, autoCropToFace, enterCrop, canCrop, onClose, onNext, onPrev, onDelete, onToggleSelect, locked, setZoom, resetZoom]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeydown);
@@ -506,19 +556,34 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         {cropMode ? (
           <div className="preview-controls crop-controls">
             <div className="crop-aspects">
-              {ASPECT_PRESETS.map(p => (
+              {ASPECT_PRESETS.map((p, i) => (
                 <button
                   key={p.key}
                   className={`crop-aspect-btn${cropAspect === p.ratio ? ' active' : ''}`}
                   onClick={() => chooseAspect(p.ratio)}
+                  title={`${p.label} (${i})`}
                 >
                   {p.label}
                 </button>
               ))}
+              <button
+                className="crop-aspect-btn crop-face-btn"
+                onClick={autoCropToFace}
+                disabled={detecting}
+                title="Auto-crop to face (F)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                  <line x1="9" y1="9" x2="9.01" y2="9" />
+                  <line x1="15" y1="9" x2="15.01" y2="9" />
+                </svg>
+                {detecting ? 'Detecting…' : noFace ? 'No face' : 'Face'}
+              </button>
             </div>
             <div className="crop-actions">
-              <button className="crop-cancel-btn" onClick={exitCrop} disabled={saving}>Cancel</button>
-              <button className="crop-apply-btn" onClick={applyCrop} disabled={saving}>
+              <button className="crop-cancel-btn" onClick={exitCrop} disabled={saving} title="Cancel (Esc)">Cancel</button>
+              <button className="crop-apply-btn" onClick={applyCrop} disabled={saving} title="Apply crop (Enter)">
                 {saving ? 'Saving…' : 'Apply Crop'}
               </button>
             </div>
@@ -557,7 +622,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                 </svg>
               </button>
               {canCrop && (
-                <button className="preview-crop-btn" onClick={enterCrop} title="Crop image">
+                <button className="preview-crop-btn" onClick={enterCrop} title="Crop image (C)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M6 2v14a2 2 0 0 0 2 2h14" />
                     <path d="M18 22V8a2 2 0 0 0-2-2H2" />
@@ -565,6 +630,32 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                   Crop
                 </button>
               )}
+
+              <button
+                className={`preview-crop-btn${selected ? ' active' : ''}`}
+                onClick={() => onToggleSelect()}
+                title={selected ? 'Deselect (S)' : 'Select (S)'}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  {selected
+                    ? <><path d="M20 6 9 17l-5-5" /></>
+                    : <><rect x="3" y="3" width="18" height="18" rx="2" /></>}
+                </svg>
+                {selected ? 'Selected' : 'Select'}
+              </button>
+
+              <button
+                className="preview-crop-btn"
+                onClick={() => onDelete()}
+                disabled={locked}
+                title={locked ? 'Locked (unlock to delete)' : 'Delete image (Del)'}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+                Delete
+              </button>
             </div>
 
             <button

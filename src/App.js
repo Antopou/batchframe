@@ -8,6 +8,8 @@ import ConfirmDialog from './components/ConfirmDialog';
 import ContextMenu from './components/ContextMenu';
 import MetadataModal from './components/MetadataModal';
 import RenameModal from './components/RenameModal';
+import AutoCropModal from './components/AutoCropModal';
+import { boxToCropRect } from './utils/faceCrop';
 
 const LAST_FOLDER_KEY = 'images-selector-last-folder';
 const CONFIRM_REQUIRED_KEY = 'images-selector-confirm-required';
@@ -105,6 +107,12 @@ function App() {
   const [contextMenu, setContextMenu]     = useState(null); // { x, y, image } | null
   const [metadataModal, setMetadataModal] = useState(null); // { imageName, metadata } | null
   const [renameModal, setRenameModal]     = useState(null); // { images: [...] } | null
+
+  // ── Batch auto-crop-to-face state ──────────────────────────────
+  const [autoCropModal, setAutoCropModal]       = useState(null); // { paths: [...] } | null
+  const [autoCropRunning, setAutoCropRunning]   = useState(false);
+  const [autoCropProgress, setAutoCropProgress] = useState({ current: 0, total: 0, text: '' });
+  const [autoCropResult, setAutoCropResult]     = useState(null); // { cropped, skipped, failed, error } | null
 
   // Copy state
   const [isCopying, setIsCopying]       = useState(false);
@@ -273,17 +281,21 @@ function App() {
     const index = filteredImages.findIndex(img => img.path === scanningPath);
     if (index < 0) return;
 
+    // Geometry must match ImageGrid's windowing: cards are square, so row
+    // height is the real column width (>= previewSize because tracks are 1fr).
     const gap = 10, padV = 16, padH = 40;
     const gridW = vp.clientWidth - padH;
     const cols  = Math.max(1, Math.floor((gridW + gap) / (previewSize + gap)));
+    const colW  = (gridW - (cols - 1) * gap) / cols;
+    const rowH  = colW + gap;
     const row   = Math.floor(index / cols);
-    const rowTop = padV + row * (previewSize + gap);
-    const rowBot = rowTop + previewSize;
+    const rowTop = padV + row * rowH;
+    const rowBot = rowTop + colW;
     const { scrollTop, clientHeight } = vp;
 
     // Only follow if scan is within one card-height of the viewport
-    const near = rowTop <= scrollTop + clientHeight + previewSize + gap &&
-                 rowTop >= scrollTop - previewSize - gap;
+    const near = rowTop <= scrollTop + clientHeight + colW + gap &&
+                 rowTop >= scrollTop - colW - gap;
     if (!near) return;
 
     // Instant scroll: nudge just enough to keep card visible
@@ -522,6 +534,37 @@ function App() {
     }
   }, [previewIndex, pagedImages]);
 
+  // Delete just the image currently shown in the preview, then advance to the
+  // next one (close if it was the last). Locked images are protected.
+  const handleDeletePreview = useCallback(async () => {
+    const img = previewImage;
+    if (!img) return;
+    if (lockedImages.has(img.path)) return;
+    const proceed = confirmRequired
+      ? await showConfirm('Delete', 'Permanently delete this image?')
+      : true;
+    if (!proceed) return;
+    try {
+      if (!browserMode) await window.electronAPI.deleteImages([img.path]);
+      setImages(prev => prev.filter(i => i.path !== img.path));
+      setSelectedImages(prev => { const n = new Set(prev); n.delete(img.path); return n; });
+
+      // Advance to the next image using the current paged snapshot; close if none left.
+      const remaining = pagedImages.filter(i => i.path !== img.path);
+      if (remaining.length === 0) {
+        handleClosePreview();
+      } else {
+        const nextIdx = Math.min(previewIndex, remaining.length - 1);
+        setPreviewIndex(nextIdx);
+        setPreviewImage(remaining[nextIdx]);
+      }
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('Delete failed. Check console for details.');
+    }
+  }, [previewImage, previewIndex, pagedImages, lockedImages, confirmRequired,
+      showConfirm, browserMode, handleClosePreview]);
+
   // Save a cropped image as a new file next to the original, refresh the grid,
   // and open the freshly-cropped image in the preview so the result is visible.
   const handleSaveCrop = useCallback(async (originalPath, dataUrl) => {
@@ -726,6 +769,106 @@ function App() {
     if (paths.length === 0) return;
     await window.electronAPI.exportPaths(paths);
   }, [selectedImages]);
+
+  // ── Batch auto-crop to face ────────────────────────────────────
+  // Open the modal for the current selection (minus locked), or a single image.
+  const handleOpenAutoCrop = useCallback((image) => {
+    const isSelected = image && selectedImages.has(image.path);
+    const base = isSelected && selectedImages.size > 1 ? [...selectedImages] : (image ? [image.path] : [...selectedImages]);
+    const paths = base.filter(p => !lockedImages.has(p));
+    if (paths.length === 0) return;
+    setAutoCropResult(null);
+    setAutoCropProgress({ current: 0, total: 0, text: '' });
+    setAutoCropModal({ paths });
+  }, [selectedImages, lockedImages]);
+
+  // Crop one file to a data URL (fractions rect) using the same canvas pipeline
+  // as the preview modal's Apply, then hand it to saveCroppedImage.
+  const cropFileToDataUrl = useCallback(async (filePath, name, box, ratio) => {
+    const base64 = await window.electronAPI.getImageData(filePath);
+    if (!base64) return null;
+    const ext = (name || '').toLowerCase().split('.').pop();
+    const mime = ext === 'png' ? 'image/png'
+      : ext === 'webp' ? 'image/webp'
+      : ext === 'bmp' ? 'image/bmp'
+      : 'image/jpeg';
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = `data:${mime};base64,${base64}`;
+    });
+    const natW = img.naturalWidth;
+    const natH = img.naturalHeight;
+    const rect = boxToCropRect({ box, ratio, natW, natH });
+    const sx = Math.round(rect.x * natW);
+    const sy = Math.round(rect.y * natH);
+    const sw = Math.max(1, Math.round(rect.w * natW));
+    const sh = Math.max(1, Math.round(rect.h * natH));
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    const isJpg = ext === 'jpg' || ext === 'jpeg';
+    return isJpg ? canvas.toDataURL('image/jpeg', 0.95) : canvas.toDataURL('image/png');
+  }, []);
+
+  const handleAutoCropFace = useCallback(async (ratio) => {
+    const paths = autoCropModal?.paths || [];
+    if (paths.length === 0 || !window.electronAPI?.detectFaces) return;
+    setAutoCropRunning(true);
+    setAutoCropResult(null);
+
+    // Phase 1: detection (Python loads the model once, streams progress).
+    let detected = 0;
+    setAutoCropProgress({ current: 0, total: paths.length, text: 'Detecting faces…' });
+    window.electronAPI.onDetectProgress?.((p) => {
+      if (p.type === 'status') setAutoCropProgress(prev => ({ ...prev, text: p.text }));
+      else if (p.type === 'done') setAutoCropProgress(prev => ({ ...prev, current: ++detected, text: 'Detecting faces…' }));
+    });
+
+    let boxes;
+    try {
+      boxes = await window.electronAPI.detectFaces(paths);
+    } catch (err) {
+      window.electronAPI.removeDetectListeners?.();
+      setAutoCropResult({ cropped: 0, skipped: 0, failed: 0, error: err.message });
+      setAutoCropRunning(false);
+      return;
+    }
+    window.electronAPI.removeDetectListeners?.();
+
+    // Phase 2: crop + save (JS canvas → saveCroppedImage), sequential.
+    const nameOf = (p) => p.split(/[\\/]/).pop();
+    let cropped = 0, skipped = 0, failed = 0;
+    const withFace = paths.filter(p => boxes?.[p]);
+    setAutoCropProgress({ current: 0, total: withFace.length, text: 'Cropping…' });
+    for (const p of paths) {
+      const box = boxes?.[p];
+      if (!box) { skipped++; continue; }
+      try {
+        const dataUrl = await cropFileToDataUrl(p, nameOf(p), box, ratio);
+        const result = dataUrl && await window.electronAPI.saveCroppedImage({ originalPath: p, dataUrl });
+        if (result?.success) cropped++; else failed++;
+      } catch (err) {
+        console.error('Auto-crop failed for', p, err);
+        failed++;
+      }
+      setAutoCropProgress(prev => ({ ...prev, current: cropped + failed, text: 'Cropping…' }));
+    }
+
+    setAutoCropResult({ cropped, skipped, failed });
+    setAutoCropRunning(false);
+    setSelectedImages(new Set());
+    if (folderPath) await loadElectronFolder(folderPath, false);
+  }, [autoCropModal, cropFileToDataUrl, folderPath, loadElectronFolder]);
+
+  const handleCloseAutoCrop = useCallback(() => {
+    if (autoCropRunning) return;
+    setAutoCropModal(null);
+    setAutoCropResult(null);
+    setAutoCropProgress({ current: 0, total: 0, text: '' });
+  }, [autoCropRunning]);
 
   // ── Invert selection (across all filtered images) ─────────────
   const handleInvertSelection = useCallback(() => {
@@ -1055,7 +1198,11 @@ function App() {
     const handler = (e) => {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      
+
+      // While the preview modal is open it owns the keyboard; the grid ignores
+      // everything so shortcuts can't act on the selection behind the modal.
+      if (previewImage) return;
+
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         if (e.shiftKey) handleKeepSelected(); else handleDeleteSelected();
@@ -1064,7 +1211,12 @@ function App() {
         if (e.shiftKey) handleUnlockSelected(); else handleLockSelected();
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        if (!previewImage) handleDeselectAll();
+        handleDeselectAll();
+      } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && selectedImages.size === 0) {
+        // With nothing selected, arrows do the same as the ‹ › toolbar buttons:
+        // step the folder name's trailing number (…/25 → …/24 or …/26).
+        e.preventDefault();
+        handleNavigateFolder(e.key === 'ArrowRight' ? 1 : -1);
       } else if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleSelectAll();
@@ -1124,7 +1276,7 @@ function App() {
       window.removeEventListener('wheel', cancelAnim);
       cancelAnim();
     };
-  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, previewImage]);
+  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, selectedImages, previewImage]);
 
   // ── Ctrl+Wheel zoom ─────────────────────────────────────────────
   useEffect(() => {
@@ -1228,6 +1380,14 @@ function App() {
             ? [...selectedImages]
             : [image.path]
         ),
+      },
+      { separator: true },
+      {
+        label: (isSelected && selectedImages.size > 1)
+          ? `Auto-crop ${selectedImages.size} to face`
+          : 'Auto-crop to face',
+        icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>,
+        onClick: () => handleOpenAutoCrop(image),
       },
       { separator: true },
       {
@@ -1397,7 +1557,10 @@ function App() {
           onNext={handleNextPreview}
           onPrev={handlePrevPreview}
           onLock={handleToggleLock}
-          onDelete={handleDeleteSelected}
+          onDelete={handleDeletePreview}
+          onToggleSelect={() => handleToggleImage(previewImage.path)}
+          selected={selectedImages.has(previewImage.path)}
+          locked={lockedImages.has(previewImage.path)}
           onSaveCrop={handleSaveCrop}
           canCrop={!browserMode}
         />
@@ -1443,6 +1606,17 @@ function App() {
           images={renameModal.images}
           onConfirm={handleConfirmBulkRename}
           onClose={() => setRenameModal(null)}
+        />
+      )}
+
+      {autoCropModal && (
+        <AutoCropModal
+          count={autoCropModal.paths.length}
+          running={autoCropRunning}
+          progress={autoCropProgress}
+          result={autoCropResult}
+          onRun={handleAutoCropFace}
+          onClose={handleCloseAutoCrop}
         />
       )}
     </div>

@@ -1,0 +1,70 @@
+.autocrop-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.autocrop-modal {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; width: 340px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column;
+}
+
+.autocrop-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 10px;
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+
+.autocrop-close {
+  background: none; border: none; color: var(--text-muted);
+  font-size: 18px; cursor: pointer; line-height: 1; padding: 0 2px;
+}
+.autocrop-close:hover { color: var(--text-primary); }
+
+.autocrop-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+.autocrop-label { font-size: 11px; color: var(--text-muted); }
+
+.autocrop-aspects { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.autocrop-aspect-btn {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px; font-weight: 600; padding: 6px 12px;
+  border-radius: 6px; cursor: pointer; transition: all var(--transition);
+}
+.autocrop-aspect-btn:hover { background: var(--bg-highlight); color: var(--text-primary); }
+.autocrop-aspect-btn.active {
+  background: var(--accent, #4f8cff); border-color: var(--accent, #4f8cff); color: #fff;
+}
+
+.autocrop-note { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+
+.autocrop-status { font-size: 12px; color: var(--text-secondary); }
+
+.autocrop-progressbar {
+  height: 6px; background: var(--bg-base);
+  border-radius: 4px; overflow: hidden;
+}
+.autocrop-progressbar-fill {
+  height: 100%; background: var(--accent, #4f8cff);
+  border-radius: 4px; transition: width 0.15s ease;
+}
+.autocrop-progress-count {
+  font-size: 11px; color: var(--text-muted); text-align: right;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+.autocrop-summary { display: flex; flex-direction: column; gap: 6px; }
+.autocrop-summary-line { font-size: 13px; }
+.autocrop-summary-line.ok { color: var(--text-primary); font-weight: 600; }
+.autocrop-summary-line.muted { color: var(--text-muted); }
+.autocrop-summary-line.bad { color: #ff6b6b; }
+
+.autocrop-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 16px; border-top: 1px solid var(--border);
+}

@@ -9,8 +9,12 @@ const path = require('path');
 const isDev = require('electron-is-dev');
 const { spawn } = require('child_process');
 
-// Disable GPU acceleration to fix GPU process errors
-app.disableHardwareAcceleration();
+// Disable GPU acceleration to work around GPU process errors — Windows only.
+// On macOS this forces all rendering onto the CPU, which keeps the machine
+// hot/busy even when idle, so we keep hardware acceleration on there.
+if (process.platform === 'win32') {
+  app.disableHardwareAcceleration();
+}
 
 let mainWindow;
 
@@ -244,7 +248,6 @@ ipcMain.handle('get-image-data', async (event, imagePath) => {
 
 ipcMain.handle('save-cropped-image', async (event, { originalPath, dataUrl }) => {
   try {
-    const existsSync = require('fs').existsSync;
     const match = /^data:image\/(\w+);base64,(.+)$/s.exec(dataUrl || '');
     if (!match) return { success: false, error: 'Invalid image data' };
     const buffer = Buffer.from(match[2], 'base64');
@@ -255,14 +258,14 @@ ipcMain.handle('save-cropped-image', async (event, { originalPath, dataUrl }) =>
     const ext = /^\.jpe?g$/i.test(origExt) ? origExt : '.png';
     const base = path.basename(originalPath, origExt);
 
-    let outPath = path.join(dir, `${base}_crop${ext}`);
-    let n = 1;
-    while (existsSync(outPath)) {
-      n += 1;
-      outPath = path.join(dir, `${base}_crop${n}${ext}`);
-    }
-
+    // Overwrite the original in place. When the produced format can't keep the
+    // original extension (e.g. a .webp source is written as .png), save the
+    // correctly-extensioned file and remove the original so no copy is left.
+    const outPath = path.join(dir, `${base}${ext}`);
     await fs.writeFile(outPath, buffer);
+    if (path.resolve(outPath) !== path.resolve(originalPath)) {
+      try { await fs.unlink(originalPath); } catch { /* original already gone */ }
+    }
     return { success: true, path: outPath };
   } catch (error) {
     console.error('Save cropped image error:', error);
@@ -285,8 +288,13 @@ ipcMain.handle('rename-images', async (event, renames) => {
 
 ipcMain.handle('open-in-app', async (event, { filePaths, appPath }) => {
   try {
-    const { spawn } = require('child_process');
-    spawn(appPath, filePaths, { detached: true, stdio: 'ignore' }).unref();
+    if (process.platform === 'darwin') {
+      // A macOS app is a .app bundle (a directory), not an executable — launch
+      // it with `open -a "<app>" <files…>` so the files open inside it.
+      spawn('open', ['-a', appPath, ...filePaths], { detached: true, stdio: 'ignore' }).unref();
+    } else {
+      spawn(appPath, filePaths, { detached: true, stdio: 'ignore' }).unref();
+    }
     return { success: true };
   } catch (error) {
     console.error('Open in app error:', error);
@@ -296,8 +304,10 @@ ipcMain.handle('open-in-app', async (event, { filePaths, appPath }) => {
 
 ipcMain.handle('find-photoshop', async () => {
   const years = ['2026', '2025', '2024', '2023', '2022', '2021'];
-  for (const yr of years) {
-    const p = `C:\\Program Files\\Adobe\\Adobe Photoshop ${yr}\\Photoshop.exe`;
+  const candidates = process.platform === 'darwin'
+    ? years.map(yr => `/Applications/Adobe Photoshop ${yr}/Adobe Photoshop ${yr}.app`)
+    : years.map(yr => `C:\\Program Files\\Adobe\\Adobe Photoshop ${yr}\\Photoshop.exe`);
+  for (const p of candidates) {
     try { await fs.access(p); return p; } catch {}
   }
   return null;
@@ -536,6 +546,37 @@ ipcMain.handle('scan-character', async (event, { imagePaths, characters, clipGat
 
     py.stderr.on('data', d => console.error('[ai_scan]', d.toString()));
     py.on('close', code => { if (code !== 0) reject(new Error(`ai_scan.py exited with code ${code}`)); });
+  });
+});
+
+ipcMain.handle('detect-faces', async (event, { imagePaths }) => {
+  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, '..', 'ai_detect.py');
+
+  return new Promise((resolve, reject) => {
+    const py = spawn(pyCmd, [scriptPath]);
+    py.stdin.write(JSON.stringify({ imagePaths }));
+    py.stdin.end();
+
+    let buf = '';
+    py.stdout.on('data', (data) => {
+      const lines = (buf + data.toString()).split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (msg.status   !== undefined) mainWindow?.webContents.send('detect-progress', { type: 'status',   text: msg.status });
+          if (msg.scanning !== undefined) mainWindow?.webContents.send('detect-progress', { type: 'scanning', path: msg.scanning });
+          if (msg.done     !== undefined) mainWindow?.webContents.send('detect-progress', { type: 'done',     path: msg.done, box: msg.box });
+          if (msg.boxes) resolve(msg.boxes);
+          if (msg.error) reject(new Error(msg.error));
+        } catch {}
+      }
+    });
+
+    py.stderr.on('data', d => console.error('[ai_detect]', d.toString()));
+    py.on('close', code => { if (code !== 0) reject(new Error(`ai_detect.py exited with code ${code}`)); });
   });
 });
 

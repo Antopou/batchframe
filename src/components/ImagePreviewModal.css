@@ -169,6 +169,15 @@
   color: #fff;
 }
 
+.crop-face-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+}
+.crop-face-btn svg { flex-shrink: 0; }
+.crop-face-btn:disabled { opacity: 0.6; cursor: default; }
+
 .crop-actions {
   display: flex;
   gap: 10px;
@@ -207,6 +216,12 @@
   font-weight: 600;
   padding: 6px 10px !important;
   min-width: auto !important;
+}
+
+.preview-crop-btn.active {
+  background: var(--accent, #4f8cff) !important;
+  border-color: var(--accent, #4f8cff) !important;
+  color: #fff !important;
 }
 
 .preview-loading {

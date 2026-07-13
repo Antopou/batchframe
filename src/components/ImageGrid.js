@@ -1,9 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import './ImageGrid.css';
 import ImageCard from './ImageCard';
 
-const ITEM_HEIGHT = 200; // adjust this value based on your image card height
-const BUFFER_SIZE = 10; // adjust this value based on your performance needs
+// Grid geometry — must match the viewport padding in ImageGrid.css
+// (.image-grid-viewport { padding: 16px 20px }) and the gap below, so the
+// windowing math lines up with what the browser actually lays out.
+const GAP = 10;
+const PAD_H = 40; // 20px left + 20px right
+const BUFFER_ROWS = 4; // extra rows rendered above/below the viewport
 
 const ImageGrid = forwardRef(function ImageGrid({
   images,
@@ -28,8 +32,10 @@ const ImageGrid = forwardRef(function ImageGrid({
   scanningPath,
 }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
-  const [containerHeight, setContainerHeight] = useState(0);
+  const [viewportH, setViewportH] = useState(0);
+  const [gridW, setGridW] = useState(0);
   const viewportRef = useRef(null);
+  const scrollRaf = useRef(null);
   const [anchorIndex, setAnchorIndex] = useState(null);
   const dragRef = useRef({ active: false, startIndex: -1, mode: 'select', snapshot: null, moved: false });
   const [isDragging, setIsDragging] = useState(false);
@@ -72,6 +78,33 @@ const ImageGrid = forwardRef(function ImageGrid({
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
+  const showGrid = !loading && images.length > 0;
+
+  // Measure the viewport (height + inner content width) so we can window rows.
+  // useLayoutEffect + ResizeObserver so sizes are set before the first paint.
+  useLayoutEffect(() => {
+    if (!showGrid) return;
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const measure = () => {
+      setViewportH(vp.clientHeight);
+      setGridW(vp.clientWidth - PAD_H);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(vp);
+    return () => ro.disconnect();
+  }, [showGrid]);
+
+  const handleScroll = useCallback(() => {
+    const vp = viewportRef.current;
+    if (!vp || scrollRaf.current != null) return;
+    scrollRaf.current = requestAnimationFrame(() => {
+      scrollRaf.current = null;
+      setScrollTop(vp.scrollTop);
+    });
+  }, []);
+
   const handleCardMouseDown = useCallback((imagePath, imageIndex, isSelected, mouseButton) => {
     if (!dragSelectEnabled || mouseButton !== 0) return;
     const mode = isSelected ? 'deselect' : 'select';
@@ -86,11 +119,6 @@ const ImageGrid = forwardRef(function ImageGrid({
     if (imageIndex !== ds.startIndex) ds.moved = true;
     onSetRangeSelected(ds.startIndex, imageIndex, ds.mode, ds.snapshot);
   }, [dragSelectEnabled, onSetRangeSelected]);
-
-  const gridStyle = useMemo(() => ({
-    gridTemplateColumns: `repeat(auto-fill, minmax(${previewSize}px, 1fr))`,
-    gap: '10px',
-  }), [previewSize]);
 
   const handleCardClick = useCallback((imagePath, imageIndex, shiftKey) => {
     if (dragSelectEnabled && dragRef.current.moved) {
@@ -115,30 +143,59 @@ const ImageGrid = forwardRef(function ImageGrid({
     return m;
   }, [orderedSelection]);
 
-  const visibleGrid = useMemo(() => images.map((image, index) => (
-    <ImageCard
-      key={image.path}
-      image={image}
-      imageIndex={index}
-      isSelected={selectedImages.has(image.path)}
-      isLocked={lockedImages.has(image.path)}
-      isAnchor={index === anchorIndex}
-      onCardClick={handleCardClick}
-      onToggleLock={onToggleLock}
-      onDragMouseDown={dragSelectEnabled ? handleCardMouseDown : undefined}
-      onDragMouseEnter={dragSelectEnabled ? handleCardMouseEnter : undefined}
-      onPreview={onPreview}
-      size={previewSize}
-      imageFitMode={imageFitMode}
-      orderNumber={orderMap.get(image.path) ?? null}
-      orderSelectMode={orderSelectMode}
-      onContextMenu={onContextMenu}
-      aiScore={aiScores?.[image.path]?.score}
-      aiCharacter={aiScores?.[image.path]?.character}
-      aiHit={aiScores && aiThreshold != null && (aiScores[image.path]?.score ?? -1) >= aiThreshold}
-      isScanning={image.path === scanningPath}
-    />
-  )), [images, selectedImages, lockedImages, anchorIndex, handleCardClick, onToggleLock, dragSelectEnabled, handleCardMouseDown, handleCardMouseEnter, onPreview, previewSize, imageFitMode, orderMap, orderSelectMode, onContextMenu, aiScores, aiThreshold, scanningPath]);
+  // ── Windowing geometry ──────────────────────────────────────────
+  // Cards are square (aspect-ratio: 1/1), so row height == column width.
+  const cols = Math.max(1, Math.floor((gridW + GAP) / (previewSize + GAP)));
+  const colW = gridW > 0 ? (gridW - (cols - 1) * GAP) / cols : previewSize;
+  const rowH = colW + GAP;
+  const totalRows = Math.ceil(images.length / cols);
+  const totalHeight = Math.max(0, totalRows * rowH - GAP);
+
+  const startRow = Math.max(0, Math.floor(scrollTop / rowH) - BUFFER_ROWS);
+  const endRow = Math.min(totalRows - 1, Math.ceil((scrollTop + viewportH) / rowH) + BUFFER_ROWS);
+  const startIndex = startRow * cols;
+  const endIndex = Math.min(images.length, (endRow + 1) * cols);
+  const offsetY = startRow * rowH;
+
+  const gridStyle = useMemo(() => ({
+    gridTemplateColumns: `repeat(${cols}, 1fr)`,
+    gap: `${GAP}px`,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    transform: `translateY(${offsetY}px)`,
+  }), [cols, offsetY]);
+
+  const visibleCards = [];
+  for (let index = startIndex; index < endIndex; index++) {
+    const image = images[index];
+    if (!image) continue;
+    visibleCards.push(
+      <ImageCard
+        key={image.path}
+        image={image}
+        imageIndex={index}
+        isSelected={selectedImages.has(image.path)}
+        isLocked={lockedImages.has(image.path)}
+        isAnchor={index === anchorIndex}
+        onCardClick={handleCardClick}
+        onToggleLock={onToggleLock}
+        onDragMouseDown={dragSelectEnabled ? handleCardMouseDown : undefined}
+        onDragMouseEnter={dragSelectEnabled ? handleCardMouseEnter : undefined}
+        onPreview={onPreview}
+        size={previewSize}
+        imageFitMode={imageFitMode}
+        orderNumber={orderMap.get(image.path) ?? null}
+        orderSelectMode={orderSelectMode}
+        onContextMenu={onContextMenu}
+        aiScore={aiScores?.[image.path]?.score}
+        aiCharacter={aiScores?.[image.path]?.character}
+        aiHit={aiScores && aiThreshold != null && (aiScores[image.path]?.score ?? -1) >= aiThreshold}
+        isScanning={image.path === scanningPath}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -169,20 +226,24 @@ const ImageGrid = forwardRef(function ImageGrid({
   }
 
   return (
-    <div ref={viewportRef} className={`image-grid-viewport${isDragging ? ' selecting' : ''}`}>
+    <div
+      ref={viewportRef}
+      className={`image-grid-viewport${isDragging ? ' selecting' : ''}`}
+      onScroll={handleScroll}
+    >
       {isDeleting && (
         <div className="delete-overlay">
           <div className="delete-indicator">
             <div className="delete-spinner"></div>
             <div className="delete-text">
-              {deleteProgress && deleteProgress.total > 0 
+              {deleteProgress && deleteProgress.total > 0
                 ? `Deleting ${deleteProgress.current} / ${deleteProgress.total} images...`
                 : 'Deleting images...'}
             </div>
             {deleteProgress && deleteProgress.total > 0 && (
               <div className="delete-progress-bar-container">
-                <div 
-                  className="delete-progress-bar-fill" 
+                <div
+                  className="delete-progress-bar-fill"
                   style={{ width: `${(deleteProgress.current / deleteProgress.total) * 100}%` }}
                 ></div>
               </div>
@@ -190,11 +251,10 @@ const ImageGrid = forwardRef(function ImageGrid({
           </div>
         </div>
       )}
-      <div
-        className="image-grid"
-        style={gridStyle}
-      >
-        {visibleGrid}
+      <div style={{ height: totalHeight, position: 'relative', width: '100%' }}>
+        <div className="image-grid" style={gridStyle}>
+          {visibleCards}
+        </div>
       </div>
     </div>
   );

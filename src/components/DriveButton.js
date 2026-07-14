@@ -3,6 +3,7 @@ import DriveIcon from './DriveIcon';
 import DriveFolderPicker from './DriveFolderPicker';
 import ContextMenu from './ContextMenu';
 import ConfirmDialog from './ConfirmDialog';
+import SyncDiffModal from './SyncDiffModal';
 import './DriveButton.css';
 
 const LONG_PRESS_MS = 500;
@@ -20,6 +21,7 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
   const [showPicker, setShowPicker] = useState(false);
   const [menu, setMenu] = useState(null); // { x, y }
   const [conflictDialog, setConflictDialog] = useState(null);
+  const [reviewPush, setReviewPush] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [error, setError] = useState(null);
 
@@ -219,7 +221,17 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
     menuItems.push({
       label: `Push to Drive${dirty ? ` (${dirty})` : ''}`,
       disabled: !cacheRoot || dirty === 0 || busy,
-      onClick: () => doPush(),
+      onClick: async () => {
+        setBusy(true);
+        try {
+          await window.electronAPI.drive.refreshManifest({ cacheRoot });
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setBusy(false);
+          setReviewPush(true);
+        }
+      },
     });
     menuItems.push({
       label: 'Clear local cache',
@@ -312,6 +324,17 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
           danger
           onConfirm={doClear}
           onCancel={() => setConfirmClear(false)}
+        />
+      )}
+
+      {reviewPush && (
+        <SyncDiffModal
+          manifest={manifest}
+          onConfirm={() => {
+            setReviewPush(false);
+            doPush();
+          }}
+          onCancel={() => setReviewPush(false)}
         />
       )}
     </>

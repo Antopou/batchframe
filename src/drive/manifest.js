@@ -185,14 +185,14 @@ async function refresh(cacheRoot, manifest) {
         if (!IMAGE_EXTS.has(ext)) continue;
         seen.add(rel);
         const existing = manifest.files[rel];
+        const s = await fs.stat(abs);
         if (!existing) {
-          const s = await fs.stat(abs);
           markNew(manifest, rel, { mtime: s.mtimeMs, size: s.size });
+        } else if (existing.state === 'clean') {
+          if (existing.localSize !== s.size || Math.abs(existing.localMtime - s.mtimeMs) > 2000) {
+            markModified(manifest, rel, { mtime: s.mtimeMs, size: s.size });
+          }
         }
-        // For existing clean entries, we intentionally do NOT compare hashes
-        // here — that's expensive and the app's own IPC handlers keep state
-        // in sync when the app is the one making edits. Refresh is for
-        // detecting *externally-added* files.
       }
     }
   }

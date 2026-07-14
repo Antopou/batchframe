@@ -135,7 +135,7 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
   }, []);
 
   // ── Click handlers ─────────────────────────────────────────
-  const handleClick = useCallback((e) => {
+  const handleClick = useCallback(async (e) => {
     if (longPressFired.current) {
       longPressFired.current = false;
       e.preventDefault();
@@ -144,8 +144,22 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
     if (!status) return;
     if (!status.configured) return; // tooltip covers this
     if (!status.signedIn) { doSignIn(); return; }
-    setShowPicker(true);
-  }, [status, doSignIn]);
+    
+    const dirtyCount = summary?.dirty || 0;
+    if (dirtyCount > 0) {
+      setBusy(true);
+      try {
+        await window.electronAPI.drive.refreshManifest({ cacheRoot });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setBusy(false);
+        setReviewPush(true);
+      }
+    } else {
+      setShowPicker(true);
+    }
+  }, [status, doSignIn, summary?.dirty, cacheRoot]);
 
   const handleContextMenu = useCallback((e) => {
     e.preventDefault();
@@ -303,7 +317,7 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
               </ul>
             </div>
             <div className="dialog-actions">
-              <button className="dialog-btn cancel" onClick={() => setConflictDialog(null)}>Cancel</button>
+              <button className="dialog-btn cancel" onClick={() => setConflictDialog(null)}>[ cancel ]</button>
               <button className="dialog-btn confirm-primary" onClick={doPullFirst}>Pull first</button>
               <button
                 className="dialog-btn confirm-danger"
@@ -330,11 +344,16 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
       {reviewPush && (
         <SyncDiffModal
           manifest={manifest}
+          cacheRoot={cacheRoot}
           onConfirm={() => {
             setReviewPush(false);
             doPush();
           }}
           onCancel={() => setReviewPush(false)}
+          onChangeDataset={() => {
+            setReviewPush(false);
+            setShowPicker(true);
+          }}
         />
       )}
     </>

@@ -86,7 +86,7 @@ async function getFileMetadata(auth, fileId) {
   const drive = driveFor(auth);
   const { data } = await drive.files.get({
     fileId,
-    fields: 'id, name, mimeType, md5Checksum, size, modifiedTime, parents, trashed',
+    fields: 'id, name, mimeType, md5Checksum, size, modifiedTime, parents, trashed, thumbnailLink, hasThumbnail',
   });
   return data;
 }

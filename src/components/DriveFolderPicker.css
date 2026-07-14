@@ -6,9 +6,9 @@
 
 .drive-picker {
   background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: 12px; width: 520px; max-width: 90vw;
-  height: 420px;
-  max-height: 80vh;
+  border-radius: 12px; width: 720px; max-width: 90vw;
+  height: 560px;
+  max-height: 85vh;
   box-shadow: 0 24px 64px rgba(0,0,0,0.5);
   display: flex; flex-direction: column;
 }
@@ -282,4 +282,55 @@
   content: '';
   animation: terminal-spinner 0.5s infinite linear;
   font-weight: bold;
+}
+
+/* ── Terminal Buttons ── */
+.btn-terminal {
+  background: transparent;
+  border: none;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.15s;
+  outline: none;
+}
+
+.btn-terminal:focus {
+  outline: none;
+}
+
+.btn-terminal:hover,
+.btn-terminal:focus {
+  color: var(--text-primary);
+}
+
+.btn-terminal.action-cancel:hover,
+.btn-terminal.action-cancel:focus {
+  color: var(--red);
+}
+
+.btn-terminal.action-change:hover,
+.btn-terminal.action-change:focus {
+  color: var(--accent);
+}
+
+.btn-terminal.action-push:hover,
+.btn-terminal.action-push:focus,
+.btn-terminal.action-open:hover,
+.btn-terminal.action-open:focus {
+  color: var(--green);
+}
+
+/* When hovering over any button in the actions area, 
+   remove the color from the currently focused button (unless it's the one being hovered) */
+.drive-picker-actions:has(.btn-terminal:hover) .btn-terminal:focus:not(:hover) {
+  color: var(--text-secondary);
+}
+
+.btn-terminal:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
 }

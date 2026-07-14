@@ -63,6 +63,15 @@ function DriveFolderPicker({ onSelect, onClose }) {
   }, [filteredFolders.length, focusIndex]);
 
   useEffect(() => {
+    if (!loading) {
+      const openBtn = document.querySelector('.drive-picker-actions .action-open');
+      if (openBtn && !openBtn.disabled) {
+        openBtn.focus();
+      }
+    }
+  }, [loading]);
+
+  useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') { onClose(); return; }
       if (e.key === 'ArrowDown') {
@@ -87,15 +96,38 @@ function DriveFolderPicker({ onSelect, onClose }) {
         e.preventDefault();
         goTo(crumbs.length - 2);
       } else if (e.key === 'Tab') {
-        if (query) {
+        if (query && focusIndex >= -1) {
           e.preventDefault();
           if (focusIndex >= 0 && filteredFolders[focusIndex]) {
             setQuery(filteredFolders[focusIndex].name);
           } else if (filteredFolders.length > 0) {
             setQuery(filteredFolders[0].name);
           }
-        } else {
-          e.preventDefault();
+        }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const isInput = document.activeElement?.tagName === 'INPUT';
+        if (isInput) {
+          const input = document.activeElement;
+          if (e.key === 'ArrowLeft' && input.selectionStart > 0) return;
+          if (e.key === 'ArrowRight' && input.selectionEnd < input.value.length) return;
+        }
+        
+        const actionsDiv = document.querySelector('.drive-picker-actions');
+        if (actionsDiv) {
+          const buttons = Array.from(actionsDiv.querySelectorAll('button:not([disabled])'));
+          if (buttons.length > 0) {
+            const currentIndex = buttons.indexOf(document.activeElement);
+            let nextIndex = currentIndex;
+            if (currentIndex === -1) {
+              nextIndex = e.key === 'ArrowRight' ? 0 : buttons.length - 1;
+            } else {
+              nextIndex = e.key === 'ArrowRight' ? currentIndex + 1 : currentIndex - 1;
+              if (nextIndex >= buttons.length) nextIndex = 0;
+              if (nextIndex < 0) nextIndex = buttons.length - 1;
+            }
+            buttons[nextIndex].focus();
+            e.preventDefault();
+          }
         }
       }
       
@@ -106,16 +138,10 @@ function DriveFolderPicker({ onSelect, onClose }) {
       }
 
       // Toggle view mode
-      if ((e.metaKey || e.ctrlKey) && e.key === '1') {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      if ((isMac && e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'v') || (!isMac && e.altKey && e.key.toLowerCase() === 'v')) {
         e.preventDefault();
-        setViewMode('list');
-        setTempShowToggle(true);
-        if (toggleTimerRef.current) clearTimeout(toggleTimerRef.current);
-        toggleTimerRef.current = setTimeout(() => setTempShowToggle(false), 2000);
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === '2') {
-        e.preventDefault();
-        setViewMode('grid');
+        setViewMode(prev => prev === 'list' ? 'grid' : 'list');
         setTempShowToggle(true);
         if (toggleTimerRef.current) clearTimeout(toggleTimerRef.current);
         toggleTimerRef.current = setTimeout(() => setTempShowToggle(false), 2000);
@@ -174,7 +200,6 @@ function DriveFolderPicker({ onSelect, onClose }) {
             className="terminal-input"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setFocusIndex(-1); }}
-            autoFocus
           />
           {query && (
             <button className="drive-picker-search-clear" onClick={() => setQuery('')} title="Clear (Esc)">×</button>
@@ -183,14 +208,14 @@ function DriveFolderPicker({ onSelect, onClose }) {
             <button 
               className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`} 
               onClick={() => setViewMode('list')}
-              title="List View (Cmd/Ctrl + 1)"
+              title={`List View (${navigator.platform.toUpperCase().indexOf('MAC') >= 0 ? 'Ctrl' : 'Alt'} + V)`}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
             </button>
             <button 
               className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`} 
               onClick={() => setViewMode('grid')}
-              title="Grid View (Cmd/Ctrl + 2)"
+              title={`Grid View (${navigator.platform.toUpperCase().indexOf('MAC') >= 0 ? 'Ctrl' : 'Alt'} + V)`}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/></svg>
             </button>
@@ -288,22 +313,15 @@ function DriveFolderPicker({ onSelect, onClose }) {
         </div>
 
         <div className="drive-picker-footer">
-          <div className="drive-picker-footer-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <span className="drive-picker-search-count">
-              {filteredFolders.length + filteredImages.length}
-              {query && folders.length + images.length !== filteredFolders.length + filteredImages.length
-                ? ` / ${folders.length + images.length}` : ''} items
-            </span>
-          </div>
-          <div className="drive-picker-actions" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button className="btn-modern ghost sm" onClick={onClose}>Cancel</button>
+          <div className="drive-picker-actions" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button className="btn-terminal action-cancel" onClick={onClose}>[ cancel ]</button>
             <button
-              className="btn-modern success sm"
+              className="btn-terminal action-open"
               disabled={!canChooseRoot && images.length === 0}
               onClick={chooseCurrent}
               title={!canChooseRoot ? 'Pick a subfolder before importing' : `Open ${current.name} (Cmd/Ctrl + Enter)`}
             >
-              Open
+              [ open ]
             </button>
           </div>
         </div>

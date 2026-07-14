@@ -61,6 +61,7 @@ try {
       refreshManifest:   ({ cacheRoot }) => ipcRenderer.invoke('drive-refresh-manifest', { cacheRoot }),
       getManifest:       ({ cacheRoot }) => ipcRenderer.invoke('drive-get-manifest', { cacheRoot }),
       manifestForPath:   (absPath) => ipcRenderer.invoke('drive-manifest-for-path', absPath),
+      getThumbnail:      (fileId) => ipcRenderer.invoke('drive-get-thumbnail', fileId),
 
       onProgress:            (cb) => ipcRenderer.on('drive-progress', (_, p) => cb(p)),
       removeProgressListeners: () => ipcRenderer.removeAllListeners('drive-progress'),

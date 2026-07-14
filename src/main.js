@@ -740,6 +740,16 @@ ipcMain.handle('drive-list-folder', async (_e, { folderId } = {}) => {
   }
 });
 
+ipcMain.handle('drive-get-thumbnail', async (_e, fileId) => {
+  try {
+    const auth = await driveOauth.getAuthClient();
+    const meta = await driveApi.getFileMetadata(auth, fileId);
+    return meta.thumbnailLink || null;
+  } catch (err) {
+    return null;
+  }
+});
+
 // Progress relay: pull / push send granular events via 'drive-progress'.
 function relayProgress(phase) {
   return (event) => {

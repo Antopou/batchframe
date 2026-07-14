@@ -10,7 +10,9 @@
 // client is not a real secret — Google treats it as public — so shipping it in
 // source is expected practice.
 
+require('dotenv').config();
+
 module.exports = {
-  CLIENT_ID: '',
-  CLIENT_SECRET: '',
+  CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
+  CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
 };

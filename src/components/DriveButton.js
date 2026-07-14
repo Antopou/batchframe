@@ -147,19 +147,21 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
 
   const handleContextMenu = useCallback((e) => {
     e.preventDefault();
+    if (!status?.signedIn) return;
     const rect = btnRef.current?.getBoundingClientRect();
     if (rect) openMenuAtRect(rect);
-  }, [openMenuAtRect]);
+  }, [openMenuAtRect, status]);
 
   const handleMouseDown = useCallback((e) => {
     if (e.button !== 0) return;
+    if (!status?.signedIn) return;
     longPressFired.current = false;
     const rect = e.currentTarget.getBoundingClientRect();
     longPressTimer.current = setTimeout(() => {
       longPressFired.current = true;
       openMenuAtRect(rect);
     }, LONG_PRESS_MS);
-  }, [openMenuAtRect]);
+  }, [openMenuAtRect, status]);
 
   const cancelLongPress = useCallback(() => {
     if (longPressTimer.current) {

@@ -7,6 +7,7 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
   const [src, setSrc] = useState(image.previewSrc || '');
   const [imageError, setImageError] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [naturalSize, setNaturalSize] = useState(null);
   const prevSrcRef  = useRef('');
   const isFirstLoad = useRef(true);
 
@@ -109,6 +110,15 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
     if (onContextMenu) onContextMenu(e, image);
   };
 
+  const handleImageLoad = (e) => {
+    if (e.target.naturalWidth && e.target.naturalHeight) {
+      setNaturalSize({ width: e.target.naturalWidth, height: e.target.naturalHeight });
+    }
+  };
+
+  const displayWidth = image.width || naturalSize?.width;
+  const displayHeight = image.height || naturalSize?.height;
+
   return (
     <div
       data-path={image.path}
@@ -140,6 +150,7 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
           loading="lazy" 
           decoding="async" 
           onError={handleImageError}
+          onLoad={handleImageLoad}
         />
       )}
       <div className="image-card-overlay">
@@ -168,8 +179,8 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
           {Math.round(aiScore * 100)}%
         </div>
       )}
-      {image.width && image.height && (
-        <div className="dimension-badge">{image.width}×{image.height}</div>
+      {displayWidth && displayHeight && (
+        <div className="dimension-badge">{displayWidth}×{displayHeight}</div>
       )}
       {driveState && driveState !== 'clean' && (
         <div className={`drive-state-dot drive-state-${driveState}`} title={`Drive: ${driveState}`} />

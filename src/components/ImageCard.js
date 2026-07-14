@@ -3,7 +3,7 @@ import './ImageCard.css';
 
 const imageCache = new Map();
 
-function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardClick, onToggleLock, onDragMouseDown, onDragMouseEnter, onPreview, size, imageFitMode, orderNumber, orderSelectMode, onContextMenu, aiScore, aiCharacter, aiHit, isScanning }) {
+function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardClick, onToggleLock, onDragMouseDown, onDragMouseEnter, onPreview, size, imageFitMode, orderNumber, orderSelectMode, onContextMenu, aiScore, aiCharacter, aiHit, isScanning, driveState }) {
   const [src, setSrc] = useState(image.previewSrc || '');
   const [imageError, setImageError] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -170,6 +170,9 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
       )}
       {image.width && image.height && (
         <div className="dimension-badge">{image.width}×{image.height}</div>
+      )}
+      {driveState && driveState !== 'clean' && (
+        <div className={`drive-state-dot drive-state-${driveState}`} title={`Drive: ${driveState}`} />
       )}
       <div className="image-card-name">{image.name}</div>
     </div>

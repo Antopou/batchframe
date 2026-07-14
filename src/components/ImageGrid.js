@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import './ImageGrid.css';
 import ImageCard from './ImageCard';
+import ImageRow from './ImageRow';
 
 // Grid geometry — must match the viewport padding in ImageGrid.css
 // (.image-grid-viewport { padding: 16px 20px }) and the gap below, so the
@@ -30,6 +31,9 @@ const ImageGrid = forwardRef(function ImageGrid({
   aiScores,
   aiThreshold,
   scanningPath,
+  driveStatesByPath,
+  viewMode = 'grid',
+  listDetail = 'thumb',
 }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(0);
@@ -144,12 +148,20 @@ const ImageGrid = forwardRef(function ImageGrid({
   }, [orderedSelection]);
 
   // ── Windowing geometry ──────────────────────────────────────────
-  // Cards are square (aspect-ratio: 1/1), so row height == column width.
-  const cols = Math.max(1, Math.floor((gridW + GAP) / (previewSize + GAP)));
-  const colW = gridW > 0 ? (gridW - (cols - 1) * GAP) / cols : previewSize;
-  const rowH = colW + GAP;
+  // Grid: square cards (aspect-ratio: 1/1), so row height == column width.
+  // List: fixed row height, one column.
+  const isList = viewMode === 'list';
+  const isPlain = isList && listDetail === 'plain';
+  const LIST_ROW_H = isPlain ? 32 : 56;
+  const LIST_GAP = isPlain ? 2 : 6;
+  const gridCols = Math.max(1, Math.floor((gridW + GAP) / (previewSize + GAP)));
+  const gridColW = gridW > 0 ? (gridW - (gridCols - 1) * GAP) / gridCols : previewSize;
+
+  const cols = isList ? 1 : gridCols;
+  const rowH = isList ? LIST_ROW_H + LIST_GAP : gridColW + GAP;
+  const gapForMode = isList ? LIST_GAP : GAP;
   const totalRows = Math.ceil(images.length / cols);
-  const totalHeight = Math.max(0, totalRows * rowH - GAP);
+  const totalHeight = Math.max(0, totalRows * rowH - gapForMode);
 
   const startRow = Math.max(0, Math.floor(scrollTop / rowH) - BUFFER_ROWS);
   const endRow = Math.min(totalRows - 1, Math.ceil((scrollTop + viewportH) / rowH) + BUFFER_ROWS);
@@ -159,41 +171,42 @@ const ImageGrid = forwardRef(function ImageGrid({
 
   const gridStyle = useMemo(() => ({
     gridTemplateColumns: `repeat(${cols}, 1fr)`,
-    gap: `${GAP}px`,
+    gap: `${gapForMode}px`,
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     transform: `translateY(${offsetY}px)`,
-  }), [cols, offsetY]);
+  }), [cols, offsetY, gapForMode]);
 
   const visibleCards = [];
   for (let index = startIndex; index < endIndex; index++) {
     const image = images[index];
     if (!image) continue;
+    const common = {
+      key: image.path,
+      image,
+      imageIndex: index,
+      isSelected: selectedImages.has(image.path),
+      isLocked: lockedImages.has(image.path),
+      onCardClick: handleCardClick,
+      onToggleLock,
+      onDragMouseDown: dragSelectEnabled ? handleCardMouseDown : undefined,
+      onDragMouseEnter: dragSelectEnabled ? handleCardMouseEnter : undefined,
+      onPreview,
+      orderNumber: orderMap.get(image.path) ?? null,
+      orderSelectMode,
+      onContextMenu,
+      aiScore: aiScores?.[image.path]?.score,
+      aiCharacter: aiScores?.[image.path]?.character,
+      aiHit: aiScores && aiThreshold != null && (aiScores[image.path]?.score ?? -1) >= aiThreshold,
+      isScanning: image.path === scanningPath,
+      driveState: driveStatesByPath?.[image.path] || null,
+    };
     visibleCards.push(
-      <ImageCard
-        key={image.path}
-        image={image}
-        imageIndex={index}
-        isSelected={selectedImages.has(image.path)}
-        isLocked={lockedImages.has(image.path)}
-        isAnchor={index === anchorIndex}
-        onCardClick={handleCardClick}
-        onToggleLock={onToggleLock}
-        onDragMouseDown={dragSelectEnabled ? handleCardMouseDown : undefined}
-        onDragMouseEnter={dragSelectEnabled ? handleCardMouseEnter : undefined}
-        onPreview={onPreview}
-        size={previewSize}
-        imageFitMode={imageFitMode}
-        orderNumber={orderMap.get(image.path) ?? null}
-        orderSelectMode={orderSelectMode}
-        onContextMenu={onContextMenu}
-        aiScore={aiScores?.[image.path]?.score}
-        aiCharacter={aiScores?.[image.path]?.character}
-        aiHit={aiScores && aiThreshold != null && (aiScores[image.path]?.score ?? -1) >= aiThreshold}
-        isScanning={image.path === scanningPath}
-      />
+      isList
+        ? <ImageRow {...common} detail={listDetail} />
+        : <ImageCard {...common} isAnchor={index === anchorIndex} size={previewSize} imageFitMode={imageFitMode} />
     );
   }
 

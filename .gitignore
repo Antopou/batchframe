@@ -12,6 +12,9 @@ yarn-error.log*
 out/
 release/
 
+# Google Drive local cache (per-dataset image mirrors)
+drive-cache/
+
 # Environment variables
 .env
 .env.local

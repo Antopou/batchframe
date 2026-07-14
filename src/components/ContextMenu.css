@@ -42,6 +42,23 @@
   cursor: default;
 }
 
+.context-menu-item.danger {
+  color: rgb(239, 68, 68);
+}
+
+.context-menu-item.danger .ctx-icon {
+  color: rgb(239, 68, 68);
+}
+
+.context-menu-item.danger:hover:not(.disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  color: rgb(239, 68, 68);
+}
+
+.context-menu-item.danger:hover:not(.disabled) .ctx-icon {
+  color: rgb(239, 68, 68);
+}
+
 .ctx-icon {
   display: flex;
   align-items: center;

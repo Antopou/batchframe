@@ -138,6 +138,11 @@ function Controls({
   onUseSelectedAsRefs,
   activeCharacter,
   onSetActiveCharacter,
+  driveSlot,
+  viewMode,
+  onViewModeChange,
+  listDetail,
+  onListDetailChange,
 }) {
   const [editPath, setEditPath] = useState(folderPath || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -216,6 +221,7 @@ function Controls({
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             </button>
           )}
+          {!browserMode && driveSlot}
           {!browserMode && hasNumericSuffix && (
             <>
               <button
@@ -641,21 +647,56 @@ function Controls({
 
           <div className="mode-toggles">
             <div className="segmented-control">
-              <button 
-                className={`segment-btn ${imageFitMode === 'contain' ? 'active' : ''}`}
-                onClick={() => onImageFitModeChange('contain')}
-                title="Contain"
+              <button
+                className={`segment-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                onClick={() => onViewModeChange && onViewModeChange('grid')}
+                title="Grid view"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/></svg>
               </button>
-              <button 
-                className={`segment-btn ${imageFitMode === 'cover' ? 'active' : ''}`}
-                onClick={() => onImageFitModeChange('cover')}
-                title="Cover"
+              <button
+                className={`segment-btn ${viewMode === 'list' ? 'active' : ''}`}
+                onClick={() => onViewModeChange && onViewModeChange('list')}
+                title="List view"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m3 3 18 18"/><path d="m21 3-18 18"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
               </button>
             </div>
+            {viewMode === 'list' ? (
+              <div className="segmented-control">
+                <button
+                  className={`segment-btn ${listDetail === 'thumb' ? 'active' : ''}`}
+                  onClick={() => onListDetailChange && onListDetailChange('thumb')}
+                  title="List with thumbnail"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="6" height="6" rx="1"/><line x1="12" y1="6" x2="21" y2="6"/><line x1="12" y1="9" x2="18" y2="9"/><rect x="3" y="14" width="6" height="6" rx="1"/><line x1="12" y1="16" x2="21" y2="16"/><line x1="12" y1="19" x2="18" y2="19"/></svg>
+                </button>
+                <button
+                  className={`segment-btn ${listDetail === 'plain' ? 'active' : ''}`}
+                  onClick={() => onListDetailChange && onListDetailChange('plain')}
+                  title="List, names only"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+                </button>
+              </div>
+            ) : (
+              <div className="segmented-control">
+                <button
+                  className={`segment-btn ${imageFitMode === 'contain' ? 'active' : ''}`}
+                  onClick={() => onImageFitModeChange('contain')}
+                  title="Contain"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                </button>
+                <button
+                  className={`segment-btn ${imageFitMode === 'cover' ? 'active' : ''}`}
+                  onClick={() => onImageFitModeChange('cover')}
+                  title="Cover"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m3 3 18 18"/><path d="m21 3-18 18"/></svg>
+                </button>
+              </div>
+            )}
             <button
               className={`icon-btn-modern ${dragSelectEnabled ? 'active' : ''}`}
               onClick={() => onDragSelectEnabledChange(!dragSelectEnabled)}

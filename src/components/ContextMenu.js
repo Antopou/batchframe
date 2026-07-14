@@ -40,7 +40,7 @@ function ContextMenu({ items, position, onClose }) {
         ) : (
           <button
             key={i}
-            className={`context-menu-item${item.disabled ? ' disabled' : ''}`}
+            className={`context-menu-item${item.disabled ? ' disabled' : ''}${item.danger ? ' danger' : ''}`}
             disabled={item.disabled}
             onClick={() => { if (!item.disabled) { item.onClick?.(); onClose(); } }}
           >

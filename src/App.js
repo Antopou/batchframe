@@ -9,6 +9,7 @@ import ContextMenu from './components/ContextMenu';
 import MetadataModal from './components/MetadataModal';
 import RenameModal from './components/RenameModal';
 import AutoCropModal from './components/AutoCropModal';
+import DriveButton from './components/DriveButton';
 import { boxToCropRect } from './utils/faceCrop';
 
 const LAST_FOLDER_KEY = 'images-selector-last-folder';
@@ -30,6 +31,8 @@ function App() {
   const [selectedImages, setSelectedImages] = useState(new Set());
   const [previewSize, setPreviewSize] = useState(150);
   const [imageFitMode, setImageFitMode] = useState('contain');
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('viewMode') === 'list' ? 'list' : 'grid');
+  const [listDetail, setListDetail] = useState(() => localStorage.getItem('listDetail') === 'plain' ? 'plain' : 'thumb');
   const [dragSelectEnabled, setDragSelectEnabled] = useState(true);
   const [pageSize, setPageSize] = useState(99999); // default to "All"
   const [currentPage, setCurrentPage] = useState(1);
@@ -130,6 +133,48 @@ function App() {
   const [scanningPath, setScanningPath]   = useState(null);
   const [scanStatus, setScanStatus]       = useState('');
   const [activeCharacter, setActiveCharacter] = useState(null);
+
+  // Drive sync state: which cache is open, per-file sync state map for badges.
+  const [driveCacheRoot, setDriveCacheRoot] = useState(null);
+  const [driveManifest, setDriveManifest] = useState(null);
+  const [driveSummary, setDriveSummary] = useState(null);
+  const [driveStatesByPath, setDriveStatesByPath] = useState(null);
+
+  // Reload manifest whenever the open folder changes, and on drive-manifest-changed events.
+  useEffect(() => {
+    if (!window.electronAPI?.drive || !folderPath) {
+      setDriveCacheRoot(null);
+      setDriveManifest(null);
+      setDriveSummary(null);
+      setDriveStatesByPath(null);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      const r = await window.electronAPI.drive.manifestForPath(folderPath);
+      if (cancelled) return;
+      if (r.isCache) {
+        setDriveCacheRoot(r.cacheRoot);
+        setDriveManifest(r.manifest);
+        setDriveSummary(r.summary);
+        setDriveStatesByPath(r.statesByPath || null);
+      } else {
+        setDriveCacheRoot(null);
+        setDriveManifest(null);
+        setDriveSummary(null);
+        setDriveStatesByPath(null);
+      }
+    };
+    load();
+    const onChange = ({ cacheRoot }) => {
+      if (cacheRoot === folderPath) load();
+    };
+    window.electronAPI.drive.onManifestChanged(onChange);
+    return () => {
+      cancelled = true;
+      window.electronAPI.drive.removeManifestChangedListeners();
+    };
+  }, [folderPath]);
 
   // ── Init ────────────────────────────────────────────────────────
   useEffect(() => { setBrowserMode(!window.electronAPI); }, []);
@@ -437,11 +482,11 @@ function App() {
   }, [folderPath, loadElectronFolder, showConfirm]);
 
   const buildFolderMenuItems = useCallback((folder) => [
-    { label: 'Rename', icon: '✏️', onClick: () => setEditingFolderPath(folder.path) },
-    { label: 'Delete', icon: '🗑️', onClick: () => handleDeleteFolder(folder) },
+    { label: 'Rename', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>, onClick: () => setEditingFolderPath(folder.path) },
+    { label: 'Delete', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>, danger: true, onClick: () => handleDeleteFolder(folder) },
     { separator: true },
-    { label: 'Show in Explorer', icon: '📂', onClick: () => window.electronAPI?.showInFolder(folder.path) },
-    { label: 'New folder', icon: '➕', onClick: () => handleCreateFolder() },
+    { label: 'Show in Explorer', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>, onClick: () => window.electronAPI?.showInFolder(folder.path) },
+    { label: 'New folder', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>, onClick: () => handleCreateFolder() },
   ], [handleDeleteFolder, handleCreateFolder]);
 
   // Initial folder from CLI arg (e.g. `app.exe C:\images\foo`)
@@ -1456,6 +1501,10 @@ function App() {
         onPreviewPresetChange={handlePreviewPresetChange}
         imageFitMode={imageFitMode}
         onImageFitModeChange={handleImageFitModeChange}
+        viewMode={viewMode}
+        onViewModeChange={(v) => { setViewMode(v); localStorage.setItem('viewMode', v); }}
+        listDetail={listDetail}
+        onListDetailChange={(v) => { setListDetail(v); localStorage.setItem('listDetail', v); }}
         pageSize={pageSize}
         onPageSizeChange={handlePageSizeChange}
         currentPage={currentPage}
@@ -1510,6 +1559,14 @@ function App() {
         onUseSelectedAsRefs={handleUseSelectedAsRefs}
         activeCharacter={activeCharacter}
         onSetActiveCharacter={setActiveCharacter}
+        driveSlot={
+          <DriveButton
+            cacheRoot={driveCacheRoot}
+            manifest={driveManifest}
+            summary={driveSummary}
+            onDatasetOpened={(cacheRoot) => loadElectronFolder(cacheRoot, true)}
+          />
+        }
       />
 
       <SubfolderBar
@@ -1546,6 +1603,9 @@ function App() {
         aiScores={aiScores}
         aiThreshold={aiThreshold}
         scanningPath={scanningPath}
+        driveStatesByPath={driveStatesByPath}
+        viewMode={viewMode}
+        listDetail={listDetail}
       />
 
       {previewImage && (

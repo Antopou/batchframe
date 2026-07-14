@@ -9,6 +9,11 @@ const path = require('path');
 const isDev = require('electron-is-dev');
 const { spawn } = require('child_process');
 
+const driveOauth = require('./drive/oauthClient');
+const driveApi = require('./drive/driveApi');
+const driveManifest = require('./drive/manifest');
+const driveSync = require('./drive/syncEngine');
+
 // Disable GPU acceleration to work around GPU process errors — Windows only.
 // On macOS this forces all rendering onto the CPU, which keeps the machine
 // hot/busy even when idle, so we keep hardware acceleration on there.
@@ -116,6 +121,54 @@ function readImageDimensions(buf, ext) {
   return null;
 }
 
+// ── Drive manifest hooks ──────────────────────────────────────────
+// After a local mutation (crop / delete / rename / move), if the affected
+// file lives inside a Drive-backed cache dir, update its .sync-manifest.json.
+// All helpers are best-effort — they never throw into the caller.
+
+async function markManifestModified(absPath) {
+  try {
+    const found = await driveManifest.findForAbsPath(absPath);
+    if (!found) return;
+    const stat = await driveManifest.statLocal(found.cacheRoot, found.relPath);
+    driveManifest.markModified(found.manifest, found.relPath, stat);
+    await driveManifest.write(found.cacheRoot, found.manifest);
+    notifyManifestChanged(found.cacheRoot);
+  } catch (err) { console.error('markManifestModified failed:', err); }
+}
+
+async function markManifestDeleted(absPath) {
+  try {
+    const found = await driveManifest.findForAbsPath(absPath);
+    if (!found) return;
+    driveManifest.markDeleted(found.manifest, found.relPath);
+    await driveManifest.write(found.cacheRoot, found.manifest);
+    notifyManifestChanged(found.cacheRoot);
+  } catch (err) { console.error('markManifestDeleted failed:', err); }
+}
+
+async function markManifestRenamed(oldAbsPath, newAbsPath) {
+  try {
+    const found = await driveManifest.findForAbsPath(oldAbsPath);
+    if (!found) return;
+    const newRel = driveManifest.relFromAbs(found.cacheRoot, newAbsPath);
+    const stat = await driveManifest.statLocal(found.cacheRoot, newRel);
+    driveManifest.markRenamed(found.manifest, found.relPath, newRel, stat);
+    await driveManifest.write(found.cacheRoot, found.manifest);
+    notifyManifestChanged(found.cacheRoot);
+  } catch (err) { console.error('markManifestRenamed failed:', err); }
+}
+
+let manifestChangeDebounce = null;
+function notifyManifestChanged(cacheRoot) {
+  if (manifestChangeDebounce) clearTimeout(manifestChangeDebounce);
+  manifestChangeDebounce = setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('drive-manifest-changed', { cacheRoot });
+    }
+  }, 100);
+}
+
 // IPC Handlers
 ipcMain.handle('select-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -204,7 +257,7 @@ ipcMain.handle('delete-images', async (event, filePaths) => {
 
   try {
     const { default: trash } = await import('trash');
-    
+
     for (let i = 0; i < total; i += chunkSize) {
       const chunk = filePaths.slice(i, i + chunkSize);
       try {
@@ -215,11 +268,13 @@ ipcMain.handle('delete-images', async (event, filePaths) => {
           try { await fs.unlink(file); } catch (err) { lastError = err; }
         }
       }
-      
+
+      for (const p of chunk) await markManifestDeleted(p);
+
       const current = Math.min(i + chunkSize, total);
       event.sender.send('delete-progress', { current, total });
     }
-    
+
     return { success: true };
   } catch (error) {
     console.error('Delete error:', error);
@@ -227,6 +282,7 @@ ipcMain.handle('delete-images', async (event, filePaths) => {
     try {
       for (let i = 0; i < total; i++) {
         await fs.unlink(filePaths[i]);
+        await markManifestDeleted(filePaths[i]);
         event.sender.send('delete-progress', { current: i + 1, total });
       }
       return { success: true };
@@ -265,6 +321,10 @@ ipcMain.handle('save-cropped-image', async (event, { originalPath, dataUrl }) =>
     await fs.writeFile(outPath, buffer);
     if (path.resolve(outPath) !== path.resolve(originalPath)) {
       try { await fs.unlink(originalPath); } catch { /* original already gone */ }
+      await markManifestRenamed(originalPath, outPath);
+      await markManifestModified(outPath);
+    } else {
+      await markManifestModified(outPath);
     }
     return { success: true, path: outPath };
   } catch (error) {
@@ -278,6 +338,7 @@ ipcMain.handle('rename-images', async (event, renames) => {
     for (const { oldPath, newName } of renames) {
       const newPath = path.join(path.dirname(oldPath), newName);
       await fs.rename(oldPath, newPath);
+      await markManifestRenamed(oldPath, newPath);
     }
     return { success: true };
   } catch (error) {
@@ -341,12 +402,14 @@ ipcMain.handle('move-images', async (event, { filePaths, destFolder }) => {
     try {
       await fs.rename(src, dest);
       results.moved.push(src);
+      await markManifestRenamed(src, dest);
     } catch (err) {
       if (err.code === 'EXDEV') {
         try {
           await fs.copyFile(src, dest);
           await fs.unlink(src);
           results.moved.push(src);
+          await markManifestRenamed(src, dest);
         } catch (e2) {
           results.failed.push({ path: src, error: e2.message });
         }
@@ -613,5 +676,183 @@ ipcMain.handle('get-image-metadata', async (event, filePath) => {
     return { success: true, metadata, isEmpty: Object.keys(metadata).length === 0 };
   } catch (err) {
     return { success: false, error: err.message };
+  }
+});
+
+// ── Google Drive IPC handlers ─────────────────────────────────────
+
+// Drive cache lives next to the project / installed app so it's easy to find
+// and manage:
+//   dev  → <repo>/drive-cache/
+//   prod → <dir containing the app executable>/drive-cache/
+function driveCacheBaseDir() {
+  const base = isDev
+    ? path.resolve(__dirname, '..')
+    : path.dirname(app.getPath('exe'));
+  return path.join(base, 'drive-cache');
+}
+
+ipcMain.handle('drive-status', async () => {
+  try {
+    const configured = driveOauth.hasConfiguredClient();
+    const signedIn = configured && (await driveOauth.isSignedIn());
+    const profile = signedIn ? await driveOauth.getProfile() : null;
+    return { configured, signedIn, profile };
+  } catch (err) {
+    return { configured: false, signedIn: false, profile: null, error: err.message };
+  }
+});
+
+ipcMain.handle('drive-signin', async () => {
+  try {
+    const r = await driveOauth.signIn();
+    return { success: true, profile: r.profile };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('drive-signout', async () => {
+  try {
+    await driveOauth.signOut();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('drive-list-folder', async (_e, { folderId } = {}) => {
+  try {
+    const auth = await driveOauth.getAuthClient();
+    const parentId = folderId || 'root';
+    const children = await driveApi.listFolder(auth, parentId, { includeAll: false });
+    const folders = children
+      .filter((c) => c.mimeType === driveApi.FOLDER_MIME)
+      .map((c) => ({ id: c.id, name: c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    const images = children
+      .filter((c) => driveApi.isImage(c))
+      .map((c) => ({ id: c.id, name: c.name, size: c.size ? Number(c.size) : null, modifiedTime: c.modifiedTime || null }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    return { success: true, folders, images, imageCount: images.length };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Progress relay: pull / push send granular events via 'drive-progress'.
+function relayProgress(phase) {
+  return (event) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('drive-progress', { phase, ...event });
+    }
+  };
+}
+
+ipcMain.handle('drive-pull', async (_e, { driveFolderId, datasetName }) => {
+  try {
+    const auth = await driveOauth.getAuthClient();
+    const result = await driveSync.pullDataset(auth, {
+      driveFolderId,
+      datasetName,
+      cacheBaseDir: driveCacheBaseDir(),
+      onProgress: relayProgress('pull'),
+    });
+    return { success: true, cacheRoot: result.cacheRoot };
+  } catch (err) {
+    console.error('drive-pull failed:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('drive-push', async (_e, { cacheRoot, force = false }) => {
+  try {
+    const auth = await driveOauth.getAuthClient();
+    const result = await driveSync.pushDataset(auth, cacheRoot, {
+      force,
+      onProgress: relayProgress('push'),
+    });
+    if (!result.ok && result.conflicts) {
+      return { success: false, conflicts: result.conflicts };
+    }
+    notifyManifestChanged(cacheRoot);
+    return { success: true };
+  } catch (err) {
+    console.error('drive-push failed:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('drive-detect-conflicts', async (_e, { cacheRoot }) => {
+  try {
+    const auth = await driveOauth.getAuthClient();
+    const result = await driveSync.detectConflicts(auth, cacheRoot);
+    return { success: true, conflicts: result.conflicts };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('drive-clear-cache', async (_e, { cacheRoot, keepManifest = true }) => {
+  try {
+    const result = await driveSync.clearLocalCache(cacheRoot, { keepManifest });
+    notifyManifestChanged(cacheRoot);
+    return result;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('drive-refresh-manifest', async (_e, { cacheRoot }) => {
+  try {
+    const m = await driveSync.refreshManifest(cacheRoot);
+    notifyManifestChanged(cacheRoot);
+    return { success: true, manifest: m };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+function buildStatesByPath(cacheRoot, m) {
+  const out = {};
+  for (const [rel, entry] of Object.entries(m.files || {})) {
+    const abs = path.join(cacheRoot, driveManifest.toNative(rel));
+    out[abs] = entry.state;
+  }
+  return out;
+}
+
+ipcMain.handle('drive-get-manifest', async (_e, { cacheRoot }) => {
+  try {
+    const m = await driveManifest.read(cacheRoot);
+    if (!m) return { success: false, error: 'no-manifest' };
+    return {
+      success: true,
+      manifest: m,
+      summary: driveManifest.summary(m),
+      statesByPath: buildStatesByPath(cacheRoot, m),
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Given any absolute folder path, tell the caller whether it's a Drive-backed
+// cache root. Used by App.js to decide whether to show the DrivePanel.
+ipcMain.handle('drive-manifest-for-path', async (_e, absPath) => {
+  try {
+    if (!absPath) return { isCache: false };
+    // Only treat as cache if the path itself contains a manifest at its root.
+    const m = await driveManifest.read(absPath);
+    if (!m) return { isCache: false };
+    return {
+      isCache: true,
+      cacheRoot: absPath,
+      manifest: m,
+      summary: driveManifest.summary(m),
+      statesByPath: buildStatesByPath(absPath, m),
+    };
+  } catch (err) {
+    return { isCache: false, error: err.message };
   }
 });

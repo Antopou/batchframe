@@ -48,6 +48,25 @@ try {
     detectFaces:           (imagePaths) => ipcRenderer.invoke('detect-faces', { imagePaths }),
     onDetectProgress:      (cb) => ipcRenderer.on('detect-progress', (_, p) => cb(p)),
     removeDetectListeners: () => ipcRenderer.removeAllListeners('detect-progress'),
+
+    drive: {
+      status:            () => ipcRenderer.invoke('drive-status'),
+      signIn:            () => ipcRenderer.invoke('drive-signin'),
+      signOut:           () => ipcRenderer.invoke('drive-signout'),
+      listFolder:        (folderId) => ipcRenderer.invoke('drive-list-folder', { folderId }),
+      pull:              ({ driveFolderId, datasetName }) => ipcRenderer.invoke('drive-pull', { driveFolderId, datasetName }),
+      push:              ({ cacheRoot, force }) => ipcRenderer.invoke('drive-push', { cacheRoot, force }),
+      detectConflicts:   ({ cacheRoot }) => ipcRenderer.invoke('drive-detect-conflicts', { cacheRoot }),
+      clearCache:        ({ cacheRoot, keepManifest }) => ipcRenderer.invoke('drive-clear-cache', { cacheRoot, keepManifest }),
+      refreshManifest:   ({ cacheRoot }) => ipcRenderer.invoke('drive-refresh-manifest', { cacheRoot }),
+      getManifest:       ({ cacheRoot }) => ipcRenderer.invoke('drive-get-manifest', { cacheRoot }),
+      manifestForPath:   (absPath) => ipcRenderer.invoke('drive-manifest-for-path', absPath),
+
+      onProgress:            (cb) => ipcRenderer.on('drive-progress', (_, p) => cb(p)),
+      removeProgressListeners: () => ipcRenderer.removeAllListeners('drive-progress'),
+      onManifestChanged:     (cb) => ipcRenderer.on('drive-manifest-changed', (_, p) => cb(p)),
+      removeManifestChangedListeners: () => ipcRenderer.removeAllListeners('drive-manifest-changed'),
+    },
   };
 
   contextBridge.exposeInMainWorld('electronAPI', apis);

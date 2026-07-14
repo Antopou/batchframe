@@ -1,0 +1,194 @@
+/* Animated conic-gradient angle used for the "busy" traveling border. */
+@property --drive-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* ── Trigger button ── */
+.drive-btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--bg-elevated, #1e1e22);
+  border: 1px solid var(--border, #2c2c30);
+  color: var(--text-primary, #eee);
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.drive-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.drive-btn:active { transform: scale(0.96); }
+.drive-btn.unconfigured { opacity: 0.5; cursor: help; }
+.drive-btn.menu-open {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.drive-btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Green connected dot — bottom-right, glowing. */
+.drive-btn.connected::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow:
+    0 0 0 2px var(--bg-elevated, #1e1e22),
+    0 0 6px rgba(74, 222, 128, 0.7);
+  z-index: 2;
+}
+.drive-btn.connected.has-changes::after { display: none; }
+
+.drive-btn-badge {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  min-width: 14px;
+  height: 12px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #ffcc66;
+  color: #1a1300;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  box-shadow:
+    0 0 0 2px var(--bg-elevated, #1e1e22),
+    0 0 6px rgba(255, 204, 102, 0.6);
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
+}
+
+/* Elegant traveling green border. Uses double-background trick:
+   outer conic gradient = animated border; inner solid = button face. */
+.drive-btn.busy {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--bg-elevated, #1e1e22), var(--bg-elevated, #1e1e22)) padding-box,
+    conic-gradient(
+      from var(--drive-angle),
+      rgba(74, 222, 128, 0)   0deg,
+      rgba(74, 222, 128, 0)   200deg,
+      #4ade80                 300deg,
+      #86efac                 340deg,
+      rgba(74, 222, 128, 0)   360deg
+    ) border-box;
+  animation: drive-border-rotate 1.4s linear infinite;
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.28);
+}
+@keyframes drive-border-rotate {
+  to { --drive-angle: 360deg; }
+}
+
+/* ── Inline pill in the toolbar row ── */
+.drive-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+  background: var(--bg-elevated, #1e1e22);
+  border: 1px solid var(--border, #2c2c30);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--text-primary, #eee);
+  animation: drive-pill-in 0.16s ease-out both;
+  max-width: 320px;
+}
+@keyframes drive-pill-in {
+  from { transform: translateX(-6px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.drive-pill-label {
+  font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.drive-pill-count {
+  font-size: 10.5px;
+  color: var(--text-muted, #7c7c85);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Small ring spinner — matches the button's traveling border in feel. */
+.drive-pill-ring {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from var(--drive-angle),
+      rgba(74, 222, 128, 0)   0deg,
+      rgba(74, 222, 128, 0)   220deg,
+      #4ade80                 320deg,
+      rgba(74, 222, 128, 0)   360deg
+    );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  animation: drive-border-rotate 1.4s linear infinite;
+}
+
+.drive-pill-bar {
+  position: relative;
+  display: inline-block;
+  width: 70px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.drive-pill-fill {
+  position: absolute; inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #4ade80, #86efac);
+  border-radius: 2px;
+  transition: width 200ms ease;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+}
+
+.drive-pill-error {
+  border-color: rgba(229, 115, 115, 0.4);
+  background: rgba(180, 40, 40, 0.15);
+  color: #ffb0b0;
+  cursor: pointer;
+}
+
+/* ── Conflict dialog list ── */
+.drive-conflict-list {
+  list-style: none; padding: 0; margin: 10px 0 0;
+  max-height: 220px; overflow: auto;
+  font-size: 11.5px;
+  border: 1px solid var(--border, #2c2c30);
+  border-radius: 8px;
+}
+.drive-conflict-list li {
+  padding: 8px 10px;
+  display: flex; gap: 10px; align-items: center;
+}
+.drive-conflict-list li + li { border-top: 1px solid var(--border, #2c2c30); }
+.drive-conflict-reason {
+  padding: 2px 7px; border-radius: 4px;
+  background: rgba(255, 204, 102, 0.14);
+  color: #ffcc66; text-transform: uppercase;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.4px;
+  min-width: 68px; text-align: center;
+}
+.drive-conflict-name {
+  color: var(--text-secondary, #aaa);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 11px;
+}

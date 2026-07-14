@@ -732,7 +732,7 @@ ipcMain.handle('drive-list-folder', async (_e, { folderId } = {}) => {
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
     const images = children
       .filter((c) => driveApi.isImage(c))
-      .map((c) => ({ id: c.id, name: c.name, size: c.size ? Number(c.size) : null, modifiedTime: c.modifiedTime || null }))
+      .map((c) => ({ id: c.id, name: c.name, size: c.size ? Number(c.size) : null, modifiedTime: c.modifiedTime || null, thumbnailLink: c.thumbnailLink, hasThumbnail: c.hasThumbnail }))
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
     return { success: true, folders, images, imageCount: images.length };
   } catch (err) {

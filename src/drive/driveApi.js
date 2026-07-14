@@ -36,7 +36,7 @@ async function listFolder(auth, folderId, { includeAll = false } = {}) {
   do {
     const { data } = await drive.files.list({
       q: `'${folderId}' in parents and trashed = false`,
-      fields: 'nextPageToken, files(id, name, mimeType, md5Checksum, size, modifiedTime, parents)',
+      fields: 'nextPageToken, files(id, name, mimeType, md5Checksum, size, modifiedTime, parents, thumbnailLink, hasThumbnail)',
       pageSize: 1000,
       pageToken,
       spaces: 'drive',

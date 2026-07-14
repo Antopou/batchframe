@@ -12,6 +12,7 @@ function DriveFolderPicker({ onSelect, onClose }) {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [focusIndex, setFocusIndex] = useState(-1);
+  const [viewMode, setViewMode] = useState('list');
   const searchRef = useRef(null);
   const bodyRef = useRef(null);
 
@@ -151,6 +152,22 @@ function DriveFolderPicker({ onSelect, onClose }) {
             {query && folders.length + images.length !== filteredFolders.length + filteredImages.length
               ? ` / ${folders.length + images.length}` : ''}
           </span>
+          <div className="drive-picker-view-toggle">
+            <button 
+              className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`} 
+              onClick={() => setViewMode('list')}
+              title="List View"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
+            <button 
+              className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`} 
+              onClick={() => setViewMode('grid')}
+              title="Grid View"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/></svg>
+            </button>
+          </div>
         </div>
 
         <div className="drive-picker-body" ref={bodyRef}>
@@ -185,7 +202,7 @@ function DriveFolderPicker({ onSelect, onClose }) {
             </div>
           ))}
 
-          {!loading && filteredImages.map((f) => (
+          {!loading && viewMode === 'list' && filteredImages.map((f) => (
             <div key={f.id} className="drive-picker-row image">
               <span className="drive-picker-icon image-icon" aria-hidden>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -197,6 +214,27 @@ function DriveFolderPicker({ onSelect, onClose }) {
               <span className="drive-picker-name">{highlight(f.name, query)}</span>
             </div>
           ))}
+
+          {!loading && viewMode === 'grid' && filteredImages.length > 0 && (
+            <div className="drive-picker-grid">
+              {filteredImages.map((f) => (
+                <div key={f.id} className="drive-picker-grid-item" title={f.name}>
+                  {f.thumbnailLink ? (
+                    <img src={f.thumbnailLink} alt={f.name} loading="lazy" />
+                  ) : (
+                    <div className="drive-picker-no-thumb">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <circle cx="9" cy="9" r="1.5"/>
+                        <path d="m21 15-3.5-3.5a2 2 0 0 0-2.8 0L4 21"/>
+                      </svg>
+                    </div>
+                  )}
+                  <div className="drive-picker-grid-label">{highlight(f.name, query)}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="drive-picker-footer">

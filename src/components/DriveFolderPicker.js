@@ -214,43 +214,63 @@ function DriveFolderPicker({ onSelect, onClose }) {
             </div>
           )}
 
-          {!loading && filteredFolders.map((f, idx) => (
-            <div
-              key={f.id}
-              data-idx={idx}
-              className={`drive-picker-row folder${idx === focusIndex ? ' focused' : ''}${query ? ' matched' : ''}`}
-              onDoubleClick={() => openFolder(f)}
-              onClick={() => openFolder(f)}
-              title="Click to open"
-            >
-              <span className="drive-picker-icon folder-icon" aria-hidden>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
-                </svg>
-              </span>
-              <span className="drive-picker-name">{highlight(f.name, query)}</span>
-            </div>
-          ))}
+          {!loading && viewMode === 'list' && (
+            <>
+              {filteredFolders.map((f, idx) => (
+                <div
+                  key={f.id}
+                  data-idx={idx}
+                  className={`drive-picker-row folder${idx === focusIndex ? ' focused' : ''}${query ? ' matched' : ''}`}
+                  onDoubleClick={() => openFolder(f)}
+                  onClick={() => openFolder(f)}
+                  title="Click to open"
+                >
+                  <span className="drive-picker-icon folder-icon" aria-hidden>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+                    </svg>
+                  </span>
+                  <span className="drive-picker-name">{highlight(f.name, query)}</span>
+                </div>
+              ))}
+              {filteredImages.map((f) => (
+                <div key={f.id} className="drive-picker-row image">
+                  <span className="drive-picker-icon image-icon" aria-hidden>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/>
+                      <circle cx="9" cy="9" r="1.5"/>
+                      <path d="m21 15-3.5-3.5a2 2 0 0 0-2.8 0L4 21"/>
+                    </svg>
+                  </span>
+                  <span className="drive-picker-name">{highlight(f.name, query)}</span>
+                </div>
+              ))}
+            </>
+          )}
 
-          {!loading && viewMode === 'list' && filteredImages.map((f) => (
-            <div key={f.id} className="drive-picker-row image">
-              <span className="drive-picker-icon image-icon" aria-hidden>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <circle cx="9" cy="9" r="1.5"/>
-                  <path d="m21 15-3.5-3.5a2 2 0 0 0-2.8 0L4 21"/>
-                </svg>
-              </span>
-              <span className="drive-picker-name">{highlight(f.name, query)}</span>
-            </div>
-          ))}
-
-          {!loading && viewMode === 'grid' && filteredImages.length > 0 && (
+          {!loading && viewMode === 'grid' && (filteredFolders.length > 0 || filteredImages.length > 0) && (
             <div className="drive-picker-grid">
+              {filteredFolders.map((f, idx) => (
+                <div 
+                  key={f.id} 
+                  data-idx={idx} 
+                  className={`drive-picker-grid-item folder${idx === focusIndex ? ' focused' : ''}`} 
+                  onDoubleClick={() => openFolder(f)} 
+                  onClick={() => openFolder(f)} 
+                  title={`Click to open ${f.name}`}
+                >
+                  <div className="drive-picker-no-thumb" style={{ color: 'var(--accent)' }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+                    </svg>
+                  </div>
+                  <div className="drive-picker-grid-label">{highlight(f.name, query)}</div>
+                </div>
+              ))}
               {filteredImages.map((f) => (
                 <div key={f.id} className="drive-picker-grid-item" title={f.name}>
                   {f.thumbnailLink ? (
-                    <img src={f.thumbnailLink} alt={f.name} loading="lazy" />
+                    <img src={f.thumbnailLink} alt={f.name} loading="lazy" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="drive-picker-no-thumb">
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

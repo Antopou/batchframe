@@ -1273,7 +1273,7 @@ function App() {
         if (selectedImages.size > 0) handleMoveSelected();
       } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        if (selectedImages.size > 0) handleBulkRename();
+        if (selectedImages.size > 0) handleOpenBulkRename();
       } else if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         if (selectedImages.size > 0) handleUseSelectedAsRefs();
@@ -1339,7 +1339,7 @@ function App() {
       window.removeEventListener('wheel', cancelAnim);
       cancelAnim();
     };
-  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage]);
+  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage]);
 
   // ── Ctrl+Wheel zoom ─────────────────────────────────────────────
   useEffect(() => {

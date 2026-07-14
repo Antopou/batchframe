@@ -1,63 +1,80 @@
 # Image Dataset Selector
 
-A lightweight desktop app to select and organize images for your machine learning datasets.
+A highly advanced, lightning-fast desktop application to select, organize, and curate images for machine learning datasets. Built with Electron and React.
 
-## Features
+## Advanced Features
 
-- 📁 **Select any folder** - Choose a directory with images  
-- 🖼️ **Efficient image grid** - Preview multiple images with adjustable size (80-300px)
-- ✓ **Easy selection** - Click to select/deselect images  
-- 🗑️ **Delete to Recycle Bin** - Safely remove unwanted images
-- ⚡ **Quick workflow** - Keep selected or delete selected in one click
-- 📦 **Supports all common formats** - JPG, PNG, GIF, BMP, WebP, SVG
+### 📂 Organization & Curation
+- **Intelligent Grid & List Views**: View your dataset as a scalable grid (with contain/cover aspect ratios) or in detailed list views.
+- **Bulk Actions**: Copy, Move, or Rename large numbers of images simultaneously.
+- **Bulk Renaming**: Add custom prefixes and auto-incrementing zero-padded digits to standardize your dataset filenames.
+- **Reference Management**: Set specific characters/concepts and tag selected images as references for them.
+- **Advanced Filtering**: Filter your dataset by aspect ratio (Square, Portrait, Landscape, Ultra-Wide, etc.) or search by name.
 
-## Installation
+### ✨ Selection & Workflow
+- **Lasso Drag Selection**: Click and drag across the screen to quickly select groups of images.
+- **Shift-Click Range Selection**: Select an image, hold `Shift`, and click another to select everything in between.
+- **Image Locking**: "Lock" important images to prevent them from being accidentally deleted or moved.
+- **Order Selection**: Keep track of the exact sequential order in which you clicked images.
+- **Invert Selection**: Instantly flip your selection state.
+
+### 🤖 AI Integration & Similarity Scoring
+- **Local AI Scanning**: Connects to a local image recognition backend to scan your dataset for specific characters or concepts.
+- **Similarity Badges**: Images receive a percentage match score badge, making it easy to weed out false positives in your dataset.
+
+### ☁️ Google Drive Sync
+- **Cloud Native**: Directly pull and push datasets from/to a Google Drive folder.
+- **Conflict Resolution**: Safely detects unsynced changes and prompts you if there are remote conflicts before overwriting.
+- **Local Caching**: Images are cached locally for instantaneous loading, with a tiny visual indicator showing sync status.
+
+### 🎨 Deep Integrations
+- **Photoshop Link**: One-click export of selected images directly into Adobe Photoshop for manual touch-ups.
+
+## Keyboard Shortcuts
+
+Power users can navigate entirely via the keyboard (when not focused on a text input):
+
+- **A** - Toggle the AI character scan panel
+- **C** - Copy selected images
+- **M** - Move selected images
+- **R** - Bulk rename selected images
+- **F** - Use selected images as reference
+- **P** - Open selected in Adobe Photoshop
+- **I** - Invert the current selection
+- **L** - Lock selected images
+- **Shift + L** - Unlock selected images
+- **Del / Backspace** - Delete selected images (sends to Recycle Bin)
+- **Shift + Del** - Keep selected, delete everything else
+- **Ctrl+A / Cmd+A** - Select all images
+- **Escape** - Deselect all images
+- **Space / Shift+Space** - Scroll page up/down continuously
+
+## Installation & Setup
 
 1. Clone this repository or download the project
 2. Install dependencies:
    ```bash
    npm install
    ```
-
-3. Start the development version:
+3. Set up Google Drive Sync (Optional):
+   - Create a `.env` file in the root directory.
+   - Add your Google OAuth credentials:
+     ```env
+     GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+     GOOGLE_CLIENT_SECRET=your-client-secret
+     ```
+4. Start the development version:
    ```bash
    npm run dev
    ```
 
-Or build for production:
+To build for production:
 ```bash
 npm run build
 ```
 
-## How to Use
-
-1. Click **"📁 Select Folder"** to choose a folder containing images
-2. All images in that folder will load into the grid
-3. **Adjust preview size** using the slider (80-300px)
-4. **Click images** to select them (shows green checkmark)
-5. Use bulk actions:
-   - **Select All** - Select every image
-   - **Delete Selected** - Remove checked images to Recycle Bin
-   - **Keep Selected & Delete Rest** - Remove all unchecked images
-
-## Tips
-
-- Smaller preview sizes (80-120px) let you see more images quickly
-- Larger previews (200-300px) help you inspect image quality better
-- Hover over images to see filename at the bottom
-- All deletions go to Recycle Bin (recoverable)
-
-## System Requirements
-
-- Windows 7+, macOS 10.10+, or Linux
-- ~100MB disk space
-
 ## Built With
 
-- Electron - Desktop app framework
-- React - UI framework
-- Node.js - Backend
-
-## License
-
-MIT
+- **Electron** - Desktop app framework
+- **React** - UI framework
+- **Node.js** - Backend API and file system interactions

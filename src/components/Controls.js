@@ -169,6 +169,20 @@ function Controls({
     setEditPath(folderPath || '');
   }, [folderPath]);
 
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      if (e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setShowAIScan(v => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   const handlePathSubmit = () => {
     if (editPath.trim() && editPath !== folderPath) {
       onFolderPathEdit(editPath.trim());
@@ -328,9 +342,9 @@ function Controls({
               <span className="total">{totalCount}</span>
             </div>
             <div className="button-group mini">
-              <button onClick={onSelectAll} className="btn-modern ghost sm" disabled={loading} title="Select All (current page)">All</button>
-              <button onClick={onDeselectAll} className="btn-modern ghost sm" disabled={loading} title="Deselect All">None</button>
-              <button onClick={onInvertSelection} className="btn-modern ghost sm" disabled={loading} title="Invert selection">Inv</button>
+              <button onClick={onSelectAll} className="btn-modern ghost sm" disabled={loading} title="Select All (Ctrl/Cmd+A)">All</button>
+              <button onClick={onDeselectAll} className="btn-modern ghost sm" disabled={loading} title="Deselect All (Esc)">None</button>
+              <button onClick={onInvertSelection} className="btn-modern ghost sm" disabled={loading} title="Invert selection (I)">Inv</button>
               {selectedCount > 0 && !browserMode && (
                 <button onClick={onExportPaths} className="icon-btn-modern" disabled={loading} title={`Export ${selectedCount} paths to .txt`}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -439,7 +453,7 @@ function Controls({
               onClick={onDeleteSelected}
               className="action-btn del"
               disabled={loading || selectedCount === 0 || browserMode}
-              title="Delete selected"
+              title="Delete selected (Del)"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
               Del
@@ -448,7 +462,7 @@ function Controls({
               onClick={onKeepSelected}
               className="action-btn keep"
               disabled={loading || selectedCount === 0 || browserMode}
-              title="Keep selected, delete others"
+              title="Keep selected, delete others (Shift+Del)"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
               Keep
@@ -458,7 +472,7 @@ function Controls({
                 onClick={onCopySelected}
                 className="action-btn copy"
                 disabled={loading || selectedCount === 0 || isCopying}
-                title="Copy selected to another folder"
+                title="Copy selected to another folder (C)"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
@@ -471,7 +485,7 @@ function Controls({
                 onClick={onMoveSelected}
                 className="action-btn move"
                 disabled={loading || selectedCount === 0 || isMoving}
-                title="Move selected to another folder"
+                title="Move selected to another folder (M)"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h6"/><path d="m11 10 3 3-3 3"/></svg>
                 Move
@@ -482,7 +496,7 @@ function Controls({
                 onClick={onBulkRename}
                 className="action-btn rename"
                 disabled={loading || selectedCount === 0}
-                title="Bulk rename selected images"
+                title="Bulk rename selected images (R)"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>
@@ -494,7 +508,7 @@ function Controls({
               <button
                 className={`action-btn${showAIScan ? ' active' : ''}`}
                 onClick={() => setShowAIScan(v => !v)}
-                title="AI character scan"
+                title="AI character scan (A)"
                 disabled={loading}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 14.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>
@@ -508,8 +522,8 @@ function Controls({
                 disabled={loading || selectedCount === 0 || !activeCharacter}
                 title={
                   activeCharacter
-                    ? `Use ${selectedCount || 'selected'} as reference → ${activeCharacter}`
-                    : 'Set a character first to use as reference'
+                    ? `Use ${selectedCount || 'selected'} as reference (F) → ${activeCharacter}`
+                    : 'Set a character first to use as reference (F)'
                 }
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
@@ -522,7 +536,7 @@ function Controls({
                   onClick={onOpenInPhotoshop}
                   className="action-btn ps"
                   disabled={loading || selectedCount === 0}
-                  title={`Open in Photoshop: ${photoshopPath}`}
+                  title={`Open in Photoshop (P): ${photoshopPath}`}
                 >
                   <PhotoshopIcon size={14} />
                   Photoshop

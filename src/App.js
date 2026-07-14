@@ -9,6 +9,7 @@ import ContextMenu from './components/ContextMenu';
 import MetadataModal from './components/MetadataModal';
 import RenameModal from './components/RenameModal';
 import AutoCropModal from './components/AutoCropModal';
+import CommandPalette from './components/CommandPalette';
 import DriveButton from './components/DriveButton';
 import { boxToCropRect } from './utils/faceCrop';
 
@@ -98,6 +99,9 @@ function App() {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Command Palette
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
 
   // Move state
   const [isMoving, setIsMoving] = useState(false);
@@ -1238,11 +1242,69 @@ function App() {
     localStorage.setItem(CONFIRM_REQUIRED_KEY, String(val));
   }, []);
 
+  const globalActions = useMemo(() => {
+    const actions = [
+      { id: 'view-grid', name: 'Grid View', subtitle: 'Switch to thumbnail grid layout', shortcut: ['V'], onExecute: () => setViewMode('grid') },
+      { id: 'view-list', name: 'List View', subtitle: 'Switch to compact list layout', shortcut: ['V'], onExecute: () => setViewMode('list') },
+      { id: 'view-thumb', name: 'Toggle List Thumbnails', subtitle: 'Show/hide thumbnails in list view', shortcut: ['T'], onExecute: () => setListDetail(prev => prev === 'thumb' ? 'plain' : 'thumb') },
+      { id: 'view-fit', name: 'Toggle Image Fit', subtitle: 'Switch between Contain and Cover', shortcut: ['T'], onExecute: () => setImageFitMode(prev => prev === 'contain' ? 'cover' : 'contain') },
+      { id: 'select-all', name: 'Select All', subtitle: 'Select all images currently visible', shortcut: ['⌘', 'A'], onExecute: handleSelectAll },
+      { id: 'deselect-all', name: 'Deselect All', subtitle: 'Clear your current selection', shortcut: ['Esc'], onExecute: handleDeselectAll },
+      { id: 'invert-selection', name: 'Invert Selection', subtitle: 'Select unselected, deselect selected', shortcut: ['I'], onExecute: handleInvertSelection },
+      { id: 'copy-selected', name: 'Copy Selected', subtitle: 'Copy selected images to another folder', shortcut: ['C'], onExecute: handleCopySelected },
+      { id: 'move-selected', name: 'Move Selected', subtitle: 'Move selected images to another folder', shortcut: ['M'], onExecute: handleMoveSelected },
+      { id: 'delete-selected', name: 'Delete Selected', subtitle: 'Move selected images to trash', shortcut: ['Del'], onExecute: handleDeleteSelected },
+      { id: 'keep-selected', name: 'Keep Selected (Delete Rest)', subtitle: 'Delete all unselected images', shortcut: ['⇧', 'Del'], onExecute: handleKeepSelected },
+      { id: 'lock-selected', name: 'Lock Selected', subtitle: 'Prevent selected images from being deleted', shortcut: ['L'], onExecute: handleLockSelected },
+      { id: 'unlock-selected', name: 'Unlock Selected', subtitle: 'Allow selected images to be deleted', shortcut: ['⇧', 'L'], onExecute: handleUnlockSelected },
+      { id: 'bulk-rename', name: 'Bulk Rename Selected', subtitle: 'Sequentially rename selected images', shortcut: ['R'], onExecute: handleOpenBulkRename },
+      { id: 'open-photoshop', name: 'Open in Photoshop', subtitle: 'Send selected images to Photoshop', shortcut: ['P'], onExecute: handleOpenInPhotoshop },
+      { id: 'use-as-ref', name: 'Use Selected as References', subtitle: 'Add selected to AI references', shortcut: ['F'], onExecute: handleUseSelectedAsRefs },
+      { id: 'toggle-ai', name: 'Toggle AI Panel', subtitle: 'Open or close the AI character scanner', shortcut: ['A'], onExecute: () => setShowAIScan(p => !p) },
+      { id: 'toggle-drag-select', name: 'Toggle Drag Select', subtitle: 'Enable/disable click-and-drag selection', shortcut: ['D'], onExecute: () => setDragSelectEnabled(p => !p) },
+      { id: 'toggle-order-select', name: 'Toggle Order Select', subtitle: 'Click images in sequence to rename', shortcut: ['O'], onExecute: () => setOrderSelectMode(p => !p) },
+      { id: 'sort-name', name: 'Sort by Name', subtitle: 'Order images alphabetically', onExecute: () => { setSortBy('name'); setSortDir('asc'); } },
+      { id: 'sort-date', name: 'Sort by Date', subtitle: 'Order images by modified time', onExecute: () => { setSortBy('date'); setSortDir('desc'); } },
+      { id: 'sort-size', name: 'Sort by Size', subtitle: 'Order images by file size', onExecute: () => { setSortBy('size'); setSortDir('desc'); } },
+      { id: 'open-drive', name: 'Open Google Drive', subtitle: 'Pick a dataset from your Drive', onExecute: () => document.querySelector('.drive-btn')?.click() },
+      { id: 'open-folder', name: 'Open Local Folder', subtitle: 'Browse your computer for a folder', onExecute: handleSelectFolder },
+    ];
+    // Filter out actions requiring selection if none selected
+    return actions.filter(a => {
+      if (['copy-selected', 'move-selected', 'delete-selected', 'keep-selected', 'lock-selected', 'unlock-selected', 'bulk-rename', 'open-photoshop', 'use-as-ref'].includes(a.id)) {
+        return selectedImages.size > 0;
+      }
+      return true;
+    });
+  }, [
+    setViewMode, setListDetail, setImageFitMode, handleSelectAll, handleDeselectAll, handleInvertSelection,
+    handleCopySelected, handleMoveSelected, handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected,
+    handleOpenBulkRename, handleOpenInPhotoshop, handleUseSelectedAsRefs, setDragSelectEnabled, setOrderSelectMode,
+    setSortBy, setSortDir, handleSelectFolder, selectedImages.size
+  ]);
+
   // ── Keyboard shortcuts ──────────────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
+      // Command Palette
+      if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setShowCommandPalette(p => !p);
+        return;
+      }
+
+      // Ignore standard single-key shortcuts if user is typing
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      if (e.key === 'Escape') {
+        if (showCommandPalette) {
+          setShowCommandPalette(false);
+          return;
+        }
+        handleDeselectAll();
+        return;
+      }
 
       // While the preview modal is open it owns the keyboard; the grid ignores
       // everything so shortcuts can't act on the selection behind the modal.
@@ -1254,9 +1316,7 @@ function App() {
       } else if (e.key.toLowerCase() === 'l') {
         e.preventDefault();
         if (e.shiftKey) handleUnlockSelected(); else handleLockSelected();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        handleDeselectAll();
+
       } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && selectedImages.size === 0) {
         // With nothing selected, arrows do the same as the ‹ › toolbar buttons:
         // step the folder name's trailing number (…/25 → …/24 or …/26).
@@ -1743,6 +1803,13 @@ function App() {
           onClose={handleCloseAutoCrop}
         />
       )}
+      <CommandPalette 
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        query={searchQuery}
+        setQuery={setSearchQuery}
+        actions={globalActions}
+      />
     </div>
   );
 }

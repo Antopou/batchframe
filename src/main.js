@@ -51,7 +51,7 @@ function createWindow() {
   mainWindow.loadURL(startUrl);
 
   if (isDev) {
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools();
   }
 
   // CLI arg → initial folder

@@ -1520,7 +1520,7 @@ function App() {
         onToggleShortcuts={handleToggleShortcuts}
         subfolderBarPinned={subfolderBarPinned}
         onToggleSubfolderBar={handleToggleSubfolderBar}
-        hasSubfolders={subfolders.length > 0}
+        hasSubfolders={subfolders.length > 0 || !!parentFolderPath}
         sortBy={sortBy}
         onSortByChange={setSortBy}
         sortDir={sortDir}

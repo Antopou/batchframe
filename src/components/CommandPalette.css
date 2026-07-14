@@ -18,12 +18,12 @@
 }
 
 .cmd-palette {
-  background: var(--bg-elevated, #1c1c1e);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   width: 600px;
   max-width: 90vw;
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.05);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.05);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -39,12 +39,15 @@
   display: flex;
   align-items: center;
   padding: 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border);
 }
 
-.cmd-palette-search-icon {
-  color: var(--text-muted, #8e8e93);
+.cmd-palette-prompt {
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+  font-weight: 500;
   margin-right: 12px;
+  margin-top: 2px;
 }
 
 .cmd-palette-input {
@@ -52,8 +55,9 @@
   background: transparent;
   border: none;
   outline: none;
-  color: var(--text-primary, #ffffff);
-  font-size: 18px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   padding: 16px 0;
 }
 
@@ -80,15 +84,14 @@
   display: flex;
   align-items: center;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  color: var(--text-primary, #ffffff);
-  transition: background 0.1s ease;
+  color: var(--text-primary);
+  transition: none;
 }
 
 .cmd-palette-item.selected {
-  background: var(--accent, #0a84ff);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .cmd-palette-item-icon {
@@ -112,18 +115,19 @@
 }
 
 .cmd-palette-item-title {
-  font-size: 14px;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   font-weight: 500;
 }
 
 .cmd-palette-item-subtitle {
   font-size: 12px;
-  color: var(--text-muted, #8e8e93);
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
 .cmd-palette-item.selected .cmd-palette-item-subtitle {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
 }
 
 .cmd-palette-item-shortcut {

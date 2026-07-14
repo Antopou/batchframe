@@ -98,13 +98,11 @@ function CommandPalette({ isOpen, onClose, query, setQuery, actions }) {
     <div className="cmd-palette-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="cmd-palette" onMouseDown={e => e.stopPropagation()}>
         <div className="cmd-palette-header">
-          <svg className="cmd-palette-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-          </svg>
+          <span className="cmd-palette-prompt">❯</span>
           <input
             ref={inputRef}
             className="cmd-palette-input"
-            placeholder="Type a command or search images..."
+            placeholder="enter command..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -124,11 +122,7 @@ function CommandPalette({ isOpen, onClose, query, setQuery, actions }) {
                     onClose();
                   }}
                 >
-                  {action.icon && (
-                    <div className="cmd-palette-item-icon">
-                      {action.icon}
-                    </div>
-                  )}
+
                   <div className="cmd-palette-item-content">
                     <div className="cmd-palette-item-title">{highlight(action.name, query)}</div>
                     {action.subtitle && <div className="cmd-palette-item-subtitle">{highlight(action.subtitle, query)}</div>}

@@ -7,28 +7,10 @@
 .drive-picker {
   background: var(--bg-elevated); border: 1px solid var(--border);
   border-radius: 12px; width: 520px; max-width: 90vw;
+  height: 420px;
   max-height: 80vh;
   box-shadow: 0 24px 64px rgba(0,0,0,0.5);
   display: flex; flex-direction: column;
-}
-
-.drive-picker-header {
-  display: flex; align-items: center; gap: 10px;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.drive-picker-brand {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.drive-picker-title {
-  flex: 1;
-  font-size: 13px; font-weight: 600; color: var(--text-primary);
-  letter-spacing: -0.1px;
 }
 
 .drive-picker-close {
@@ -43,34 +25,64 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
-.drive-picker-crumbs {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
-  padding: 10px 16px; border-bottom: 1px solid var(--border);
-  font-size: 12px; color: var(--text-secondary);
-  background: var(--bg-base);
-}
-
-.drive-picker-crumb {
-  background: none; border: none; color: var(--text-secondary);
-  cursor: pointer; padding: 3px 8px; border-radius: 5px;
-  font-size: 12px;
-  transition: all 0.14s ease;
-}
-.drive-picker-crumb:hover { background: var(--bg-elevated); color: var(--text-primary); }
-.drive-picker-crumb.current {
-  color: var(--text-primary);
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.05);
-  cursor: default;
-}
-.drive-picker-sep { color: var(--text-muted); font-size: 11px; opacity: 0.6; }
-
-.drive-picker-search {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 14px;
+.terminal-omnibar {
+  display: flex;
+  align-items: center;
+  padding: 14px 18px;
+  background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+  font-size: 13px;
+  gap: 8px;
+  border-radius: 12px 12px 0 0;
+}
+
+.terminal-prompt {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.terminal-root {
+  color: var(--accent, #6c8aff);
+  font-weight: 600;
+}
+
+.terminal-sep {
   color: var(--text-muted);
-  background: var(--bg-base);
+  opacity: 0.5;
+  margin: 0 4px;
+}
+
+.terminal-dir {
+  color: var(--text-primary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.terminal-arrow {
+  color: var(--accent, #6c8aff);
+  margin-left: 8px;
+  margin-right: 4px;
+  font-weight: 700;
+}
+
+.terminal-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+}
+.terminal-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.4;
 }
 .drive-picker-search input {
   flex: 1;
@@ -131,9 +143,11 @@
   display: flex; align-items: center; gap: 10px;
   padding: 7px 10px; border-radius: 6px;
   font-size: 13px; color: var(--text-primary);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
 }
 .drive-picker-row.folder { cursor: pointer; }
 .drive-picker-row.folder:hover,
+.drive-picker-row.matched,
 .drive-picker-row.focused { background: var(--bg-base); }
 .drive-picker-row.focused { outline: 1px solid var(--accent, #6c8aff); outline-offset: -1px; }
 
@@ -177,6 +191,16 @@
   border-radius: 6px;
   overflow: hidden;
   margin-left: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.95);
+  transition: all 0.2s ease;
+}
+.terminal-omnibar:hover .drive-picker-view-toggle,
+.drive-picker-view-toggle.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
 }
 .drive-picker-view-toggle .toggle-btn {
   background: none; border: none;
@@ -235,4 +259,27 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@keyframes terminal-spinner {
+  0% { content: '[ / ]'; }
+  25% { content: '[ - ]'; }
+  50% { content: '[ \\ ]'; }
+  75% { content: '[ | ]'; }
+  100% { content: '[ / ]'; }
+}
+
+.terminal-loader {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+  color: var(--accent);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  padding: 7px 10px;
+}
+
+.terminal-loader-text::before {
+  content: '';
+  animation: terminal-spinner 0.5s infinite linear;
+  font-weight: bold;
 }

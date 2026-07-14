@@ -1293,6 +1293,13 @@ function App() {
         return;
       }
 
+      // Open Google Drive Panel
+      if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        document.querySelector('.drive-btn')?.click();
+        return;
+      }
+
       // Ignore standard single-key shortcuts if user is typing
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;

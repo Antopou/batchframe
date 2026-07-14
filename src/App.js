@@ -1283,6 +1283,52 @@ function App() {
       } else if (e.key.toLowerCase() === 'i' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         handleInvertSelection();
+      } else if (e.key === '1' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setPreviewSize(120);
+      } else if (e.key === '2' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setPreviewSize(170);
+      } else if (e.key === '3' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setPreviewSize(230);
+      } else if (e.key === '4' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setPreviewSize(280);
+      } else if (e.key.toLowerCase() === 'v' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setViewMode(prev => {
+          const next = prev === 'grid' ? 'list' : 'grid';
+          localStorage.setItem('viewMode', next);
+          return next;
+        });
+      } else if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        if (viewMode === 'list') {
+          setListDetail(prev => {
+            const next = prev === 'thumb' ? 'plain' : 'thumb';
+            localStorage.setItem('listDetail', next);
+            return next;
+          });
+        } else {
+          setImageFitMode(prev => prev === 'contain' ? 'cover' : 'contain');
+        }
+      } else if (e.key.toLowerCase() === 'o' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setOrderSelectMode(prev => !prev);
+      } else if (e.key.toLowerCase() === 'd' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setDragSelectEnabled(prev => !prev);
+      } else if (e.key.toLowerCase() === 'q' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setAutoReloadEnabled(prev => {
+          const next = !prev;
+          localStorage.setItem('autoReloadEnabled', next ? 'true' : 'false');
+          return next;
+        });
+      } else if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setConfirmRequired(prev => !prev);
       } else if (e.key === ' ') {
         e.preventDefault();
 
@@ -1339,7 +1385,7 @@ function App() {
       window.removeEventListener('wheel', cancelAnim);
       cancelAnim();
     };
-  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage]);
+  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode]);
 
   // ── Ctrl+Wheel zoom ─────────────────────────────────────────────
   useEffect(() => {

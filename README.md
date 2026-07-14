@@ -34,6 +34,13 @@ A highly advanced, lightning-fast desktop application to select, organize, and c
 
 Power users can navigate entirely via the keyboard (when not focused on a text input):
 
+- **1, 2, 3, 4** - Set image preview size to S, M, L, XL respectively
+- **V** - Toggle between Grid view and List view
+- **T** - Toggle thumbnail/plain mode in List view (or Cover/Contain fit in Grid view)
+- **D** - Toggle Drag Select mode
+- **O** - Toggle Order Selection mode
+- **Q** - Toggle Auto-Reload (watch for file changes)
+- **N** - Toggle Confirmations (delete/move prompts)
 - **A** - Toggle the AI character scan panel
 - **C** - Copy selected images
 - **M** - Move selected images

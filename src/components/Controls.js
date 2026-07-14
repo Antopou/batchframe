@@ -405,7 +405,7 @@ function Controls({
             <button
               className={`icon-btn-modern${orderSelectMode ? ' active' : ''}`}
               onClick={() => onOrderSelectModeChange(!orderSelectMode)}
-              title={orderSelectMode ? 'Exit Order Select mode' : 'Order Select: click images in sequence to assign rename order'}
+              title={orderSelectMode ? 'Exit Order Select mode (O)' : 'Order Select: click images in sequence to assign rename order (O)'}
               disabled={loading}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15 21 21"/><path d="M4 4l5 5"/></svg>
@@ -650,6 +650,7 @@ function Controls({
                     className={`segment-btn ${previewSize === vals[idx] ? 'active' : ''}`}
                     onClick={() => onPreviewPresetChange(vals[idx])}
                     disabled={loading}
+                    title={`Size: ${label} (${idx + 1})`}
                   >
                     {label}
                   </button>
@@ -665,14 +666,14 @@ function Controls({
               <button
                 className={`segment-btn ${viewMode === 'grid' ? 'active' : ''}`}
                 onClick={() => onViewModeChange && onViewModeChange('grid')}
-                title="Grid view"
+                title="Grid view (V)"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/></svg>
               </button>
               <button
                 className={`segment-btn ${viewMode === 'list' ? 'active' : ''}`}
                 onClick={() => onViewModeChange && onViewModeChange('list')}
-                title="List view"
+                title="List view (V)"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
               </button>
@@ -682,14 +683,14 @@ function Controls({
                 <button
                   className={`segment-btn ${listDetail === 'thumb' ? 'active' : ''}`}
                   onClick={() => onListDetailChange && onListDetailChange('thumb')}
-                  title="List with thumbnail"
+                  title="List with thumbnail (T)"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="6" height="6" rx="1"/><line x1="12" y1="6" x2="21" y2="6"/><line x1="12" y1="9" x2="18" y2="9"/><rect x="3" y="14" width="6" height="6" rx="1"/><line x1="12" y1="16" x2="21" y2="16"/><line x1="12" y1="19" x2="18" y2="19"/></svg>
                 </button>
                 <button
                   className={`segment-btn ${listDetail === 'plain' ? 'active' : ''}`}
                   onClick={() => onListDetailChange && onListDetailChange('plain')}
-                  title="List, names only"
+                  title="List, names only (T)"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
                 </button>
@@ -699,14 +700,14 @@ function Controls({
                 <button
                   className={`segment-btn ${imageFitMode === 'contain' ? 'active' : ''}`}
                   onClick={() => onImageFitModeChange('contain')}
-                  title="Contain"
+                  title="Contain (T)"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
                 </button>
                 <button
                   className={`segment-btn ${imageFitMode === 'cover' ? 'active' : ''}`}
                   onClick={() => onImageFitModeChange('cover')}
-                  title="Cover"
+                  title="Cover (T)"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m3 3 18 18"/><path d="m21 3-18 18"/></svg>
                 </button>
@@ -715,7 +716,7 @@ function Controls({
             <button
               className={`icon-btn-modern ${dragSelectEnabled ? 'active' : ''}`}
               onClick={() => onDragSelectEnabledChange(!dragSelectEnabled)}
-              title="Drag Select"
+              title="Drag Select (D)"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9"/><path d="M12 2v8"/><path d="M12 10 9 7"/><path d="m12 10 3-3"/><path d="M18 21v-8a2 2 0 0 0-2-2h-4"/></svg>
             </button>
@@ -723,7 +724,7 @@ function Controls({
               <button
                 className={`icon-btn-modern ${autoReloadEnabled ? 'active' : ''}`}
                 onClick={() => onAutoReloadChange(!autoReloadEnabled)}
-                title={autoReloadEnabled ? 'Auto-Reload: ON (refresh thumbnails when files change on disk)' : 'Auto-Reload: OFF'}
+                title={autoReloadEnabled ? 'Auto-Reload: ON (Q)' : 'Auto-Reload: OFF (Q)'}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
               </button>
@@ -731,7 +732,7 @@ function Controls({
             <button 
               className={`icon-btn-modern ${!confirmRequired ? 'warning' : ''}`}
               onClick={() => onConfirmRequiredChange(!confirmRequired)}
-              title={confirmRequired ? 'Confirm: ON' : 'Confirm: OFF'}
+              title={confirmRequired ? 'Confirm: ON (N)' : 'Confirm: OFF (N)'}
             >
               {confirmRequired ? (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>

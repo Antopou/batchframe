@@ -500,13 +500,15 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
 
   return (
     <div className="preview-modal-overlay" onClick={cropMode ? undefined : onClose}>
-      <div className="preview-modal-content" onClick={e => e.stopPropagation()}>
-        <div className="preview-header">
-          <div className="preview-info">
-            <span className="preview-filename">{image.name}</span>
-            <span className="preview-index">{currentIndex + 1} / {images.length}</span>
+      <div className="preview-modal-content">
+        <div className={`preview-header-wrapper${cropMode ? ' disabled' : ''}`}>
+          <div className="preview-header" onClick={e => e.stopPropagation()}>
+            <div className="preview-info">
+              <span className="preview-filename">{image.name}</span>
+              <span className="preview-index">{currentIndex + 1} / {images.length}</span>
+            </div>
+            <button className="preview-close" onClick={onClose}>×</button>
           </div>
-          <button className="preview-close" onClick={onClose}>×</button>
         </div>
 
         <div
@@ -527,6 +529,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
               alt={image.name}
               className={`preview-image${smoothZoom && !isDragging ? ' smooth' : ''}`}
               draggable={false}
+              onClick={e => e.stopPropagation()}
             />
           )}
 
@@ -553,8 +556,29 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
           )}
         </div>
 
+        {!cropMode && (
+          <>
+            <button
+              className="preview-nav-btn prev"
+              onClick={(e) => { e.stopPropagation(); onPrev(); }}
+              disabled={currentIndex === 0}
+              title="Previous image (←)"
+            >
+              ‹
+            </button>
+            <button
+              className="preview-nav-btn next"
+              onClick={(e) => { e.stopPropagation(); onNext(); }}
+              disabled={currentIndex === images.length - 1}
+              title="Next image (→)"
+            >
+              ›
+            </button>
+          </>
+        )}
+
         {cropMode ? (
-          <div className="preview-controls crop-controls">
+          <div className="preview-controls crop-controls" onClick={e => e.stopPropagation()}>
             <div className="crop-aspects">
               {ASPECT_PRESETS.map((p, i) => (
                 <button
@@ -589,16 +613,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
             </div>
           </div>
         ) : (
-          <div className="preview-controls">
-            <button
-              className="preview-nav-btn"
-              onClick={onPrev}
-              disabled={currentIndex === 0}
-              title="Previous image (←)"
-            >
-              ‹
-            </button>
-
+          <div className="preview-controls" onClick={e => e.stopPropagation()}>
             <div className="preview-zoom-controls">
               <button
                 onClick={() => setZoom(zoomRef.current / 1.25, null, true)}
@@ -621,50 +636,42 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                   <path d="M3 3v5h5" />
                 </svg>
               </button>
-              {canCrop && (
-                <button className="preview-crop-btn" onClick={enterCrop} title="Crop image (C)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M6 2v14a2 2 0 0 0 2 2h14" />
-                    <path d="M18 22V8a2 2 0 0 0-2-2H2" />
-                  </svg>
-                  Crop
-                </button>
-              )}
-
-              <button
-                className={`preview-crop-btn${selected ? ' active' : ''}`}
-                onClick={() => onToggleSelect()}
-                title={selected ? 'Deselect (S)' : 'Select (S)'}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  {selected
-                    ? <><path d="M20 6 9 17l-5-5" /></>
-                    : <><rect x="3" y="3" width="18" height="18" rx="2" /></>}
-                </svg>
-                {selected ? 'Selected' : 'Select'}
-              </button>
-
-              <button
-                className="preview-crop-btn"
-                onClick={() => onDelete()}
-                disabled={locked}
-                title={locked ? 'Locked (unlock to delete)' : 'Delete image (Del)'}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-                Delete
-              </button>
             </div>
+            
+            {canCrop && (
+              <button className="preview-crop-btn" onClick={enterCrop} title="Crop image (C)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+                  <path d="M18 22V8a2 2 0 0 0-2-2H2" />
+                </svg>
+                Crop
+              </button>
+            )}
 
             <button
-              className="preview-nav-btn"
-              onClick={onNext}
-              disabled={currentIndex === images.length - 1}
-              title="Next image (→)"
+              className={`preview-crop-btn${selected ? ' active' : ''}`}
+              onClick={() => onToggleSelect()}
+              title={selected ? 'Deselect (S)' : 'Select (S)'}
             >
-              ›
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                {selected
+                  ? <><path d="M20 6 9 17l-5-5" /></>
+                  : <><rect x="3" y="3" width="18" height="18" rx="2" /></>}
+              </svg>
+              {selected ? 'Selected' : 'Select'}
+            </button>
+
+            <button
+              className="preview-crop-btn"
+              onClick={() => onDelete()}
+              disabled={locked}
+              title={locked ? 'Locked (unlock to delete)' : 'Delete image (Del)'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              Delete
             </button>
           </div>
         )}

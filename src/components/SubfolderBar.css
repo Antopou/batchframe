@@ -72,7 +72,7 @@
 .subfolder-chip:hover {
   background: var(--bg-highlight);
   color: var(--text-primary);
-  border-color: var(--accent);
+  border-color: var(--primary, #6495ED);
 }
 
 .subfolder-add-btn {
@@ -92,13 +92,13 @@
 .subfolder-add-btn:hover {
   background: var(--bg-highlight);
   color: var(--text-primary);
-  border-color: var(--accent);
+  border-color: var(--primary, #6495ED);
 }
 
 .subfolder-rename-input {
   padding: 4px 10px;
   background: var(--bg-elevated);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--primary, #6495ED);
   border-radius: 5px;
   color: var(--text-primary);
   font-size: 12px;

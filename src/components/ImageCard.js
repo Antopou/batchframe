@@ -10,6 +10,7 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
   const [naturalSize, setNaturalSize] = useState(null);
   const prevSrcRef  = useRef('');
   const isFirstLoad = useRef(true);
+  const lastClickTimeRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,10 +71,16 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
   }, [image.path, image.previewSrc, image.name, image.mtime]);
 
   const handleClick = (event) => {
-    if (event.detail === 2) { // Double click
+    const now = Date.now();
+    const timeSinceLastClick = now - lastClickTimeRef.current;
+
+    // Check if it's a native double click or our custom timer double click
+    if (event.detail >= 2 || timeSinceLastClick < 400) {
       onPreview(image, imageIndex);
+      lastClickTimeRef.current = 0; // Reset so triple click doesn't trigger again
     } else {
       onCardClick(image.path, imageIndex, event.shiftKey);
+      lastClickTimeRef.current = now;
     }
   };
 

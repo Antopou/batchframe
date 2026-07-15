@@ -1,15 +1,15 @@
-# Image Dataset Selector
+# BatchFrame
 
-A highly advanced, lightning-fast desktop application to select, organize, and curate images for machine learning datasets. Built with Electron and React.
+A fast, keyboard-driven desktop application to cull, organize, and manage large collections of images. Designed for speed, it works well for digital asset management, photography culling, and organizing visual references. Built with Electron and React.
 
-## Advanced Features
+## Key Features
 
 ### 📂 Organization & Curation
-- **Intelligent Grid & List Views**: View your dataset as a scalable grid (with contain/cover aspect ratios) or in detailed list views.
+- **Responsive Grid & List Views**: View your images as a scalable grid (with contain/cover aspect ratios) or in detailed list views.
 - **Bulk Actions**: Copy, Move, or Rename large numbers of images simultaneously.
-- **Bulk Renaming**: Add custom prefixes and auto-incrementing zero-padded digits to standardize your dataset filenames.
-- **Reference Management**: Set specific characters/concepts and tag selected images as references for them.
-- **Advanced Filtering**: Filter your dataset by aspect ratio (Square, Portrait, Landscape, Ultra-Wide, etc.) or search by name.
+- **Bulk Renaming**: Add custom prefixes and auto-incrementing zero-padded digits to standardize your filenames.
+- **Reference Tagging**: Tag selected images as references for specific concepts or characters.
+- **Advanced Filtering**: Filter your folder by aspect ratio (Square, Portrait, Landscape, Ultra-Wide, etc.) or search by name.
 
 ### ✨ Selection & Workflow
 - **Lasso Drag Selection**: Click and drag across the screen to quickly select groups of images.
@@ -19,11 +19,11 @@ A highly advanced, lightning-fast desktop application to select, organize, and c
 - **Invert Selection**: Instantly flip your selection state.
 
 ### 🤖 AI Integration & Similarity Scoring
-- **Local AI Scanning**: Connects to a local image recognition backend to scan your dataset for specific characters or concepts.
-- **Similarity Badges**: Images receive a percentage match score badge, making it easy to weed out false positives in your dataset.
+- **Local AI Scanning**: Connects to a local image recognition backend to scan your folders for specific characters or concepts.
+- **Similarity Badges**: Images receive a percentage match score badge, making it easy to weed out false positives.
 
 ### ☁️ Google Drive Sync
-- **Cloud Native**: Directly pull and push datasets from/to a Google Drive folder.
+- **Cloud Sync**: Directly pull and push folders from/to a Google Drive account.
 - **Conflict Resolution**: Safely detects unsynced changes and prompts you if there are remote conflicts before overwriting.
 - **Local Caching**: Images are cached locally for instantaneous loading, with a tiny visual indicator showing sync status.
 

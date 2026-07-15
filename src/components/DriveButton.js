@@ -224,12 +224,12 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
         ? 'Sign in to Google Drive'
         : cacheRoot
           ? `Drive · ${manifest?.datasetName || ''}${dirty ? ` · ${dirty} unsynced` : ''}`
-          : 'Open dataset from Drive';
+          : 'Open folder from Drive';
 
   const menuItems = [];
   if (status?.signedIn) {
     if (cacheRoot && manifest?.datasetName) {
-      menuItems.push({ label: `Dataset: ${manifest.datasetName}`, disabled: true });
+      menuItems.push({ label: `Folder: ${manifest.datasetName}`, disabled: true });
       menuItems.push({ separator: true });
     }
     menuItems.push({
@@ -253,7 +253,7 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
       onClick: () => setConfirmClear(true),
     });
     menuItems.push({
-      label: 'Change dataset…',
+      label: 'Change folder…',
       disabled: busy,
       onClick: () => setShowPicker(true),
     });

@@ -35,6 +35,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    titleBarStyle: 'hidden',
+    trafficLightPosition: { x: 14, y: 11 },
     webPreferences: {
       preload: preloadPath,
       nodeIntegration: false,
@@ -65,6 +67,14 @@ function createWindow() {
       } catch (e) { console.error('initial-folder send failed:', e); }
     });
   }
+
+  mainWindow.on('will-enter-full-screen', () => {
+    mainWindow.webContents.send('fullscreen-change', true);
+  });
+
+  mainWindow.on('will-leave-full-screen', () => {
+    mainWindow.webContents.send('fullscreen-change', false);
+  });
 
   mainWindow.on('closed', () => {
     stopFolderWatcher();
@@ -198,6 +208,35 @@ ipcMain.handle('get-images', async (event, folderPath) => {
     }));
   } catch (error) {
     console.error(error);
+    return [];
+  }
+});
+
+ipcMain.handle('get-folder-preview', async (event, { folderPath, limit = 4 }) => {
+  try {
+    const files = await fs.readdir(folderPath);
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+    const imageFiles = files
+      .filter(f => imageExtensions.includes(path.extname(f).toLowerCase()))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+      .slice(0, limit);
+    return await Promise.all(imageFiles.map(async (name) => {
+      const abs = path.join(folderPath, name);
+      const ext = path.extname(name).toLowerCase().slice(1);
+      const mime = ext === 'png' ? 'image/png'
+        : ext === 'gif' ? 'image/gif'
+        : ext === 'webp' ? 'image/webp'
+        : ext === 'bmp' ? 'image/bmp'
+        : ext === 'svg' ? 'image/svg+xml'
+        : 'image/jpeg';
+      try {
+        const data = await fs.readFile(abs);
+        return { name, path: abs, dataUrl: `data:${mime};base64,${data.toString('base64')}` };
+      } catch {
+        return { name, path: abs, dataUrl: null };
+      }
+    }));
+  } catch {
     return [];
   }
 });
@@ -686,10 +725,8 @@ ipcMain.handle('get-image-metadata', async (event, filePath) => {
 //   dev  → <repo>/drive-cache/
 //   prod → <dir containing the app executable>/drive-cache/
 function driveCacheBaseDir() {
-  const base = isDev
-    ? path.resolve(__dirname, '..')
-    : path.dirname(app.getPath('exe'));
-  return path.join(base, 'drive-cache');
+  const base = app.getPath('home');
+  return path.join(base, 'Drive');
 }
 
 ipcMain.handle('drive-status', async () => {

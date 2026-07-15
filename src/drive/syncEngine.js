@@ -14,7 +14,7 @@ function sanitizeName(name) {
 }
 
 function cachePathFor(baseDir, datasetName, driveFolderId) {
-  return path.join(baseDir, `${sanitizeName(datasetName)}-${driveFolderId.slice(0, 8)}`);
+  return path.join(baseDir, sanitizeName(datasetName));
 }
 
 // Runs jobs with bounded concurrency. jobs is an array of thunks returning promises.

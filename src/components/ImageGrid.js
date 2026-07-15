@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import './ImageGrid.css';
 import ImageCard from './ImageCard';
 import ImageRow from './ImageRow';
+import FolderThumbnail from './FolderThumbnail';
 
 // Grid geometry — must match the viewport padding in ImageGrid.css
 // (.image-grid-viewport { padding: 16px 20px }) and the gap below, so the
@@ -28,12 +29,21 @@ const ImageGrid = forwardRef(function ImageGrid({
   orderedSelection,
   orderSelectMode,
   onContextMenu,
+  onFolderContextMenu,
   aiScores,
   aiThreshold,
   scanningPath,
   driveStatesByPath,
   viewMode = 'grid',
   listDetail = 'thumb',
+  subfolders = [],
+  folderPreviews,
+  onFolderClick,
+  editingFolderPath,
+  onRenameCommit,
+  onRenameCancel,
+  selectedFolders,
+  onFolderLongPress,
 }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(0);
@@ -82,12 +92,26 @@ const ImageGrid = forwardRef(function ImageGrid({
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
-  const showGrid = !loading && images.length > 0;
+  // Explorer view: merge subfolders + images into a single windowed grid.
+  // Otherwise entries contain only images (folders live in SubfolderBar).
+  const isExplorer = viewMode === 'explorer';
+  const folderCount = isExplorer ? subfolders.length : 0;
+  const entries = useMemo(() => {
+    if (isExplorer) {
+      return [
+        ...subfolders.map((f) => ({ kind: 'folder', folder: f })),
+        ...images.map((img) => ({ kind: 'image', image: img })),
+      ];
+    }
+    return images.map((img) => ({ kind: 'image', image: img }));
+  }, [isExplorer, subfolders, images]);
+
+  const showEmptyFolders = !loading && images.length === 0 && subfolders.length > 0 && !isExplorer;
+  const showGrid = !loading && entries.length > 0;
 
   // Measure the viewport (height + inner content width) so we can window rows.
-  // useLayoutEffect + ResizeObserver so sizes are set before the first paint.
   useLayoutEffect(() => {
-    if (!showGrid) return;
+    if (!showGrid && !showEmptyFolders) return;
     const vp = viewportRef.current;
     if (!vp) return;
     const measure = () => {
@@ -98,7 +122,7 @@ const ImageGrid = forwardRef(function ImageGrid({
     const ro = new ResizeObserver(measure);
     ro.observe(vp);
     return () => ro.disconnect();
-  }, [showGrid]);
+  }, [showGrid, showEmptyFolders]);
 
   const handleScroll = useCallback(() => {
     const vp = viewportRef.current;
@@ -148,8 +172,6 @@ const ImageGrid = forwardRef(function ImageGrid({
   }, [orderedSelection]);
 
   // ── Windowing geometry ──────────────────────────────────────────
-  // Grid: square cards (aspect-ratio: 1/1), so row height == column width.
-  // List: fixed row height, one column.
   const isList = viewMode === 'list';
   const isPlain = isList && listDetail === 'plain';
   const LIST_ROW_H = isPlain ? 32 : 56;
@@ -160,13 +182,13 @@ const ImageGrid = forwardRef(function ImageGrid({
   const cols = isList ? 1 : gridCols;
   const rowH = isList ? LIST_ROW_H + LIST_GAP : gridColW + GAP;
   const gapForMode = isList ? LIST_GAP : GAP;
-  const totalRows = Math.ceil(images.length / cols);
+  const totalRows = Math.ceil(entries.length / cols);
   const totalHeight = Math.max(0, totalRows * rowH - gapForMode);
 
   const startRow = Math.max(0, Math.floor(scrollTop / rowH) - BUFFER_ROWS);
   const endRow = Math.min(totalRows - 1, Math.ceil((scrollTop + viewportH) / rowH) + BUFFER_ROWS);
   const startIndex = startRow * cols;
-  const endIndex = Math.min(images.length, (endRow + 1) * cols);
+  const endIndex = Math.min(entries.length, (endRow + 1) * cols);
   const offsetY = startRow * rowH;
 
   const gridStyle = useMemo(() => ({
@@ -181,12 +203,33 @@ const ImageGrid = forwardRef(function ImageGrid({
 
   const visibleCards = [];
   for (let index = startIndex; index < endIndex; index++) {
-    const image = images[index];
-    if (!image) continue;
+    const entry = entries[index];
+    if (!entry) continue;
+    if (entry.kind === 'folder') {
+      const f = entry.folder;
+      const preview = folderPreviews?.get?.(f.path) || [];
+      visibleCards.push(
+        <FolderThumbnail
+          key={`folder:${f.path}`}
+          folder={f}
+          preview={preview}
+          onClick={onFolderClick}
+          onContextMenu={onFolderContextMenu}
+          isEditing={editingFolderPath === f.path}
+          onRenameCommit={onRenameCommit}
+          onRenameCancel={onRenameCancel}
+          isSelected={selectedFolders && selectedFolders.has(f.path)}
+          onLongPress={onFolderLongPress}
+        />
+      );
+      continue;
+    }
+    const image = entry.image;
+    const imageIndex = index - folderCount;
     const common = {
       key: image.path,
       image,
-      imageIndex: index,
+      imageIndex,
       isSelected: selectedImages.has(image.path),
       isLocked: lockedImages.has(image.path),
       onCardClick: handleCardClick,
@@ -206,7 +249,7 @@ const ImageGrid = forwardRef(function ImageGrid({
     visibleCards.push(
       isList
         ? <ImageRow {...common} detail={listDetail} />
-        : <ImageCard {...common} isAnchor={index === anchorIndex} size={previewSize} imageFitMode={imageFitMode} />
+        : <ImageCard {...common} isAnchor={imageIndex === anchorIndex} size={previewSize} imageFitMode={imageFitMode} />
     );
   }
 
@@ -222,7 +265,36 @@ const ImageGrid = forwardRef(function ImageGrid({
     );
   }
 
-  if (images.length === 0) {
+  // Empty images but has subfolders → show folder tiles instead of placeholder.
+  if (showEmptyFolders) {
+    return (
+      <div
+        ref={viewportRef}
+        className="image-grid-viewport"
+        onScroll={handleScroll}
+      >
+        <div
+          className="image-grid"
+          style={{
+            gridTemplateColumns: `repeat(auto-fill, minmax(${previewSize}px, 1fr))`,
+            gap: `${GAP}px`,
+          }}
+        >
+          {subfolders.map((f) => (
+            <FolderThumbnail
+              key={`folder-empty:${f.path}`}
+              folder={f}
+              preview={folderPreviews?.get?.(f.path) || []}
+              onClick={onFolderClick}
+              onContextMenu={onFolderContextMenu}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
     return (
       <div className="empty-state">
         <div className="empty-state-icon">

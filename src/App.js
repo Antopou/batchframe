@@ -13,11 +13,13 @@ import CommandPalette from './components/CommandPalette';
 import DriveButton from './components/DriveButton';
 import { boxToCropRect } from './utils/faceCrop';
 
-const LAST_FOLDER_KEY = 'images-selector-last-folder';
-const CONFIRM_REQUIRED_KEY = 'images-selector-confirm-required';
+const LAST_FOLDER_KEY = 'batchframe-last-folder';
+const CONFIRM_REQUIRED_KEY = 'batchframe-confirm-required';
 const PREVIEW_MIN = 80;
 const PREVIEW_MAX = 300;
 const PREVIEW_STEP = 12;
+const FOLDER_PREVIEW_CACHE_MAX = 200;
+const FOLDER_PREVIEW_CONCURRENCY = 8;
 
 function clamp(value) {
   return Math.max(PREVIEW_MIN, Math.min(PREVIEW_MAX, value));
@@ -30,10 +32,14 @@ function App() {
   const [folderPath, setFolderPath] = useState('');
   const [images, setImages] = useState([]);
   const [selectedImages, setSelectedImages] = useState(new Set());
+  const [selectedFolders, setSelectedFolders] = useState(new Set());
   const [previewSize, setPreviewSize] = useState(150);
   const [imageFitMode, setImageFitMode] = useState('contain');
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem('viewMode') === 'list' ? 'list' : 'grid');
-  const [listDetail, setListDetail] = useState(() => localStorage.getItem('listDetail') === 'plain' ? 'plain' : 'thumb');
+  const [viewMode, setViewMode] = useState(() => {
+    const v = localStorage.getItem('viewMode');
+    return ['explorer', 'grid', 'list'].includes(v) ? v : 'explorer';
+  });
+  const [listDetail, setListDetail] = useState(() => localStorage.getItem('listDetail') === 'thumb' ? 'thumb' : 'plain');
   const [dragSelectEnabled, setDragSelectEnabled] = useState(true);
   const [pageSize, setPageSize] = useState(99999); // default to "All"
   const [currentPage, setCurrentPage] = useState(1);
@@ -48,6 +54,7 @@ function App() {
   // Auto-hide header state
   const [headerVisible, setHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Lock functionality state
   const [lockedImages, setLockedImages] = useState(new Set());
@@ -68,6 +75,12 @@ function App() {
   // Recent folders state
   const [recentFolders, setRecentFolders] = useState([]);
   const [showRecentFolders, setShowRecentFolders] = useState(false);
+  const [forwardHistory, setForwardHistory] = useState([]);
+
+  // Folder preview cache: LRU Map keyed by absolute folder path -> preview[] from get-folder-preview.
+  // Session-only, capped at FOLDER_PREVIEW_CACHE_MAX entries; used by FolderThumbnail in explorer view + empty state.
+  const [folderPreviews, setFolderPreviews] = useState(() => new Map());
+  const folderLoadToken = useRef(0);
 
   // Preview modal state
   const [previewImage, setPreviewImage] = useState(null);
@@ -144,6 +157,20 @@ function App() {
   const [driveSummary, setDriveSummary] = useState(null);
   const [driveStatesByPath, setDriveStatesByPath] = useState(null);
 
+  // Listen to fullscreen changes
+  useEffect(() => {
+    if (window.electronAPI?.onFullscreenChange) {
+      window.electronAPI.onFullscreenChange((isFull) => {
+        setIsFullscreen(isFull);
+      });
+      return () => {
+        if (window.electronAPI?.removeFullscreenChangeListeners) {
+          window.electronAPI.removeFullscreenChangeListeners();
+        }
+      };
+    }
+  }, []);
+
   // Reload manifest whenever the open folder changes, and on drive-manifest-changed events.
   useEffect(() => {
     if (!window.electronAPI?.drive || !folderPath) {
@@ -206,7 +233,7 @@ function App() {
     if (saved) setLastFolderPath(saved);
     const savedConfirm = localStorage.getItem(CONFIRM_REQUIRED_KEY);
     if (savedConfirm !== null) setConfirmRequired(savedConfirm !== 'false');
-    const savedRecent = localStorage.getItem('images-selector-recent-folders');
+    const savedRecent = localStorage.getItem('batchframe-recent-folders');
     if (savedRecent) setRecentFolders(JSON.parse(savedRecent));
   }, []);
 
@@ -318,8 +345,9 @@ function App() {
   }, [sortedImages, searchQuery, aspectFilter]);
 
   const filteredImagesRef = useRef(filteredImages);
+  const subfoldersRef = useRef(subfolders);
   useEffect(() => { filteredImagesRef.current = filteredImages; }, [filteredImages]);
-
+  useEffect(() => { subfoldersRef.current = subfolders; }, [subfolders]);
   useEffect(() => { folderPathRef.current = folderPath; }, [folderPath]);
 
   // ── Follow scanning position during AI scan ────────────────────
@@ -387,11 +415,59 @@ function App() {
     setConfirmDialog(null);
   }, [confirmDialog]);
 
+  // ── Folder preview cache (LRU) ────────────────────────────────
+  const invalidateFolderPreview = useCallback((folderPath) => {
+    if (!folderPath) return;
+    setFolderPreviews((prev) => {
+      if (!prev.has(folderPath)) return prev;
+      const next = new Map(prev);
+      next.delete(folderPath);
+      return next;
+    });
+  }, []);
+
+  const loadFolderPreviews = useCallback(async (subfoldersList, token) => {
+    if (!window.electronAPI?.getFolderPreview || !subfoldersList?.length) return;
+    // Filter to folders not yet cached.
+    const needed = [];
+    setFolderPreviews((prev) => {
+      for (const f of subfoldersList) if (!prev.has(f.path)) needed.push(f.path);
+      return prev;
+    });
+    if (needed.length === 0) return;
+    // Simple concurrency queue.
+    let i = 0;
+    const worker = async () => {
+      while (i < needed.length) {
+        const idx = i++;
+        const p = needed[idx];
+        try {
+          const preview = await window.electronAPI.getFolderPreview(p, 4);
+          if (folderLoadToken.current !== token) return;
+          setFolderPreviews((prev) => {
+            const next = new Map(prev);
+            next.set(p, preview || []);
+            // LRU cap: drop oldest entries.
+            while (next.size > FOLDER_PREVIEW_CACHE_MAX) {
+              const oldestKey = next.keys().next().value;
+              next.delete(oldestKey);
+            }
+            return next;
+          });
+        } catch {}
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(FOLDER_PREVIEW_CONCURRENCY, needed.length) }, worker)
+    );
+  }, []);
+
   // ── Folder loading ──────────────────────────────────────────────
   const loadElectronFolder = useCallback(async (pathToLoad, persist = true) => {
     if (!pathToLoad) return;
     setFolderPath(pathToLoad);
     setLoading(true);
+    const token = ++folderLoadToken.current;
     try {
       const [list, folderInfo] = await Promise.all([
         window.electronAPI.getImages(pathToLoad),
@@ -403,6 +479,7 @@ function App() {
       setParentFolderPath(folderInfo.parentPath);
       setSubfolderBarVisible(true);
       setSelectedImages(new Set());
+      setSelectedFolders(new Set());
       setLockedImages(new Set());
       setCurrentPage(1);
       if (persist) {
@@ -412,21 +489,62 @@ function App() {
         // Update recent folders
         setRecentFolders((prev) => {
           const updated = [pathToLoad, ...prev.filter((f) => f !== pathToLoad)].slice(0, 10);
-          localStorage.setItem('images-selector-recent-folders', JSON.stringify(updated));
+          localStorage.setItem('batchframe-recent-folders', JSON.stringify(updated));
           return updated;
         });
       }
+      // Kick off preview loads for the newly displayed subfolders (fire and forget).
+      loadFolderPreviews(folderInfo.subfolders, token);
       return mapped;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadFolderPreviews]);
 
   // Navigate to a folder from the subfolder bar and reset the grid scroll to top
-  const handleNavigateToFolder = useCallback(async (pathToLoad) => {
+  const handleNavigateToFolder = useCallback(async (pathToLoad, opts = {}) => {
+    const { isBack, isForward } = opts;
+    if (isBack) {
+      setForwardHistory(prev => [...prev, folderPathRef.current]);
+    } else if (!isForward) {
+      setForwardHistory([]);
+    }
     await loadElectronFolder(pathToLoad, true);
     setTimeout(() => gridRef.current?.scrollToTop(), 0);
   }, [loadElectronFolder]);
+
+  const handleNavigateUp = useCallback(async () => {
+    if (parentFolderPath) await handleNavigateToFolder(parentFolderPath, { isBack: true });
+  }, [parentFolderPath, handleNavigateToFolder]);
+
+  const handleNavigateForward = useCallback(async () => {
+    if (forwardHistory.length > 0) {
+      const next = forwardHistory[forwardHistory.length - 1];
+      setForwardHistory(prev => prev.slice(0, -1));
+      await handleNavigateToFolder(next, { isForward: true });
+    }
+  }, [forwardHistory, handleNavigateToFolder]);
+
+  const handleFolderLongPress = useCallback((path) => {
+    setSelectedFolders((prev) => {
+      const next = new Set(prev);
+      next.add(path);
+      return next;
+    });
+  }, []);
+
+  const handleFolderClick = useCallback((folderPath) => {
+    if (selectedFolders.size > 0 || selectedImages.size > 0) {
+      setSelectedFolders((prev) => {
+        const next = new Set(prev);
+        if (next.has(folderPath)) next.delete(folderPath);
+        else next.add(folderPath);
+        return next;
+      });
+      return;
+    }
+    handleNavigateToFolder(folderPath);
+  }, [handleNavigateToFolder, selectedFolders.size, selectedImages.size]);
 
   // ── Folder management ─────────────────────────────────────────────
   const computeNextFolderName = useCallback(() => {
@@ -451,9 +569,11 @@ function App() {
     const name = computeNextFolderName();
     const result = await window.electronAPI.createFolder(folderPath, name);
     if (result?.success) {
+      if (result.path) invalidateFolderPreview(result.path);
       await loadElectronFolder(folderPath, false);
+      if (result.path) setEditingFolderPath(result.path);
     }
-  }, [folderPath, computeNextFolderName, loadElectronFolder]);
+  }, [folderPath, computeNextFolderName, loadElectronFolder, invalidateFolderPreview]);
 
   const handleFolderContextMenu = useCallback((e, folder) => {
     e.preventDefault();
@@ -467,9 +587,11 @@ function App() {
     if (!window.electronAPI || !newName || newName === folder.name) return;
     const result = await window.electronAPI.renameFolder(folder.path, newName);
     if (result?.success) {
+      invalidateFolderPreview(folder.path);
+      if (result.path) invalidateFolderPreview(result.path);
       await loadElectronFolder(folderPath, false);
     }
-  }, [folderPath, loadElectronFolder]);
+  }, [folderPath, loadElectronFolder, invalidateFolderPreview]);
 
   const handleDeleteFolder = useCallback(async (folder) => {
     if (!window.electronAPI) return;
@@ -481,9 +603,10 @@ function App() {
     if (!ok) return;
     const result = await window.electronAPI.deleteFolder(folder.path);
     if (result?.success) {
+      invalidateFolderPreview(folder.path);
       await loadElectronFolder(folderPath, false);
     }
-  }, [folderPath, loadElectronFolder, showConfirm]);
+  }, [folderPath, loadElectronFolder, showConfirm, invalidateFolderPreview]);
 
   const buildFolderMenuItems = useCallback((folder) => [
     { label: 'Rename', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>, onClick: () => setEditingFolderPath(folder.path) },
@@ -540,6 +663,7 @@ function App() {
     });
     setFolderPath(files[0]?.webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'Browser folder');
     setSelectedImages(new Set());
+    setSelectedFolders(new Set());
     setLockedImages(new Set());
     setCurrentPage(1);
   }, []);
@@ -560,6 +684,8 @@ function App() {
   const handleOpenPreview = useCallback((image, index) => {
     setPreviewImage(image);
     setPreviewIndex(index);
+    setSelectedImages(new Set());
+    setSelectedFolders(new Set());
   }, []);
 
   const handleClosePreview = useCallback(() => {
@@ -688,7 +814,10 @@ function App() {
     });
   }, [pagedImages, selectedImages]);
 
-  const handleDeselectAll = useCallback(() => setSelectedImages(new Set()), []);
+  const handleDeselectAll = useCallback(() => {
+    setSelectedImages(new Set());
+    setSelectedFolders(new Set());
+  }, []);
 
   // ── Lock/Unlock functionality ─────────────────────────────────────
   const handleToggleLock = useCallback((imagePath) => {
@@ -1092,11 +1221,24 @@ function App() {
 
   // ── Delete selected ─────────────────────────────────────────────
   const handleDeleteSelected = useCallback(async () => {
-    if (selectedImages.size === 0) return;
+    if (selectedImages.size === 0 && selectedFolders.size === 0) return;
+    
     const imageList = selectedImages.size === images.length ? images : images.filter(img => selectedImages.has(img.path));
     const safeImages = imageList.filter(img => !lockedImages.has(img.path));
-    if (safeImages.length === 0) return;
-    const proceed = confirmRequired ? await showConfirm('Delete', `Permanently delete ${safeImages.length} image${safeImages.length > 1 ? 's' : ''}?`) : true;
+    const folderList = Array.from(selectedFolders);
+    
+    if (safeImages.length === 0 && folderList.length === 0) return;
+    
+    let message = '';
+    if (safeImages.length > 0 && folderList.length > 0) {
+      message = `Permanently delete ${safeImages.length} image${safeImages.length > 1 ? 's' : ''} and ${folderList.length} folder${folderList.length > 1 ? 's' : ''}?`;
+    } else if (safeImages.length > 0) {
+      message = `Permanently delete ${safeImages.length} image${safeImages.length > 1 ? 's' : ''}?`;
+    } else {
+      message = `Permanently delete ${folderList.length} folder${folderList.length > 1 ? 's' : ''}?`;
+    }
+
+    const proceed = confirmRequired ? await showConfirm('Delete', message) : true;
     if (!proceed) return;
     
     // Find the index of the last selected image to determine where to scroll
@@ -1104,18 +1246,27 @@ function App() {
     const lastSelectedIndex = selectedIndices[selectedIndices.length - 1];
     
     setIsDeleting(true);
-    setDeleteProgress({ current: 0, total: safeImages.length });
+    setDeleteProgress({ current: 0, total: safeImages.length + folderList.length });
     try {
       if (browserMode) {
         // Browser mode - just remove from state
         await new Promise(resolve => setTimeout(resolve, 300)); // Simulate operation
         setImages(prev => prev.filter(img => !selectedImages.has(img.path)));
       } else {
-        // Electron mode - delete files
-        await window.electronAPI.deleteImages(safeImages.map(img => img.path));
-        setImages(prev => prev.filter(img => !selectedImages.has(img.path)));
+        // Electron mode - delete files and folders
+        if (safeImages.length > 0) {
+          await window.electronAPI.deleteImages(safeImages.map(img => img.path));
+          setImages(prev => prev.filter(img => !selectedImages.has(img.path)));
+        }
+        if (folderList.length > 0) {
+          for (const path of folderList) {
+            await window.electronAPI.deleteFolder(path);
+          }
+          await loadElectronFolder(folderPath, false); // Reload to refresh folders
+        }
       }
       setSelectedImages(new Set());
+      setSelectedFolders(new Set());
       
       // Scroll to the image that comes after the last selected image
       setTimeout(() => {
@@ -1148,7 +1299,7 @@ function App() {
       setIsDeleting(false);
       setDeleteProgress({ current: 0, total: 0 });
     }
-  }, [selectedImages, images, lockedImages, confirmRequired, showConfirm, browserMode, previewSize]);
+  }, [selectedImages, selectedFolders, images, lockedImages, confirmRequired, showConfirm, browserMode, previewSize]);
 
   // ── Keep selected, delete rest (current page only) ──────────────
   const handleKeepSelected = useCallback(async () => {
@@ -1244,8 +1395,9 @@ function App() {
 
   const globalActions = useMemo(() => {
     const actions = [
-      { id: 'view-grid', name: 'ls -l', subtitle: 'Switch to thumbnail grid layout', shortcut: ['⌘', '2'], onExecute: () => setViewMode('grid') },
-      { id: 'view-list', name: 'ls', subtitle: 'Switch to compact list layout', shortcut: ['⌘', '1'], onExecute: () => setViewMode('list') },
+      { id: 'view-grid', name: 'ls -l', subtitle: 'Switch to thumbnail grid layout', shortcut: ['V'], onExecute: () => { setViewMode('grid'); localStorage.setItem('viewMode', 'grid'); } },
+      { id: 'view-list', name: 'ls', subtitle: 'Switch to compact list layout', shortcut: ['V'], onExecute: () => { setViewMode('list'); localStorage.setItem('viewMode', 'list'); } },
+      { id: 'view-explorer', name: 'explorer', subtitle: 'Mixed folders + images thumbnail view', shortcut: ['V'], onExecute: () => { setViewMode('explorer'); localStorage.setItem('viewMode', 'explorer'); }, keywords: ['tree', 'mixed'] },
       { id: 'view-thumb', name: 'ls --thumbs', subtitle: 'Show/hide thumbnails in list view', shortcut: ['T'], onExecute: () => setListDetail(prev => prev === 'thumb' ? 'plain' : 'thumb') },
       { id: 'view-fit', name: 'fit --toggle', subtitle: 'Switch between Contain and Cover', shortcut: ['T'], onExecute: () => setImageFitMode(prev => prev === 'contain' ? 'cover' : 'contain') },
       { id: 'select-all', name: 'select *', subtitle: 'Select all images currently visible', shortcut: ['⌘', 'A'], onExecute: handleSelectAll },
@@ -1304,6 +1456,10 @@ function App() {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
+      // While the preview modal is open it owns the keyboard; the grid ignores
+      // everything so shortcuts can't act on the selection behind the modal.
+      if (previewImage) return;
+
       if (e.key === 'Escape') {
         if (showCommandPalette) {
           setShowCommandPalette(false);
@@ -1313,22 +1469,83 @@ function App() {
         return;
       }
 
-      // While the preview modal is open it owns the keyboard; the grid ignores
-      // everything so shortcuts can't act on the selection behind the modal.
-      if (previewImage) return;
+      const navigateSelection = (delta) => {
+        const currentSubfolders = subfoldersRef.current || [];
+        const currentFiltered = filteredImagesRef.current || [];
+        const allItems = [
+          ...currentSubfolders.map(f => ({ type: 'folder', path: f.path })),
+          ...currentFiltered.map(img => ({ type: 'image', path: img.path }))
+        ];
+        if (allItems.length === 0) return;
+
+        let currentIndex = -1;
+        if (selectedImages.size > 0) {
+          const lastImage = Array.from(selectedImages).pop();
+          currentIndex = allItems.findIndex(item => item.path === lastImage);
+        } else if (selectedFolders.size > 0) {
+          const lastFolder = Array.from(selectedFolders).pop();
+          currentIndex = allItems.findIndex(item => item.path === lastFolder);
+        }
+
+        let nextIndex = 0;
+        if (currentIndex !== -1) {
+          nextIndex = (currentIndex + delta + allItems.length) % allItems.length;
+        } else if (delta < 0) {
+          nextIndex = allItems.length - 1;
+        }
+
+        const nextItem = allItems[nextIndex];
+        if (nextItem.type === 'folder') {
+          setSelectedFolders(new Set([nextItem.path]));
+          setSelectedImages(new Set());
+        } else {
+          setSelectedImages(new Set([nextItem.path]));
+          setSelectedFolders(new Set());
+        }
+      };
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedImages.size > 0 || selectedFolders.size > 0) {
+          e.preventDefault();
+          if (e.shiftKey) handleKeepSelected(); else handleDeleteSelected();
+        }
+      } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        if (e.shiftKey) handleKeepSelected(); else handleDeleteSelected();
+        if (e.shiftKey) {
+          handleOpenLastFolder();
+        } else {
+          if (selectedFolders.size > 0) {
+            const folderPath = Array.from(selectedFolders).pop();
+            handleNavigateToFolder(folderPath);
+          } else if (selectedImages.size > 0) {
+            const imagePath = Array.from(selectedImages).pop();
+            const index = filteredImagesRef.current?.findIndex(img => img.path === imagePath);
+            if (index !== undefined && index >= 0) {
+              handleOpenPreview(filteredImagesRef.current[index], index);
+            }
+          }
+        }
       } else if (e.key.toLowerCase() === 'l') {
         e.preventDefault();
         if (e.shiftKey) handleUnlockSelected(); else handleLockSelected();
 
-      } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && selectedImages.size === 0) {
-        // With nothing selected, arrows do the same as the ‹ › toolbar buttons:
-        // step the folder name's trailing number (…/25 → …/24 or …/26).
+      } else if (e.key === 'ArrowLeft' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        handleNavigateFolder(e.key === 'ArrowRight' ? 1 : -1);
+        handleNavigateUp();
+      } else if (e.key === 'ArrowRight' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        handleNavigateForward();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const hasSelection = selectedImages.size > 0 || selectedFolders.size > 0;
+        if (!hasSelection) {
+          // With nothing selected, arrows do the same as the ‹ › toolbar buttons:
+          // step the folder name's trailing number (…/25 → …/24 or …/26).
+          e.preventDefault();
+          handleNavigateFolder(e.key === 'ArrowRight' ? 1 : -1);
+        } else {
+          e.preventDefault();
+          navigateSelection(e.key === 'ArrowRight' ? 1 : -1);
+        }
       } else if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleSelectAll();
@@ -1365,7 +1582,8 @@ function App() {
       } else if (e.key.toLowerCase() === 'v' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         setViewMode(prev => {
-          const next = prev === 'grid' ? 'list' : 'grid';
+          const order = ['grid', 'list', 'explorer'];
+          const next = order[(order.indexOf(prev) + 1) % order.length];
           localStorage.setItem('viewMode', next);
           return next;
         });
@@ -1396,6 +1614,9 @@ function App() {
       } else if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         setConfirmRequired(prev => !prev);
+      } else if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        navigateSelection(e.shiftKey ? -1 : 1);
       } else if (e.key === ' ') {
         e.preventDefault();
 
@@ -1452,7 +1673,7 @@ function App() {
       window.removeEventListener('wheel', cancelAnim);
       cancelAnim();
     };
-  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode]);
+  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode, selectedFolders, handleOpenLastFolder, handleNavigateToFolder, handleNavigateUp, handleNavigateForward, handleOpenPreview]);
 
   // ── Ctrl+Wheel zoom ─────────────────────────────────────────────
   useEffect(() => {
@@ -1582,16 +1803,22 @@ function App() {
   // ── Render ──────────────────────────────────────────────────────
   return (
     <div className="App">
-      <header className={`App-header ${headerVisible ? 'header-visible' : 'header-hidden'}`}>
-        <svg className="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="App Icon">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-          <circle cx="9" cy="9" r="2" />
-          <path d="m21 15-3.5-3.5a2 2 0 0 0-2.8 0L4 21" />
-        </svg>
-        <h1>Image Dataset Selector</h1>
-        <div className="header-divider" />
-        <p>Select images for your training dataset</p>
-      </header>
+      {!isFullscreen && (
+        <header className={`App-header ${headerVisible ? 'header-visible' : 'header-hidden'}`}>
+          {/*
+          <svg className="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="App Icon">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="9" cy="9" r="2" />
+            <path d="m21 15-3.5-3.5a2 2 0 0 0-2.8 0L4 21" />
+          </svg>
+          <div className="title-bar">
+            <h1>BatchFrame</h1>
+          </div>
+          <div className="header-divider" />
+          <p>Cull, organize, and manage your image collections</p>
+          */}
+        </header>
+      )}
 
       {browserMode && (
         <div className="mode-banner">
@@ -1618,8 +1845,8 @@ function App() {
         onOpenLastFolder={handleOpenLastFolder}
         onSelectFolder={handleSelectFolder}
         onFolderPathEdit={handleFolderPathEdit}
-        selectedCount={selectedImages.size}
-        totalCount={images.length}
+        selectedCount={selectedImages.size + selectedFolders.size}
+        totalCount={images.length + subfolders.length}
         lockedCount={lockedImages.size}
         onSelectAll={handleSelectAll}
         onDeselectAll={handleDeselectAll}
@@ -1704,7 +1931,11 @@ function App() {
         subfolders={subfolders}
         parentFolderPath={parentFolderPath}
         onNavigate={handleNavigateToFolder}
+        onNavigateUp={handleNavigateUp}
+        onNavigateForward={handleNavigateForward}
+        hasForwardHistory={forwardHistory.length > 0}
         visible={subfolderBarVisible}
+        hideFolderChips={viewMode === 'explorer' || images.length === 0}
         onContextMenu={handleFolderContextMenu}
         onCreateFolder={!browserMode ? handleCreateFolder : undefined}
         editingFolderPath={editingFolderPath}
@@ -1731,12 +1962,21 @@ function App() {
         orderedSelection={orderedSelection}
         orderSelectMode={orderSelectMode}
         onContextMenu={handleContextMenu}
+        onFolderContextMenu={handleFolderContextMenu}
         aiScores={aiScores}
         aiThreshold={aiThreshold}
         scanningPath={scanningPath}
         driveStatesByPath={driveStatesByPath}
         viewMode={viewMode}
         listDetail={listDetail}
+        subfolders={subfolders}
+        folderPreviews={folderPreviews}
+        onFolderClick={handleFolderClick}
+        editingFolderPath={editingFolderPath}
+        onRenameCommit={handleRenameFolderCommit}
+        onRenameCancel={() => setEditingFolderPath(null)}
+        selectedFolders={selectedFolders}
+        onFolderLongPress={handleFolderLongPress}
       />
 
       {previewImage && (
@@ -1810,12 +2050,20 @@ function App() {
           onClose={handleCloseAutoCrop}
         />
       )}
-      <CommandPalette 
+      <CommandPalette
         isOpen={showCommandPalette}
         onClose={() => setShowCommandPalette(false)}
         query={searchQuery}
         setQuery={setSearchQuery}
         actions={globalActions}
+        currentPath={folderPath}
+        lastFolderPath={lastFolderPath}
+        subfolders={subfolders}
+        parentFolderPath={parentFolderPath}
+        recentFolders={recentFolders}
+        onNavigateToFolder={handleNavigateToFolder}
+        onNavigateUp={handleNavigateUp}
+        onBrowseFolder={handleSelectFolder}
       />
     </div>
   );

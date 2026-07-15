@@ -12,6 +12,7 @@ try {
     deleteImages: (filePaths) => ipcRenderer.invoke('delete-images', filePaths),
     getImageData: (imagePath) => ipcRenderer.invoke('get-image-data', imagePath),
     getSubfolders: (folderPath) => ipcRenderer.invoke('get-subfolders', folderPath),
+    getFolderPreview: (folderPath, limit) => ipcRenderer.invoke('get-folder-preview', { folderPath, limit }),
     createFolder: (parentPath, name) => ipcRenderer.invoke('create-folder', { parentPath, name }),
     renameFolder: (oldPath, newName) => ipcRenderer.invoke('rename-folder', { oldPath, newName }),
     deleteFolder: (folderPath) => ipcRenderer.invoke('delete-folder', folderPath),
@@ -68,6 +69,8 @@ try {
       onManifestChanged:     (cb) => ipcRenderer.on('drive-manifest-changed', (_, p) => cb(p)),
       removeManifestChangedListeners: () => ipcRenderer.removeAllListeners('drive-manifest-changed'),
     },
+    onFullscreenChange: (callback) => ipcRenderer.on('fullscreen-change', (event, isFullscreen) => callback(isFullscreen)),
+    removeFullscreenChangeListeners: () => ipcRenderer.removeAllListeners('fullscreen-change'),
   };
 
   contextBridge.exposeInMainWorld('electronAPI', apis);

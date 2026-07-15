@@ -43,8 +43,18 @@ function DriveFolderPicker({ onSelect, onClose }) {
   useEffect(() => {
     setQuery('');
     setFocusIndex(-1);
-    searchRef.current?.focus();
   }, [current.id]);
+
+  // The prompt is the resting place for focus: take it back whenever nothing
+  // else in the picker deliberately holds it (mount, folder change, load end,
+  // clicking a row). Leaves focus alone if the user arrowed onto a button.
+  const focusPrompt = useCallback(() => {
+    const active = document.activeElement;
+    if (active && active !== document.body && active !== searchRef.current) return;
+    searchRef.current?.focus();
+  }, []);
+
+  useEffect(() => { focusPrompt(); }, [current.id, loading, focusPrompt]);
 
   const filteredFolders = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -61,15 +71,6 @@ function DriveFolderPicker({ onSelect, onClose }) {
   useEffect(() => {
     if (focusIndex >= filteredFolders.length) setFocusIndex(filteredFolders.length - 1);
   }, [filteredFolders.length, focusIndex]);
-
-  useEffect(() => {
-    if (!loading) {
-      const openBtn = document.querySelector('.drive-picker-actions .action-open');
-      if (openBtn && !openBtn.disabled) {
-        openBtn.focus();
-      }
-    }
-  }, [loading]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -175,7 +176,16 @@ function DriveFolderPicker({ onSelect, onClose }) {
 
   return (
     <div className="drive-picker-overlay" onClick={onClose}>
-      <div className="drive-picker" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="drive-picker"
+        onClick={(e) => {
+          e.stopPropagation();
+          // Clicking a row, the toggle or dead space should hand typing back to
+          // the prompt; only the footer buttons keep focus for Enter/Space.
+          if (e.target.closest('.drive-picker-actions')) return;
+          searchRef.current?.focus();
+        }}
+      >
         <div className="terminal-omnibar">
           <div className="terminal-prompt">
             <span className="terminal-root">~</span>

@@ -45,6 +45,31 @@
   z-index: 20;
   box-shadow: var(--shadow-md);
   gap: 24px;
+  
+  /* Auto-hide behavior */
+  opacity: 0;
+  transform: translate(-50%, -10px);
+  transition: opacity 0.1s ease-out, transform 0.1s ease-out;
+}
+
+/* Hover wrapper to trigger header */
+.preview-header-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 180px; /* Extended further down to make it easier to hit */
+  z-index: 25;
+}
+
+.preview-header-wrapper.disabled {
+  pointer-events: none;
+}
+
+.preview-header-wrapper:hover .preview-header,
+.preview-header:hover {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .preview-info {

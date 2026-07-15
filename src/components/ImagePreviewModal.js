@@ -501,12 +501,14 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   return (
     <div className="preview-modal-overlay" onClick={cropMode ? undefined : onClose}>
       <div className="preview-modal-content">
-        <div className="preview-header" onClick={e => e.stopPropagation()}>
-          <div className="preview-info">
-            <span className="preview-filename">{image.name}</span>
-            <span className="preview-index">{currentIndex + 1} / {images.length}</span>
+        <div className={`preview-header-wrapper${cropMode ? ' disabled' : ''}`}>
+          <div className="preview-header" onClick={e => e.stopPropagation()}>
+            <div className="preview-info">
+              <span className="preview-filename">{image.name}</span>
+              <span className="preview-index">{currentIndex + 1} / {images.length}</span>
+            </div>
+            <button className="preview-close" onClick={onClose}>×</button>
           </div>
-          <button className="preview-close" onClick={onClose}>×</button>
         </div>
 
         <div

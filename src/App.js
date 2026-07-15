@@ -684,6 +684,8 @@ function App() {
   const handleOpenPreview = useCallback((image, index) => {
     setPreviewImage(image);
     setPreviewIndex(index);
+    setSelectedImages(new Set());
+    setSelectedFolders(new Set());
   }, []);
 
   const handleClosePreview = useCallback(() => {
@@ -1454,6 +1456,10 @@ function App() {
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
+      // While the preview modal is open it owns the keyboard; the grid ignores
+      // everything so shortcuts can't act on the selection behind the modal.
+      if (previewImage) return;
+
       if (e.key === 'Escape') {
         if (showCommandPalette) {
           setShowCommandPalette(false);
@@ -1462,10 +1468,6 @@ function App() {
         handleDeselectAll();
         return;
       }
-
-      // While the preview modal is open it owns the keyboard; the grid ignores
-      // everything so shortcuts can't act on the selection behind the modal.
-      if (previewImage) return;
 
       const navigateSelection = (delta) => {
         const currentSubfolders = subfoldersRef.current || [];
@@ -1517,8 +1519,10 @@ function App() {
             handleNavigateToFolder(folderPath);
           } else if (selectedImages.size > 0) {
             const imagePath = Array.from(selectedImages).pop();
-            const image = filteredImagesRef.current?.find(img => img.path === imagePath);
-            if (image) setPreviewImage(image);
+            const index = filteredImagesRef.current?.findIndex(img => img.path === imagePath);
+            if (index !== undefined && index >= 0) {
+              handleOpenPreview(filteredImagesRef.current[index], index);
+            }
           }
         }
       } else if (e.key.toLowerCase() === 'l') {
@@ -1669,7 +1673,7 @@ function App() {
       window.removeEventListener('wheel', cancelAnim);
       cancelAnim();
     };
-  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode, selectedFolders, handleOpenLastFolder, handleNavigateToFolder, handleNavigateUp, handleNavigateForward]);
+  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode, selectedFolders, handleOpenLastFolder, handleNavigateToFolder, handleNavigateUp, handleNavigateForward, handleOpenPreview]);
 
   // ── Ctrl+Wheel zoom ─────────────────────────────────────────────
   useEffect(() => {

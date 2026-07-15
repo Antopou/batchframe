@@ -1,7 +1,7 @@
 {
-  "name": "images-selector",
+  "name": "batchframe",
   "version": "1.0.0",
-  "description": "Image selector app for dataset preparation",
+  "description": "High-performance digital asset management and image culling tool",
   "main": "src/main.js",
   "homepage": "./",
   "author": "",
@@ -45,8 +45,8 @@
     ]
   },
   "build": {
-    "appId": "com.user.image-dataset-selector",
-    "productName": "ImageSelector",
+    "appId": "com.user.batchframe",
+    "productName": "BatchFrame",
     "files": [
       "src/**/*",
       "build/**/*",

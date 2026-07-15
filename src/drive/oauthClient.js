@@ -82,7 +82,7 @@ const SUCCESS_PAGE = `<!DOCTYPE html>
     </div>
     <h1>Signed in to Google Drive</h1>
     <p>You can close this tab and return to the app.</p>
-    <div class="brand">Image Dataset Selector</div>
+    <div class="brand">BatchFrame</div>
   </div>
   <script>
     // Auto-close the tab after a short delay when possible (only works if the

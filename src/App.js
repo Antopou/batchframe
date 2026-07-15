@@ -13,8 +13,8 @@ import CommandPalette from './components/CommandPalette';
 import DriveButton from './components/DriveButton';
 import { boxToCropRect } from './utils/faceCrop';
 
-const LAST_FOLDER_KEY = 'images-selector-last-folder';
-const CONFIRM_REQUIRED_KEY = 'images-selector-confirm-required';
+const LAST_FOLDER_KEY = 'batchframe-last-folder';
+const CONFIRM_REQUIRED_KEY = 'batchframe-confirm-required';
 const PREVIEW_MIN = 80;
 const PREVIEW_MAX = 300;
 const PREVIEW_STEP = 12;
@@ -217,7 +217,7 @@ function App() {
     if (saved) setLastFolderPath(saved);
     const savedConfirm = localStorage.getItem(CONFIRM_REQUIRED_KEY);
     if (savedConfirm !== null) setConfirmRequired(savedConfirm !== 'false');
-    const savedRecent = localStorage.getItem('images-selector-recent-folders');
+    const savedRecent = localStorage.getItem('batchframe-recent-folders');
     if (savedRecent) setRecentFolders(JSON.parse(savedRecent));
   }, []);
 
@@ -472,7 +472,7 @@ function App() {
         // Update recent folders
         setRecentFolders((prev) => {
           const updated = [pathToLoad, ...prev.filter((f) => f !== pathToLoad)].slice(0, 10);
-          localStorage.setItem('images-selector-recent-folders', JSON.stringify(updated));
+          localStorage.setItem('batchframe-recent-folders', JSON.stringify(updated));
           return updated;
         });
       }
@@ -1708,9 +1708,11 @@ function App() {
           <circle cx="9" cy="9" r="2" />
           <path d="m21 15-3.5-3.5a2 2 0 0 0-2.8 0L4 21" />
         </svg>
-        <h1>Image Dataset Selector</h1>
+        <div className="title-bar">
+          <h1>BatchFrame</h1>
+        </div>
         <div className="header-divider" />
-        <p>Select images for your training dataset</p>
+        <p>Cull, organize, and manage your image collections</p>
       </header>
 
       {browserMode && (

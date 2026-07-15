@@ -173,7 +173,7 @@ export default function SyncDiffModal({ manifest, cacheRoot, onConfirm, onCancel
         <div className="drive-picker-footer">
           <div className="drive-picker-actions" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
             {onChangeDataset && (
-              <button className="btn-terminal action-change" onClick={onChangeDataset}>[ change dataset ]</button>
+              <button className="btn-terminal action-change" onClick={onChangeDataset}>[ change folder ]</button>
             )}
             <button className="btn-terminal action-cancel" onClick={onCancel} autoFocus={total === 0}>[ cancel ]</button>
             <button className="btn-terminal action-push" disabled={total === 0} onClick={onConfirm} autoFocus={total > 0}>

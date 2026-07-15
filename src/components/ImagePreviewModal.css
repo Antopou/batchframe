@@ -331,11 +331,13 @@
 .crop-resize-input::-webkit-outer-spin-button,
 .crop-resize-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
 .crop-resize-input[type=number] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .crop-resize-x {
@@ -653,8 +655,8 @@
 
 .preview-modal-content.clean-mode .preview-header,
 .preview-modal-content.clean-mode .preview-controls,
-.preview-modal-content.clean-mode .preview-filmstrip-container,
-.preview-modal-content.clean-mode .preview-progress-bar,
+.preview-modal-content.clean-mode:not(.filmstrip-active) .preview-filmstrip-container,
+.preview-modal-content.clean-mode:not(.filmstrip-active) .preview-progress-bar,
 .preview-modal-content.clean-mode .preview-nav-btn {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -906,9 +908,11 @@
 .crop-resize-row input::-webkit-outer-spin-button,
 .crop-resize-row input::-webkit-inner-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
 .crop-resize-row input[type=number] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }

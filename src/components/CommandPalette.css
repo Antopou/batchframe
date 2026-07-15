@@ -158,3 +158,51 @@
   color: var(--text-muted, #8e8e93);
   font-size: 14px;
 }
+
+/* Terminal-style path omnibar (mirrors DriveFolderPicker) */
+.cmd-palette-omnibar {
+  gap: 10px;
+  padding: 0 16px;
+}
+
+.cmd-palette-prompt-path {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  padding: 14px 0;
+  max-width: 55%;
+  overflow: hidden;
+}
+
+.cmd-palette-prompt-path .terminal-root {
+  color: var(--accent, #ffcc66);
+  font-weight: 600;
+}
+
+.cmd-palette-prompt-path .terminal-sep {
+  color: var(--text-muted);
+  opacity: 0.5;
+  margin: 0 4px;
+}
+
+.cmd-palette-prompt-path .terminal-dir {
+  color: var(--text-primary);
+  font-weight: 500;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+.cmd-palette-prompt-path .terminal-arrow {
+  color: var(--accent, #ffcc66);
+  margin-left: 8px;
+  margin-right: 4px;
+  font-weight: 700;
+}

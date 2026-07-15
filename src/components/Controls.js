@@ -305,18 +305,18 @@ function Controls({
           </div>
         )}
 
-        {totalCount > 0 && (
-          <div className="search-box">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-            </svg>
-            <input
-              type="text"
-              value={searchQuery || ''}
-              onChange={(e) => onSearchQueryChange(e.target.value)}
-              placeholder="Search by name…"
-              className="search-input"
-            />
+        <div className="search-box">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+          <input
+            type="text"
+            value={searchQuery || ''}
+            onChange={(e) => onSearchQueryChange(e.target.value)}
+            placeholder="Search by name…"
+            className="search-input"
+            disabled={loading || totalCount === 0}
+          />
             {searchQuery && (
               <button onClick={() => onSearchQueryChange('')} className="search-clear" title="Clear">×</button>
             )}
@@ -325,11 +325,9 @@ function Controls({
                 {filteredCount}
               </button>
             )}
-          </div>
-        )}
+        </div>
 
-        {totalCount > 0 && (
-          <div className="selection-stats">
+        <div className="selection-stats">
             <div className="stat-badge">
               <span className="count">{selectedCount}</span>
               <span className="sep">/</span>
@@ -341,10 +339,10 @@ function Controls({
               )}
               <span className="total">{totalCount}</span>
             </div>
-            <div className="button-group mini">
-              <button onClick={onSelectAll} className="btn-modern ghost sm" disabled={loading} title="Select All (Ctrl/Cmd+A)">All</button>
-              <button onClick={onDeselectAll} className="btn-modern ghost sm" disabled={loading} title="Deselect All (Esc)">None</button>
-              <button onClick={onInvertSelection} className="btn-modern ghost sm" disabled={loading} title="Invert selection (I)">Inv</button>
+          <div className="button-group mini">
+            <button onClick={onSelectAll} className="btn-modern ghost sm" disabled={loading || totalCount === 0} title="Select All (Ctrl/Cmd+A)">All</button>
+            <button onClick={onDeselectAll} className="btn-modern ghost sm" disabled={loading || totalCount === 0} title="Deselect All (Esc)">None</button>
+            <button onClick={onInvertSelection} className="btn-modern ghost sm" disabled={loading || totalCount === 0} title="Invert selection (I)">Inv</button>
               {selectedCount > 0 && !browserMode && (
                 <button onClick={onExportPaths} className="icon-btn-modern" disabled={loading} title={`Export ${selectedCount} paths to .txt`}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -353,19 +351,17 @@ function Controls({
                 </button>
               )}
             </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* ── Section 2: Image Actions ── */}
-      {totalCount > 0 && (
-        <div className="controls-section image-actions">
-          {/* Sort & aspect filter controls */}
-          <div className="button-group">
-            <Dropdown
-              value={sortBy}
-              onChange={onSortByChange}
-              disabled={loading}
+      <div className="controls-section image-actions">
+        {/* Sort & aspect filter controls */}
+        <div className="button-group">
+          <Dropdown
+            value={sortBy}
+            onChange={onSortByChange}
+            disabled={loading || totalCount === 0}
               options={[
                 { value: 'none', label: 'Unsorted' },
                 { value: 'name', label: 'Name' },
@@ -373,23 +369,23 @@ function Controls({
                 { value: 'size', label: 'Size' },
               ]}
             />
-            <button
-              className="icon-btn-modern"
-              onClick={() => onSortDirChange(sortDir === 'asc' ? 'desc' : 'asc')}
-              title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
-              disabled={loading || sortBy === 'none'}
-            >
+          <button
+            className="icon-btn-modern"
+            onClick={() => onSortDirChange(sortDir === 'asc' ? 'desc' : 'asc')}
+            title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+            disabled={loading || totalCount === 0 || sortBy === 'none'}
+          >
               {sortDir === 'asc' ? (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/><path d="M11 12h4"/><path d="M11 16h7"/><path d="M11 20h10"/></svg>
               ) : (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="M11 4h10"/><path d="M11 8h7"/><path d="M11 12h4"/></svg>
               )}
             </button>
-            <Dropdown
-              value={aspectFilter}
-              onChange={onAspectFilterChange}
-              disabled={loading}
-              options={[
+          <Dropdown
+            value={aspectFilter}
+            onChange={onAspectFilterChange}
+            disabled={loading || totalCount === 0}
+            options={[
                 { value: 'all', label: 'All ratios' },
                 { value: 'portrait', label: 'Portrait' },
                 { value: 'landscape', label: 'Landscape' },
@@ -402,12 +398,12 @@ function Controls({
 
           {/* Order-select mode */}
           <div className="button-group">
-            <button
-              className={`icon-btn-modern${orderSelectMode ? ' active' : ''}`}
-              onClick={() => onOrderSelectModeChange(!orderSelectMode)}
-              title={orderSelectMode ? 'Exit Order Select mode (O)' : 'Order Select: click images in sequence to assign rename order (O)'}
-              disabled={loading}
-            >
+          <button
+            className={`icon-btn-modern${orderSelectMode ? ' active' : ''}`}
+            onClick={() => onOrderSelectModeChange(!orderSelectMode)}
+            title={orderSelectMode ? 'Exit Order Select mode (O)' : 'Order Select: click images in sequence to assign rename order (O)'}
+            disabled={loading || totalCount === 0}
+          >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15 21 21"/><path d="M4 4l5 5"/></svg>
             </button>
             {orderSelectMode && orderedSelection.length > 0 && (
@@ -504,13 +500,13 @@ function Controls({
                 Rename
               </button>
             )}
-            {!browserMode && (
-              <button
-                className={`action-btn${showAIScan ? ' active' : ''}`}
-                onClick={() => setShowAIScan(v => !v)}
-                title="AI character scan (A)"
-                disabled={loading}
-              >
+          {!browserMode && (
+            <button
+              className={`action-btn${showAIScan ? ' active' : ''}`}
+              onClick={() => setShowAIScan(v => !v)}
+              title="AI character scan (A)"
+              disabled={loading || totalCount === 0}
+            >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 14.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>
                 AI
               </button>
@@ -542,20 +538,19 @@ function Controls({
                   Photoshop
                 </button>
               ) : (
-                <button
-                  onClick={handleBrowsePsPath}
-                  className="action-btn ps"
-                  disabled={loading}
-                  title="Locate Photoshop"
-                >
+              <button
+                onClick={handleBrowsePsPath}
+                className="action-btn ps"
+                disabled={loading || totalCount === 0}
+                title="Locate Photoshop"
+              >
                   <PhotoshopIcon size={14} />
                   Photoshop
                 </button>
               )
             )}
           </div>
-        </div>
-      )}
+      </div>
 
       {/* ── Order-select rename panel ── */}
       {totalCount > 0 && orderSelectMode && orderedSelection.length > 0 && (
@@ -627,18 +622,17 @@ function Controls({
       )}
 
       {/* ── Section 3: View & Pagination ── */}
-      {totalCount > 0 && (
-        <div className="controls-section view-settings">
-          <div className="view-config">
-            <div className="slider-container">
-              <input
+      <div className="controls-section view-settings">
+        <div className="view-config">
+          <div className="slider-container">
+            <input
                 id="preview-size"
                 type="range"
                 min="80"
                 max="300"
                 value={previewSize}
                 onChange={(e) => onPreviewSizeChange(Number(e.target.value))}
-                disabled={loading}
+                disabled={loading || totalCount === 0}
               />
             </div>
             <div className="segmented-control">
@@ -649,7 +643,7 @@ function Controls({
                     key={label}
                     className={`segment-btn ${previewSize === vals[idx] ? 'active' : ''}`}
                     onClick={() => onPreviewPresetChange(vals[idx])}
-                    disabled={loading}
+                    disabled={loading || totalCount === 0}
                     title={`Size: ${label} (${idx + 1})`}
                   >
                     {label}
@@ -664,9 +658,18 @@ function Controls({
           <div className="mode-toggles">
             <div className="segmented-control">
               <button
+                className={`segment-btn ${viewMode === 'explorer' ? 'active' : ''}`}
+                onClick={() => onViewModeChange && onViewModeChange('explorer')}
+                title="Explorer view — folders + images (V)"
+                disabled={loading || totalCount === 0}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+              </button>
+              <button
                 className={`segment-btn ${viewMode === 'grid' ? 'active' : ''}`}
                 onClick={() => onViewModeChange && onViewModeChange('grid')}
                 title="Grid view (V)"
+                disabled={loading || totalCount === 0}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/></svg>
               </button>
@@ -674,6 +677,7 @@ function Controls({
                 className={`segment-btn ${viewMode === 'list' ? 'active' : ''}`}
                 onClick={() => onViewModeChange && onViewModeChange('list')}
                 title="List view (V)"
+                disabled={loading || totalCount === 0}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
               </button>
@@ -681,18 +685,20 @@ function Controls({
             {viewMode === 'list' ? (
               <div className="segmented-control">
                 <button
-                  className={`segment-btn ${listDetail === 'thumb' ? 'active' : ''}`}
-                  onClick={() => onListDetailChange && onListDetailChange('thumb')}
-                  title="List with thumbnail (T)"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="6" height="6" rx="1"/><line x1="12" y1="6" x2="21" y2="6"/><line x1="12" y1="9" x2="18" y2="9"/><rect x="3" y="14" width="6" height="6" rx="1"/><line x1="12" y1="16" x2="21" y2="16"/><line x1="12" y1="19" x2="18" y2="19"/></svg>
-                </button>
-                <button
                   className={`segment-btn ${listDetail === 'plain' ? 'active' : ''}`}
                   onClick={() => onListDetailChange && onListDetailChange('plain')}
                   title="List, names only (T)"
+                  disabled={loading || totalCount === 0}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+                </button>
+                <button
+                  className={`segment-btn ${listDetail === 'thumb' ? 'active' : ''}`}
+                  onClick={() => onListDetailChange && onListDetailChange('thumb')}
+                  title="List with thumbnail (T)"
+                  disabled={loading || totalCount === 0}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="6" height="6" rx="1"/><line x1="12" y1="6" x2="21" y2="6"/><line x1="12" y1="9" x2="18" y2="9"/><rect x="3" y="14" width="6" height="6" rx="1"/><line x1="12" y1="16" x2="21" y2="16"/><line x1="12" y1="19" x2="18" y2="19"/></svg>
                 </button>
               </div>
             ) : (
@@ -701,6 +707,7 @@ function Controls({
                   className={`segment-btn ${imageFitMode === 'contain' ? 'active' : ''}`}
                   onClick={() => onImageFitModeChange('contain')}
                   title="Contain (T)"
+                  disabled={loading || totalCount === 0}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
                 </button>
@@ -708,6 +715,7 @@ function Controls({
                   className={`segment-btn ${imageFitMode === 'cover' ? 'active' : ''}`}
                   onClick={() => onImageFitModeChange('cover')}
                   title="Cover (T)"
+                  disabled={loading || totalCount === 0}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m3 3 18 18"/><path d="m21 3-18 18"/></svg>
                 </button>
@@ -717,6 +725,7 @@ function Controls({
               className={`icon-btn-modern ${dragSelectEnabled ? 'active' : ''}`}
               onClick={() => onDragSelectEnabledChange(!dragSelectEnabled)}
               title="Drag Select (D)"
+              disabled={loading || totalCount === 0}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9"/><path d="M12 2v8"/><path d="M12 10 9 7"/><path d="m12 10 3-3"/><path d="M18 21v-8a2 2 0 0 0-2-2h-4"/></svg>
             </button>
@@ -725,6 +734,7 @@ function Controls({
                 className={`icon-btn-modern ${autoReloadEnabled ? 'active' : ''}`}
                 onClick={() => onAutoReloadChange(!autoReloadEnabled)}
                 title={autoReloadEnabled ? 'Auto-Reload: ON (Q)' : 'Auto-Reload: OFF (Q)'}
+                disabled={loading || totalCount === 0}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
               </button>
@@ -733,6 +743,7 @@ function Controls({
               className={`icon-btn-modern ${!confirmRequired ? 'warning' : ''}`}
               onClick={() => onConfirmRequiredChange(!confirmRequired)}
               title={confirmRequired ? 'Confirm: ON (N)' : 'Confirm: OFF (N)'}
+              disabled={loading || totalCount === 0}
             >
               {confirmRequired ? (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
@@ -748,6 +759,7 @@ function Controls({
             <Dropdown
               value={pageSize}
               onChange={onPageSizeChange}
+              disabled={loading || totalCount === 0}
               options={[
                 { value: 100, label: '100' },
                 { value: 200, label: '200' },
@@ -758,11 +770,11 @@ function Controls({
               ]}
             />
             <div className="nav-group">
-              <button onClick={onPrevPage} disabled={loading || currentPage <= 1} className="nav-btn">
+              <button onClick={onPrevPage} disabled={loading || totalCount === 0 || currentPage <= 1} className="nav-btn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
               </button>
               <span className="page-info">{currentPage}<span className="of">/</span>{totalPages}</span>
-              <button onClick={onNextPage} disabled={loading || currentPage >= totalPages} className="nav-btn">
+              <button onClick={onNextPage} disabled={loading || totalCount === 0 || currentPage >= totalPages} className="nav-btn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
               </button>
             </div>
@@ -787,7 +799,6 @@ function Controls({
             )}
           </div>
         </div>
-      )}
     </div>
   );
 }

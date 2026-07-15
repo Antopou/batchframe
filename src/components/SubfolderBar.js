@@ -6,6 +6,7 @@ function SubfolderBar({
   parentFolderPath,
   onNavigate,
   visible = true,
+  hideFolderChips = false,
   onContextMenu,
   onCreateFolder,
   editingFolderPath,
@@ -23,14 +24,12 @@ function SubfolderBar({
             onClick={() => onNavigate(parentFolderPath)}
             title={`Go up to: ${parentFolderPath}`}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="6" cy="12" r="2"/>
-              <circle cx="12" cy="12" r="2"/>
-              <circle cx="18" cy="12" r="2"/>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
         )}
-        {subfolders.map(folder => (
+        {!hideFolderChips && subfolders.map(folder => (
           folder.path === editingFolderPath ? (
             <RenameInput
               key={folder.path}
@@ -74,11 +73,13 @@ function RenameInput({ folder, onCommit, onCancel }) {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    const input = inputRef.current;
-    if (input) {
-      input.focus();
-      input.select();
-    }
+    const timer = setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.select();
+      }
+    }, 50);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -87,6 +88,7 @@ function RenameInput({ folder, onCommit, onCancel }) {
       className="subfolder-rename-input"
       defaultValue={folder.name}
       onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           onCommit(folder, e.target.value.trim());

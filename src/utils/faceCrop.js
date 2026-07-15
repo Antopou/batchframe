@@ -10,12 +10,20 @@
 // Shared by the crop modal, the batch auto-crop modal, and the detector wiring.
 export const ASPECT_PRESETS = [
   { key: 'free', label: 'Free', ratio: null },
+  { key: 'original', label: 'Original', ratio: 'original' },
   { key: '1:1', label: '1:1', ratio: 1 },
-  { key: '16:9', label: '16:9', ratio: 16 / 9 },
   { key: '9:16', label: '9:16', ratio: 9 / 16 },
+  { key: '16:9', label: '16:9', ratio: 16 / 9 },
+  { key: '4:5', label: '4:5', ratio: 4 / 5 },
+  { key: '5:4', label: '5:4', ratio: 5 / 4 },
+  { key: '3:4', label: '3:4', ratio: 3 / 4 },
   { key: '4:3', label: '4:3', ratio: 4 / 3 },
-  { key: '3:2', label: '3:2', ratio: 3 / 2 },
   { key: '2:3', label: '2:3', ratio: 2 / 3 },
+  { key: '3:2', label: '3:2', ratio: 3 / 2 },
+  { key: '5:7', label: '5:7', ratio: 5 / 7 },
+  { key: '7:5', label: '7:5', ratio: 7 / 5 },
+  { key: '1:2', label: '1:2', ratio: 1 / 2 },
+  { key: '2:1', label: '2:1', ratio: 2 / 1 },
 ];
 
 // How much of the frame the head fills: the padded head is PAD× the head box.
@@ -52,9 +60,10 @@ export function boxToCropRect({ box, ratio, natW, natH, pad = DEFAULT_PAD, headr
   // Fit to aspect: grow the deficient side so the padded head always fits.
   let cropW;
   let cropH;
-  if (ratio) {
-    cropH = Math.max(baseH, baseW / ratio);
-    cropW = cropH * ratio;
+  let targetRatio = ratio === 'original' ? (natW / natH) : ratio;
+  if (targetRatio) {
+    cropH = Math.max(baseH, baseW / targetRatio);
+    cropW = cropH * targetRatio;
   } else {
     cropW = baseW;
     cropH = baseH;
@@ -63,11 +72,11 @@ export function boxToCropRect({ box, ratio, natW, natH, pad = DEFAULT_PAD, headr
   // Don't exceed the image; if we do, shrink to fit at the same aspect.
   if (cropW > natW) {
     cropW = natW;
-    cropH = ratio ? cropW / ratio : cropH * (natW / (cropW || 1));
+    cropH = targetRatio ? cropW / targetRatio : cropH * (natW / (cropW || 1));
   }
   if (cropH > natH) {
     cropH = natH;
-    cropW = ratio ? cropH * ratio : cropW * (natH / (cropH || 1));
+    cropW = targetRatio ? cropH * targetRatio : cropW * (natH / (cropH || 1));
     if (cropW > natW) cropW = natW; // free crop on a very wide image
   }
 

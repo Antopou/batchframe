@@ -54,6 +54,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   const rafRef = useRef(null);
   const rectRef = useRef(null); // cached container rect (avoids per-event reflow)
   const pendingZoomRef = useRef(1); // latest zoom awaiting a state flush
+  const aspectsContainerRef = useRef(null);
 
   const [zoomDisplay, setZoomDisplay] = useState(1);
   const [smoothZoom, setSmoothZoom] = useState(false);
@@ -350,19 +351,20 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
     };
   }, []);
 
-  // Build a crop rect (fractions) of the largest area matching `ratio`, centered
   const fitCropToAspect = useCallback((ratio) => {
     const img = imageRef.current;
     // Free crop starts covering the whole image
     if (!ratio || !img || !img.naturalWidth) return { x: 0, y: 0, w: 1, h: 1 };
     const natW = img.naturalWidth;
     const natH = img.naturalHeight;
-    // fracW/fracH = ratio * natH / natW  (so pixel ratio equals `ratio`)
+    const targetRatio = ratio === 'original' ? (natW / natH) : ratio;
+    
+    // fracW/fracH = targetRatio * natH / natW  (so pixel ratio equals `targetRatio`)
     let fracW = 1;
-    let fracH = (natW / ratio) / natH;
+    let fracH = (natW / targetRatio) / natH;
     if (fracH > 1) {
       fracH = 1;
-      fracW = (ratio * natH) / natW;
+      fracW = (targetRatio * natH) / natW;
     }
     // Largest rect of this aspect that fits, centered
     return { x: (1 - fracW) / 2, y: (1 - fracH) / 2, w: fracW, h: fracH };
@@ -555,6 +557,21 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       if (e.key === 'Escape') { e.preventDefault(); setCropMode(false); return; }
       if (e.key === 'Enter') { e.preventDefault(); applyCrop(); return; }
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        if (e.metaKey || e.ctrlKey) {
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            const currentIndex = ASPECT_PRESETS.findIndex(p => p.ratio === cropAspect);
+            let nextIndex = currentIndex;
+            if (e.key === 'ArrowLeft') {
+              nextIndex = currentIndex <= 0 ? ASPECT_PRESETS.length - 1 : currentIndex - 1;
+            } else {
+              nextIndex = currentIndex === -1 || currentIndex === ASPECT_PRESETS.length - 1 ? 0 : currentIndex + 1;
+            }
+            chooseAspect(ASPECT_PRESETS[nextIndex].ratio);
+          }
+          return;
+        }
+
         e.preventDefault();
         const step = e.shiftKey ? 0.05 : 0.01;
         setCropRect(prev => {
@@ -631,12 +648,24 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       default:
         return;
     }
-  }, [cropMode, applyCrop, chooseAspect, autoCropToFace, enterCrop, canCrop, onClose, onNext, onPrev, onDelete, onToggleSelect, locked, setZoom, resetZoom]);
+  }, [cropMode, cropAspect, applyCrop, chooseAspect, autoCropToFace, enterCrop, canCrop, onClose, onNext, onPrev, onDelete, onToggleSelect, locked, setZoom, resetZoom]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
   }, [handleKeydown]);
+
+  // Auto-scroll the aspect ratio list to the active button
+  useEffect(() => {
+    if (cropMode && aspectsContainerRef.current) {
+      const activeBtn = aspectsContainerRef.current.querySelector('.crop-aspect-btn.active');
+      if (activeBtn) {
+        const container = aspectsContainerRef.current;
+        const scrollLeft = activeBtn.offsetLeft - (container.offsetWidth / 2) + (activeBtn.offsetWidth / 2);
+        container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+      }
+    }
+  }, [cropAspect, cropMode]);
 
   useEffect(() => {
     if (isDragging) {
@@ -663,7 +692,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   return (
     <div className="preview-modal-overlay" onClick={cropMode ? undefined : onClose}>
       <div className={`preview-modal-content ${hoverZones.top ? 'show-top' : ''} ${hoverZones.bottom ? 'show-bottom' : ''} ${hoverZones.left ? 'show-left' : ''} ${hoverZones.right ? 'show-right' : ''} ${cropMode ? 'crop-mode' : ''} ${showFilmstrip ? 'filmstrip-active' : ''} ${cleanMode ? 'clean-mode' : ''}`}>
-        {!showFilmstrip && (
+        {!showFilmstrip && !cropMode && (
           <div className="preview-header" onClick={e => e.stopPropagation()}>
             <div className="preview-info">
               <span className="preview-filename">{image.name}</span>
@@ -671,6 +700,26 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
             </div>
             <button className="preview-close" onClick={onClose}>×</button>
           </div>
+        )}
+
+        {cropMode && (
+          <>
+            <div className="crop-top-left-info">
+              {imageRef.current?.naturalWidth ? `${Math.round(cropRect.w * imageRef.current.naturalWidth)} × ${Math.round(cropRect.h * imageRef.current.naturalHeight)} px` : ''}
+            </div>
+            <div className="crop-top-right-actions" onClick={e => e.stopPropagation()}>
+              <button className="crop-action-icon-btn cancel" onClick={exitCrop} disabled={saving} title="Cancel (Esc)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+              <button className="crop-action-icon-btn apply" onClick={applyCrop} disabled={saving} title="Apply crop (Enter)">
+                {saving ? (
+                  <span style={{ fontSize: '12px' }}>...</span>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                )}
+              </button>
+            </div>
+          </>
         )}
 
         <div
@@ -742,37 +791,38 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
 
         {cropMode ? (
           <div className="preview-controls crop-controls" onClick={e => e.stopPropagation()}>
-            <div className="crop-aspects">
+            <div className="crop-aspects" ref={aspectsContainerRef}>
               {ASPECT_PRESETS.map((p, i) => (
                 <button
                   key={p.key}
                   className={`crop-aspect-btn${cropAspect === p.ratio ? ' active' : ''}`}
                   onClick={() => chooseAspect(p.ratio)}
-                  title={`${p.label} (${i})`}
+                  title={`${p.label} (${i > 9 ? '' : i})`}
                 >
                   {p.label}
                 </button>
               ))}
-              <button
-                className="crop-aspect-btn crop-face-btn"
-                onClick={autoCropToFace}
-                disabled={detecting}
-                title="Auto-crop to face (F)"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                  <line x1="9" y1="9" x2="9.01" y2="9" />
-                  <line x1="15" y1="9" x2="15.01" y2="9" />
-                </svg>
-                {detecting ? 'Detecting…' : noFace ? 'No face' : 'Face'}
-              </button>
-            </div>
-            <div className="crop-actions">
-              <button className="crop-cancel-btn" onClick={exitCrop} disabled={saving} title="Cancel (Esc)">Cancel</button>
-              <button className="crop-apply-btn" onClick={applyCrop} disabled={saving} title="Apply crop (Enter)">
-                {saving ? 'Saving…' : 'Apply Crop'}
-              </button>
+              <div className="crop-more-menu-container">
+                <button className="crop-aspect-btn" title="More options">
+                  ⋮
+                </button>
+                <div className="crop-more-dropdown">
+                  <button
+                    className="crop-aspect-btn crop-face-btn"
+                    onClick={autoCropToFace}
+                    disabled={detecting}
+                    title="Auto-crop to face (F)"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                      <line x1="9" y1="9" x2="9.01" y2="9" />
+                      <line x1="15" y1="9" x2="15.01" y2="9" />
+                    </svg>
+                    {detecting ? 'Detecting…' : noFace ? 'No face' : 'Face'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         ) : (

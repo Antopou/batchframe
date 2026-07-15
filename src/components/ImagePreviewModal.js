@@ -18,16 +18,16 @@ const FilmstripThumbnail = React.memo(({ image, index, isActive, onClick }) => {
       return;
     }
     if (!window.electronAPI || !image.path) return;
-    
+
     window.electronAPI.getImageData(image.path).then(base64 => {
       if (cancelled || !base64) return;
       const ext = (image.name || '').toLowerCase().split('.').pop();
       const mime = ext === 'png' ? 'image/png'
         : ext === 'gif' ? 'image/gif'
-        : ext === 'webp' ? 'image/webp'
-        : ext === 'bmp' ? 'image/bmp'
-        : ext === 'svg' ? 'image/svg+xml'
-        : 'image/jpeg';
+          : ext === 'webp' ? 'image/webp'
+            : ext === 'bmp' ? 'image/bmp'
+              : ext === 'svg' ? 'image/svg+xml'
+                : 'image/jpeg';
       setSrc(`data:${mime};base64,${base64}`);
     }).catch(err => {
       if (!cancelled) console.error('Failed to load filmstrip thumb:', err);
@@ -36,8 +36,8 @@ const FilmstripThumbnail = React.memo(({ image, index, isActive, onClick }) => {
   }, [image.path, image.previewSrc, image.name]);
 
   return (
-    <div 
-      className={`filmstrip-thumb ${isActive ? 'active' : ''}`} 
+    <div
+      className={`filmstrip-thumb ${isActive ? 'active' : ''}`}
       onClick={() => onClick(index)}
     >
       {src ? <img src={src} alt={image.name} loading="lazy" /> : <div className="filmstrip-placeholder" />}
@@ -68,6 +68,9 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   const [cropAspect, setCropAspect] = useState(null); // ratio number or null
   // Crop rect as fractions (0..1) of the natural image
   const [cropRect, setCropRect] = useState({ x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
+  const [targetWidth, setTargetWidth] = useState('');
+  const [targetHeight, setTargetHeight] = useState('');
+  const [showResizePanel, setShowResizePanel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [noFace, setNoFace] = useState(false);
@@ -83,7 +86,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       const y = e.clientY;
       const w = window.innerWidth;
       const h = window.innerHeight;
-      
+
       setHoverZones({
         top: y < 150,
         bottom: y > h - 150,
@@ -91,8 +94,8 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         right: x > w - 150,
       });
     };
-    
-  const handleLeave = () => {
+
+    const handleLeave = () => {
       setHoverZones({ top: false, bottom: false, left: false, right: false });
     };
 
@@ -250,10 +253,10 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         const ext = (image.name || '').toLowerCase().split('.').pop();
         const mime = ext === 'png' ? 'image/png'
           : ext === 'gif' ? 'image/gif'
-          : ext === 'webp' ? 'image/webp'
-          : ext === 'bmp' ? 'image/bmp'
-          : ext === 'svg' ? 'image/svg+xml'
-          : 'image/jpeg';
+            : ext === 'webp' ? 'image/webp'
+              : ext === 'bmp' ? 'image/bmp'
+                : ext === 'svg' ? 'image/svg+xml'
+                  : 'image/jpeg';
 
         setImageSrc(`data:${mime};base64,${base64}`);
         await minLoadTime;
@@ -341,13 +344,13 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       height = ch;
       width = ch * natAspect;
     }
-    return { 
-      left: pl + (cw - width) / 2, 
-      top: pt + (ch - height) / 2, 
-      width, 
-      height, 
-      cw: container.clientWidth, 
-      ch: container.clientHeight 
+    return {
+      left: pl + (cw - width) / 2,
+      top: pt + (ch - height) / 2,
+      width,
+      height,
+      cw: container.clientWidth,
+      ch: container.clientHeight
     };
   }, []);
 
@@ -358,7 +361,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
     const natW = img.naturalWidth;
     const natH = img.naturalHeight;
     const targetRatio = ratio === 'original' ? (natW / natH) : ratio;
-    
+
     // fracW/fracH = targetRatio * natH / natW  (so pixel ratio equals `targetRatio`)
     let fracW = 1;
     let fracH = (natW / targetRatio) / natH;
@@ -515,10 +518,12 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
     const sh = Math.max(1, Math.round(cropRect.h * natH));
 
     const canvas = document.createElement('canvas');
-    canvas.width = sw;
-    canvas.height = sh;
+    const finalW = targetWidth ? parseInt(targetWidth, 10) : sw;
+    const finalH = targetHeight ? parseInt(targetHeight, 10) : sh;
+    canvas.width = finalW;
+    canvas.height = finalH;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, finalW, finalH);
 
     const ext = (image.name || '').toLowerCase().split('.').pop();
     const isJpg = ext === 'jpg' || ext === 'jpeg';
@@ -543,7 +548,36 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
     } finally {
       setSaving(false);
     }
-  }, [cropRect, onSaveCrop, image, onClose]);
+  }, [cropRect, onSaveCrop, image, onClose, targetWidth, targetHeight]);
+
+  const handleTargetWidthChange = useCallback((e) => {
+    const val = e.target.value;
+    setTargetWidth(val);
+    if (val && !isNaN(val) && cropRect.w && cropRect.h) {
+      const h = Math.round((parseInt(val, 10) * cropRect.h) / cropRect.w);
+      setTargetHeight(h.toString());
+    } else if (!val) {
+      setTargetHeight('');
+    }
+  }, [cropRect.w, cropRect.h]);
+
+  const handleTargetHeightChange = useCallback((e) => {
+    const val = e.target.value;
+    setTargetHeight(val);
+    if (val && !isNaN(val) && cropRect.w && cropRect.h) {
+      const w = Math.round((parseInt(val, 10) * cropRect.w) / cropRect.h);
+      setTargetWidth(w.toString());
+    } else if (!val) {
+      setTargetWidth('');
+    }
+  }, [cropRect.w, cropRect.h]);
+
+  useEffect(() => {
+    if (targetWidth && cropRect.w && cropRect.h) {
+      const h = Math.round((parseInt(targetWidth, 10) * cropRect.h) / cropRect.w);
+      setTargetHeight(h.toString());
+    }
+  }, [cropRect.w, cropRect.h]);
 
   // ── Keyboard ─────────────────────────────────────────────────
   const handleKeydown = useCallback((e) => {
@@ -554,7 +588,16 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         return;
       }
       if (e.key === 'f' || e.key === 'F') { e.preventDefault(); autoCropToFace(); return; }
-      if (e.key === 'Escape') { e.preventDefault(); setCropMode(false); return; }
+      if (e.key === 'Escape') {
+        if (showResizePanel) {
+          e.preventDefault();
+          setShowResizePanel(false);
+          return;
+        }
+        e.preventDefault();
+        setCropMode(false);
+        return;
+      }
       if (e.key === 'Enter') { e.preventDefault(); applyCrop(); return; }
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
         if (e.metaKey || e.ctrlKey) {
@@ -580,10 +623,10 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
           if (e.key === 'ArrowRight') x += step;
           if (e.key === 'ArrowUp') y -= step;
           if (e.key === 'ArrowDown') y += step;
-          
+
           x = Math.max(0, Math.min(1 - w, x));
           y = Math.max(0, Math.min(1 - h, y));
-          
+
           return { x, y, w, h };
         });
         return;
@@ -702,25 +745,57 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
           </div>
         )}
 
-        {cropMode && (
-          <>
-            <div className="crop-top-left-info">
-              {imageRef.current?.naturalWidth ? `${Math.round(cropRect.w * imageRef.current.naturalWidth)} × ${Math.round(cropRect.h * imageRef.current.naturalHeight)} px` : ''}
-            </div>
-            <div className="crop-top-right-actions" onClick={e => e.stopPropagation()}>
-              <button className="crop-action-icon-btn cancel" onClick={exitCrop} disabled={saving} title="Cancel (Esc)">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              </button>
-              <button className="crop-action-icon-btn apply" onClick={applyCrop} disabled={saving} title="Apply crop (Enter)">
-                {saving ? (
-                  <span style={{ fontSize: '12px' }}>...</span>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        {cropMode && (() => {
+          const imageW = imageRef.current?.naturalWidth || 0;
+          const imageH = imageRef.current?.naturalHeight || 0;
+          const currentCropW = Math.round(cropRect.w * imageW);
+          const currentCropH = Math.round(cropRect.h * imageH);
+          const displayW = targetWidth || currentCropW;
+          const displayH = targetHeight || currentCropH;
+
+          return (
+            <>
+              <div className="crop-top-left-container">
+                <div
+                  className={`crop-top-left-info ${showResizePanel ? 'active' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setShowResizePanel(prev => !prev); }}
+                  title="Click to resize output"
+                >
+                  <span>{imageW ? `${displayW} × ${displayH} px` : ''}</span>
+                </div>
+
+                {showResizePanel && (
+                  <div className="crop-resize-popover" onClick={e => e.stopPropagation()}>
+                    <div className="crop-resize-popover-header">
+                      <span>Resize Output</span>
+                      <button className="crop-resize-close" onClick={() => setShowResizePanel(false)} title="Close">×</button>
+                    </div>
+                    <div className="crop-resize-row">
+                      <label>Width</label>
+                      <input type="number" placeholder={currentCropW} value={targetWidth} onChange={handleTargetWidthChange} autoFocus />
+                    </div>
+                    <div className="crop-resize-row">
+                      <label>Height</label>
+                      <input type="number" placeholder={currentCropH} value={targetHeight} onChange={handleTargetHeightChange} />
+                    </div>
+                  </div>
                 )}
-              </button>
-            </div>
-          </>
-        )}
+              </div>
+              <div className="crop-top-right-actions" onClick={e => e.stopPropagation()}>
+                <button className="crop-action-icon-btn cancel" onClick={exitCrop} disabled={saving} title="Cancel (Esc)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                <button className="crop-action-icon-btn apply" onClick={applyCrop} disabled={saving} title="Apply crop (Enter)">
+                  {saving ? (
+                    <span style={{ fontSize: '12px' }}>...</span>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  )}
+                </button>
+              </div>
+            </>
+          );
+        })()}
 
         <div
           ref={containerRef}
@@ -828,8 +903,8 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         ) : (
           <>
             <>
-              <div 
-                className="preview-filmstrip-container" 
+              <div
+                className="preview-filmstrip-container"
                 onClick={e => e.stopPropagation()}
                 style={{
                   opacity: showFilmstrip ? 1 : 0,
@@ -837,31 +912,31 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                   transition: 'opacity 0.3s ease'
                 }}
               >
-                  <div className="preview-filmstrip" ref={filmstripRef}>
-                    {images.map((img, idx) => {
-                      if (Math.abs(idx - currentIndex) > 40) return null;
-                      return (
-                        <FilmstripThumbnail
-                          key={img.path || idx}
-                          image={img}
-                          index={idx}
-                          isActive={idx === currentIndex}
-                          onClick={(i) => { if (onGoTo) onGoTo(i); }}
-                        />
-                      );
-                    })}
-                  </div>
+                <div className="preview-filmstrip" ref={filmstripRef}>
+                  {images.map((img, idx) => {
+                    if (Math.abs(idx - currentIndex) > 40) return null;
+                    return (
+                      <FilmstripThumbnail
+                        key={img.path || idx}
+                        image={img}
+                        index={idx}
+                        isActive={idx === currentIndex}
+                        onClick={(i) => { if (onGoTo) onGoTo(i); }}
+                      />
+                    );
+                  })}
                 </div>
-                <div className="preview-progress-bar">
-                  <div 
-                    className="preview-progress-fill" 
-                    style={{ 
-                      left: `${(currentIndex / Math.max(1, images.length - 1)) * 100}%`,
-                      transform: `translateX(-${(currentIndex / Math.max(1, images.length - 1)) * 100}%)`
-                    }} 
-                  />
-                </div>
-              </>
+              </div>
+              <div className="preview-progress-bar">
+                <div
+                  className="preview-progress-fill"
+                  style={{
+                    left: `${(currentIndex / Math.max(1, images.length - 1)) * 100}%`,
+                    transform: `translateX(-${(currentIndex / Math.max(1, images.length - 1)) * 100}%)`
+                  }}
+                />
+              </div>
+            </>
             <div className="preview-controls" onClick={e => e.stopPropagation()}>
               <div className="preview-zoom-controls">
                 <button
@@ -886,7 +961,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                   </svg>
                 </button>
               </div>
-              
+
               {canCrop && (
                 <button className="preview-crop-btn" onClick={enterCrop} title="Crop image (C)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

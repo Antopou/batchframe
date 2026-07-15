@@ -715,10 +715,8 @@ ipcMain.handle('get-image-metadata', async (event, filePath) => {
 //   dev  → <repo>/drive-cache/
 //   prod → <dir containing the app executable>/drive-cache/
 function driveCacheBaseDir() {
-  const base = isDev
-    ? path.resolve(__dirname, '..')
-    : path.dirname(app.getPath('exe'));
-  return path.join(base, 'drive-cache');
+  const base = app.getPath('home');
+  return path.join(base, 'Drive');
 }
 
 ipcMain.handle('drive-status', async () => {

@@ -26,7 +26,7 @@ function Dropdown({ value, onChange, options, disabled }) {
       >
         <span>{selected?.label ?? value}</span>
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="m6 9 6 6 6-6"/>
+          <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
       {open && (
@@ -228,12 +228,12 @@ function Controls({
       <div className="controls-section main-actions">
         <div className="button-group">
           <button onClick={onSelectFolder} className="btn-modern primary" disabled={loading}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" /></svg>
             Open
           </button>
           {!browserMode && lastFolderPath && (
             <button onClick={onOpenLastFolder} className="btn-modern secondary icon-only" disabled={loading} title={lastFolderPath}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
             </button>
           )}
           {!browserMode && driveSlot}
@@ -245,7 +245,7 @@ function Controls({
                 disabled={loading}
                 title="Previous folder (−1)"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
               </button>
               <button
                 onClick={() => onNavigateFolder(1)}
@@ -253,7 +253,7 @@ function Controls({
                 disabled={loading}
                 title="Next folder (+1)"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
               </button>
             </>
           )}
@@ -307,7 +307,7 @@ function Controls({
 
         <div className="search-box">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
           </svg>
           <input
             type="text"
@@ -317,26 +317,26 @@ function Controls({
             className="search-input"
             disabled={loading || totalCount === 0}
           />
-            {searchQuery && (
-              <button onClick={() => onSearchQueryChange('')} className="search-clear" title="Clear">×</button>
-            )}
-            {searchQuery && filteredCount > 0 && (
-              <button onClick={onSelectAllFiltered} className="search-select-btn" title={`Select all ${filteredCount} matches`}>
-                {filteredCount}
-              </button>
-            )}
+          {searchQuery && (
+            <button onClick={() => onSearchQueryChange('')} className="search-clear" title="Clear">×</button>
+          )}
+          {searchQuery && filteredCount > 0 && (
+            <button onClick={onSelectAllFiltered} className="search-select-btn" title={`Select all ${filteredCount} matches`}>
+              {filteredCount}
+            </button>
+          )}
         </div>
 
         <div className="selection-stats">
           <div className="button-group mini">
-              {selectedCount > 0 && !browserMode && (
-                <button onClick={onExportPaths} className="icon-btn-modern sm" disabled={loading} title={`Export ${selectedCount} paths to .txt`}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                </button>
-              )}
-            </div>
+            {selectedCount > 0 && !browserMode && (
+              <button onClick={onExportPaths} className="icon-btn-modern sm" disabled={loading} title={`Export ${selectedCount} paths to .txt`}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -348,144 +348,144 @@ function Controls({
             value={sortBy}
             onChange={onSortByChange}
             disabled={loading || totalCount === 0}
-              options={[
-                { value: 'none', label: 'Unsorted' },
-                { value: 'name', label: 'Name' },
-                { value: 'date', label: 'Date' },
-                { value: 'size', label: 'Size' },
-              ]}
-            />
+            options={[
+              { value: 'none', label: 'Unsorted' },
+              { value: 'name', label: 'Name' },
+              { value: 'date', label: 'Date' },
+              { value: 'size', label: 'Size' },
+            ]}
+          />
           <button
             className="icon-btn-modern"
             onClick={() => onSortDirChange(sortDir === 'asc' ? 'desc' : 'asc')}
             title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
             disabled={loading || totalCount === 0 || sortBy === 'none'}
           >
-              {sortDir === 'asc' ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/><path d="M11 12h4"/><path d="M11 16h7"/><path d="M11 20h10"/></svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="M11 4h10"/><path d="M11 8h7"/><path d="M11 12h4"/></svg>
-              )}
-            </button>
+            {sortDir === 'asc' ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 8 4-4 4 4" /><path d="M7 4v16" /><path d="M11 12h4" /><path d="M11 16h7" /><path d="M11 20h10" /></svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 16 4 4 4-4" /><path d="M7 20V4" /><path d="M11 4h10" /><path d="M11 8h7" /><path d="M11 12h4" /></svg>
+            )}
+          </button>
           <Dropdown
             value={aspectFilter}
             onChange={onAspectFilterChange}
             disabled={loading || totalCount === 0}
             options={[
-                { value: 'all', label: 'All ratios' },
-                { value: 'portrait', label: 'Portrait' },
-                { value: 'landscape', label: 'Landscape' },
-                { value: 'square', label: 'Square' },
-              ]}
-            />
-          </div>
+              { value: 'all', label: 'All ratios' },
+              { value: 'portrait', label: 'Portrait' },
+              { value: 'landscape', label: 'Landscape' },
+              { value: 'square', label: 'Square' },
+            ]}
+          />
+        </div>
 
-          <div className="divider-v" />
+        <div className="divider-v" />
 
-          {/* Order-select mode */}
-          <div className="button-group">
+        {/* Order-select mode */}
+        <div className="button-group">
           <button
             className={`icon-btn-modern${orderSelectMode ? ' active' : ''}`}
             onClick={() => onOrderSelectModeChange(!orderSelectMode)}
             title={orderSelectMode ? 'Exit Order Select mode (O)' : 'Order Select: click images in sequence to assign rename order (O)'}
             disabled={loading || totalCount === 0}
           >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15 21 21"/><path d="M4 4l5 5"/></svg>
-            </button>
-            {orderSelectMode && orderedSelection.length > 0 && (
-              <div className="locked-badge" title={`${orderedSelection.length} image${orderedSelection.length !== 1 ? 's' : ''} in order`}>
-                {orderedSelection.length}
-              </div>
-            )}
-          </div>
-
-          <div className="divider-v" />
-
-          <div className="button-group">
-            <button
-              onClick={onLockSelected}
-              className={`btn-modern secondary sm ${selectedCount === 0 ? 'disabled' : ''}`}
-              disabled={loading || selectedCount === 0}
-              title="Lock selected (L)"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              Lock
-            </button>
-            <button
-              onClick={onUnlockSelected}
-              className={`btn-modern secondary sm ${selectedCount === 0 ? 'disabled' : ''}`}
-              disabled={loading || selectedCount === 0}
-              title="Unlock selected (Shift+L)"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-              Unlock
-            </button>
-          </div>
-          {lockedCount > 0 && (
-            <div className="locked-badge" title={`${lockedCount} locked image${lockedCount !== 1 ? 's' : ''} will be preserved during deletion`}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              {lockedCount}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5" /><path d="M4 20 21 3" /><path d="M21 16v5h-5" /><path d="M15 15 21 21" /><path d="M4 4l5 5" /></svg>
+          </button>
+          {orderSelectMode && orderedSelection.length > 0 && (
+            <div className="locked-badge" title={`${orderedSelection.length} image${orderedSelection.length !== 1 ? 's' : ''} in order`}>
+              {orderedSelection.length}
             </div>
           )}
+        </div>
 
-          <div className="divider-v" />
+        <div className="divider-v" />
 
-          <div className="button-group">
+        <div className="button-group">
+          <button
+            onClick={onLockSelected}
+            className={`btn-modern secondary sm ${selectedCount === 0 ? 'disabled' : ''}`}
+            disabled={loading || selectedCount === 0}
+            title="Lock selected (L)"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+            Lock
+          </button>
+          <button
+            onClick={onUnlockSelected}
+            className={`btn-modern secondary sm ${selectedCount === 0 ? 'disabled' : ''}`}
+            disabled={loading || selectedCount === 0}
+            title="Unlock selected (Shift+L)"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></svg>
+            Unlock
+          </button>
+        </div>
+        {lockedCount > 0 && (
+          <div className="locked-badge" title={`${lockedCount} locked image${lockedCount !== 1 ? 's' : ''} will be preserved during deletion`}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+            {lockedCount}
+          </div>
+        )}
+
+        <div className="divider-v" />
+
+        <div className="button-group">
+          <button
+            onClick={onDeleteSelected}
+            className="action-btn del"
+            disabled={loading || selectedCount === 0 || browserMode}
+            title="Delete selected (Del)"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
+            Del
+          </button>
+          <button
+            onClick={onKeepSelected}
+            className="action-btn keep"
+            disabled={loading || selectedCount === 0 || browserMode}
+            title="Keep selected, delete others (Shift+Del)"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+            Keep
+          </button>
+          {!browserMode && (
             <button
-              onClick={onDeleteSelected}
-              className="action-btn del"
-              disabled={loading || selectedCount === 0 || browserMode}
-              title="Delete selected (Del)"
+              onClick={onCopySelected}
+              className="action-btn copy"
+              disabled={loading || selectedCount === 0 || isCopying}
+              title="Copy selected to another folder (C)"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-              Del
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="14" height="14" x="8" y="8" rx="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+              </svg>
+              Copy
             </button>
+          )}
+          {!browserMode && (
             <button
-              onClick={onKeepSelected}
-              className="action-btn keep"
-              disabled={loading || selectedCount === 0 || browserMode}
-              title="Keep selected, delete others (Shift+Del)"
+              onClick={onMoveSelected}
+              className="action-btn move"
+              disabled={loading || selectedCount === 0 || isMoving}
+              title="Move selected to another folder (M)"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-              Keep
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M8 13h6" /><path d="m11 10 3 3-3 3" /></svg>
+              Move
             </button>
-            {!browserMode && (
-              <button
-                onClick={onCopySelected}
-                className="action-btn copy"
-                disabled={loading || selectedCount === 0 || isCopying}
-                title="Copy selected to another folder (C)"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
-                </svg>
-                Copy
-              </button>
-            )}
-            {!browserMode && (
-              <button
-                onClick={onMoveSelected}
-                className="action-btn move"
-                disabled={loading || selectedCount === 0 || isMoving}
-                title="Move selected to another folder (M)"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h6"/><path d="m11 10 3 3-3 3"/></svg>
-                Move
-              </button>
-            )}
-            {!browserMode && (
-              <button
-                onClick={onBulkRename}
-                className="action-btn rename"
-                disabled={loading || selectedCount === 0}
-                title="Bulk rename selected images (R)"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>
-                </svg>
-                Rename
-              </button>
-            )}
+          )}
+          {!browserMode && (
+            <button
+              onClick={onBulkRename}
+              className="action-btn rename"
+              disabled={loading || selectedCount === 0}
+              title="Bulk rename selected images (R)"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" />
+              </svg>
+              Rename
+            </button>
+          )}
           {!browserMode && (
             <button
               className={`action-btn${showAIScan ? ' active' : ''}`}
@@ -493,49 +493,49 @@ function Controls({
               title="AI character scan (A)"
               disabled={loading || totalCount === 0}
             >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 14.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>
-                AI
-              </button>
-            )}
-            {!browserMode && (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" /><path d="M19 14.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>
+              AI
+            </button>
+          )}
+          {!browserMode && (
+            <button
+              onClick={onUseSelectedAsRefs}
+              className="action-btn ref"
+              disabled={loading || selectedCount === 0 || !activeCharacter}
+              title={
+                activeCharacter
+                  ? `Use ${selectedCount || 'selected'} as reference (F) → ${activeCharacter}`
+                  : 'Set a character first to use as reference (F)'
+              }
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" /></svg>
+              Ref
+            </button>
+          )}
+          {!browserMode && (
+            photoshopPath ? (
               <button
-                onClick={onUseSelectedAsRefs}
-                className="action-btn ref"
-                disabled={loading || selectedCount === 0 || !activeCharacter}
-                title={
-                  activeCharacter
-                    ? `Use ${selectedCount || 'selected'} as reference (F) → ${activeCharacter}`
-                    : 'Set a character first to use as reference (F)'
-                }
+                onClick={onOpenInPhotoshop}
+                className="action-btn ps"
+                disabled={loading || selectedCount === 0}
+                title={`Open in Photoshop (P): ${photoshopPath}`}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
-                Ref
+                <PhotoshopIcon size={14} />
+                Photoshop
               </button>
-            )}
-            {!browserMode && (
-              photoshopPath ? (
-                <button
-                  onClick={onOpenInPhotoshop}
-                  className="action-btn ps"
-                  disabled={loading || selectedCount === 0}
-                  title={`Open in Photoshop (P): ${photoshopPath}`}
-                >
-                  <PhotoshopIcon size={14} />
-                  Photoshop
-                </button>
-              ) : (
+            ) : (
               <button
                 onClick={handleBrowsePsPath}
                 className="action-btn ps"
                 disabled={loading || totalCount === 0}
                 title="Locate Photoshop"
               >
-                  <PhotoshopIcon size={14} />
-                  Photoshop
-                </button>
-              )
-            )}
-          </div>
+                <PhotoshopIcon size={14} />
+                Photoshop
+              </button>
+            )
+          )}
+        </div>
       </div>
 
       {/* ── Order-select rename panel ── */}
@@ -573,7 +573,7 @@ function Controls({
               disabled={loading || !renamePrefix}
               title="Rename files by order sequence"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
               Rename
             </button>
             <button
@@ -612,217 +612,217 @@ function Controls({
         <div className="view-config">
           <div className="slider-container">
             <input
-                id="preview-size"
-                type="range"
-                min="80"
-                max="300"
-                value={previewSize}
-                onChange={(e) => onPreviewSizeChange(Number(e.target.value))}
-                disabled={loading || totalCount === 0}
-              />
-            </div>
-            <div className="segmented-control">
-              {['S', 'M', 'L', 'XL'].map((label, idx) => {
-                const vals = [120, 170, 230, 280];
-                return (
-                  <button 
-                    key={label}
-                    className={`segment-btn ${previewSize === vals[idx] ? 'active' : ''}`}
-                    onClick={() => onPreviewPresetChange(vals[idx])}
-                    disabled={loading || totalCount === 0}
-                    title={`Size: ${label} (${idx + 1})`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="divider-v" />
-
-          <div className="mode-toggles">
-            <div className="segmented-control">
-              <button
-                className={`segment-btn ${viewMode === 'explorer' ? 'active' : ''}`}
-                onClick={() => onViewModeChange && onViewModeChange('explorer')}
-                title="Explorer view — folders + images (V)"
-                disabled={loading || totalCount === 0}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
-              </button>
-              <button
-                className={`segment-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                onClick={() => onViewModeChange && onViewModeChange('grid')}
-                title="Grid view (V)"
-                disabled={loading || totalCount === 0}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/></svg>
-              </button>
-              <button
-                className={`segment-btn ${viewMode === 'list' ? 'active' : ''}`}
-                onClick={() => onViewModeChange && onViewModeChange('list')}
-                title="List view (V)"
-                disabled={loading || totalCount === 0}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-              </button>
-            </div>
-            {viewMode === 'list' ? (
-              <div className="segmented-control">
-                <button
-                  className={`segment-btn ${listDetail === 'plain' ? 'active' : ''}`}
-                  onClick={() => onListDetailChange && onListDetailChange('plain')}
-                  title="List, names only (T)"
-                  disabled={loading || totalCount === 0}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
-                </button>
-                <button
-                  className={`segment-btn ${listDetail === 'thumb' ? 'active' : ''}`}
-                  onClick={() => onListDetailChange && onListDetailChange('thumb')}
-                  title="List with thumbnail (T)"
-                  disabled={loading || totalCount === 0}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="6" height="6" rx="1"/><line x1="12" y1="6" x2="21" y2="6"/><line x1="12" y1="9" x2="18" y2="9"/><rect x="3" y="14" width="6" height="6" rx="1"/><line x1="12" y1="16" x2="21" y2="16"/><line x1="12" y1="19" x2="18" y2="19"/></svg>
-                </button>
-              </div>
-            ) : (
-              <div className="segmented-control">
-                <button
-                  className={`segment-btn ${imageFitMode === 'contain' ? 'active' : ''}`}
-                  onClick={() => onImageFitModeChange('contain')}
-                  title="Contain (T)"
-                  disabled={loading || totalCount === 0}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-                </button>
-                <button
-                  className={`segment-btn ${imageFitMode === 'cover' ? 'active' : ''}`}
-                  onClick={() => onImageFitModeChange('cover')}
-                  title="Cover (T)"
-                  disabled={loading || totalCount === 0}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m3 3 18 18"/><path d="m21 3-18 18"/></svg>
-                </button>
-              </div>
-            )}
-            <button
-              className={`icon-btn-modern ${dragSelectEnabled ? 'active' : ''}`}
-              onClick={() => onDragSelectEnabledChange(!dragSelectEnabled)}
-              title="Drag Select (D)"
+              id="preview-size"
+              type="range"
+              min="80"
+              max="300"
+              value={previewSize}
+              onChange={(e) => onPreviewSizeChange(Number(e.target.value))}
               disabled={loading || totalCount === 0}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9"/><path d="M12 2v8"/><path d="M12 10 9 7"/><path d="m12 10 3-3"/><path d="M18 21v-8a2 2 0 0 0-2-2h-4"/></svg>
-            </button>
-            {!browserMode && (
-              <button
-                className={`icon-btn-modern ${autoReloadEnabled ? 'active' : ''}`}
-                onClick={() => onAutoReloadChange(!autoReloadEnabled)}
-                title={autoReloadEnabled ? 'Auto-Reload: ON (Q)' : 'Auto-Reload: OFF (Q)'}
-                disabled={loading || totalCount === 0}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-              </button>
-            )}
-            <button 
-              className={`icon-btn-modern ${!confirmRequired ? 'warning' : ''}`}
-              onClick={() => onConfirmRequiredChange(!confirmRequired)}
-              title={confirmRequired ? 'Confirm: ON (N)' : 'Confirm: OFF (N)'}
-              disabled={loading || totalCount === 0}
-            >
-              {confirmRequired ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-              )}
-            </button>
-
-            <div className="divider-v" style={{ height: '16px', margin: '0 4px' }} />
-            <button onClick={onSelectAll} className="icon-btn-modern" disabled={loading || totalCount === 0} title="Select All (Ctrl/Cmd+A)">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-              </svg>
-            </button>
-            <button onClick={onDeselectAll} className="icon-btn-modern" disabled={loading || totalCount === 0} title="Deselect All (Esc)">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
-              </svg>
-            </button>
-            <button onClick={onInvertSelection} className="icon-btn-modern" disabled={loading || totalCount === 0} title="Invert selection (I)">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>
-              </svg>
-            </button>
-          </div>
-
-          <div className="divider-v" />
-
-          <div className="pagination-modern">
-            <div className={`stat-badge-modern ${selectedCount > 0 ? 'active' : ''}`} title={selectedCount > 0 ? `${selectedCount} selected / ${totalCount} total` : `${totalCount} total items`}>
-              {selectedCount > 0 && (
-                <>
-                  <span className="count">{selectedCount}</span>
-                  <span className="sep">/</span>
-                </>
-              )}
-              {searchQuery && (
-                <>
-                  <span className="filtered" title="Filtered">{filteredCount}</span>
-                  <span className="sep">/</span>
-                </>
-              )}
-              <span className="total">{totalCount} {selectedCount === 0 ? 'items' : ''}</span>
-            </div>
-            <Dropdown
-              value={pageSize}
-              onChange={onPageSizeChange}
-              disabled={loading || totalCount === 0}
-              options={[
-                { value: 100, label: '100' },
-                { value: 200, label: '200' },
-                { value: 300, label: '300' },
-                { value: 500, label: '500' },
-                { value: 1000, label: '1000' },
-                { value: 99999, label: 'All' },
-              ]}
             />
-            <div className="nav-group">
-              <button onClick={onPrevPage} disabled={loading || totalCount === 0 || currentPage <= 1} className="nav-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-              </button>
-              <span className="page-info">{currentPage}<span className="of">/</span>{totalPages}</span>
-              <button onClick={onNextPage} disabled={loading || totalCount === 0 || currentPage >= totalPages} className="nav-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-              </button>
-            </div>
-            <button
-              className={`help-btn-modern ${showShortcuts ? 'active' : ''}`}
-              onClick={onToggleShortcuts}
-              title="Keyboard shortcuts"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-            </button>
-            {hasSubfolders && (
-              <button
-                className={`help-btn-modern ${!subfolderBarPinned ? 'active' : ''}`}
-                onClick={onToggleSubfolderBar}
-                title={subfolderBarPinned ? 'Unpin subfolder bar' : 'Pin subfolder bar'}
-              >
-                {subfolderBarPinned ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 17v5"/><path d="M15 9.34V6h1a2 2 0 0 0 0-4H7.89"/><path d="m2 2 20 20"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h9.8"/>
-                  </svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="17" x2="12" y2="22"/>
-                    <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 1 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>
-                  </svg>
-                )}
-              </button>
-            )}
+          </div>
+          <div className="segmented-control">
+            {['S', 'M', 'L', 'XL'].map((label, idx) => {
+              const vals = [120, 170, 230, 280];
+              return (
+                <button
+                  key={label}
+                  className={`segment-btn ${previewSize === vals[idx] ? 'active' : ''}`}
+                  onClick={() => onPreviewPresetChange(vals[idx])}
+                  disabled={loading || totalCount === 0}
+                  title={`Size: ${label} (${idx + 1})`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
+
+        <div className="divider-v" />
+
+        <div className="mode-toggles">
+          <div className="segmented-control">
+            <button
+              className={`segment-btn ${viewMode === 'explorer' ? 'active' : ''}`}
+              onClick={() => onViewModeChange && onViewModeChange('explorer')}
+              title="Explorer view — folders + images (V)"
+              disabled={loading || totalCount === 0}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" /></svg>
+            </button>
+            <button
+              className={`segment-btn ${viewMode === 'grid' ? 'active' : ''}`}
+              onClick={() => onViewModeChange && onViewModeChange('grid')}
+              title="Grid view (V)"
+              disabled={loading || totalCount === 0}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /></svg>
+            </button>
+            <button
+              className={`segment-btn ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => onViewModeChange && onViewModeChange('list')}
+              title="List view (V)"
+              disabled={loading || totalCount === 0}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+            </button>
+          </div>
+          {viewMode === 'list' ? (
+            <div className="segmented-control">
+              <button
+                className={`segment-btn ${listDetail === 'plain' ? 'active' : ''}`}
+                onClick={() => onListDetailChange && onListDetailChange('plain')}
+                title="List, names only (T)"
+                disabled={loading || totalCount === 0}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="17" x2="20" y2="17" /></svg>
+              </button>
+              <button
+                className={`segment-btn ${listDetail === 'thumb' ? 'active' : ''}`}
+                onClick={() => onListDetailChange && onListDetailChange('thumb')}
+                title="List with thumbnail (T)"
+                disabled={loading || totalCount === 0}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="6" height="6" rx="1" /><line x1="12" y1="6" x2="21" y2="6" /><line x1="12" y1="9" x2="18" y2="9" /><rect x="3" y="14" width="6" height="6" rx="1" /><line x1="12" y1="16" x2="21" y2="16" /><line x1="12" y1="19" x2="18" y2="19" /></svg>
+              </button>
+            </div>
+          ) : (
+            <div className="segmented-control">
+              <button
+                className={`segment-btn ${imageFitMode === 'contain' ? 'active' : ''}`}
+                onClick={() => onImageFitModeChange('contain')}
+                title="Contain (T)"
+                disabled={loading || totalCount === 0}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M9 21V9" /></svg>
+              </button>
+              <button
+                className={`segment-btn ${imageFitMode === 'cover' ? 'active' : ''}`}
+                onClick={() => onImageFitModeChange('cover')}
+                title="Cover (T)"
+                disabled={loading || totalCount === 0}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="m3 3 18 18" /><path d="m21 3-18 18" /></svg>
+              </button>
+            </div>
+          )}
+          <button
+            className={`icon-btn-modern ${dragSelectEnabled ? 'active' : ''}`}
+            onClick={() => onDragSelectEnabledChange(!dragSelectEnabled)}
+            title="Drag Select (D)"
+            disabled={loading || totalCount === 0}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9" /><path d="M12 2v8" /><path d="M12 10 9 7" /><path d="m12 10 3-3" /><path d="M18 21v-8a2 2 0 0 0-2-2h-4" /></svg>
+          </button>
+          {!browserMode && (
+            <button
+              className={`icon-btn-modern ${autoReloadEnabled ? 'active' : ''}`}
+              onClick={() => onAutoReloadChange(!autoReloadEnabled)}
+              title={autoReloadEnabled ? 'Auto-Reload: ON (Q)' : 'Auto-Reload: OFF (Q)'}
+              disabled={loading || totalCount === 0}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+            </button>
+          )}
+          <button
+            className={`icon-btn-modern ${!confirmRequired ? 'warning' : ''}`}
+            onClick={() => onConfirmRequiredChange(!confirmRequired)}
+            title={confirmRequired ? 'Confirm: ON (N)' : 'Confirm: OFF (N)'}
+            disabled={loading || totalCount === 0}
+          >
+            {confirmRequired ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0" /><path d="M18.63 13A17.89 17.89 0 0 1 18 8" /><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" /><path d="M18 8a6 6 0 0 0-9.33-5" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+            )}
+          </button>
+
+          <div className="divider-v" style={{ height: '16px', margin: '0 4px' }} />
+          <button onClick={onSelectAll} className="icon-btn-modern" disabled={loading || totalCount === 0} title="Select All (Ctrl/Cmd+A)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+            </svg>
+          </button>
+          <button onClick={onDeselectAll} className="icon-btn-modern" disabled={loading || totalCount === 0} title="Deselect All (Esc)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="9" y1="9" x2="15" y2="15" /><line x1="15" y1="9" x2="9" y2="15" />
+            </svg>
+          </button>
+          <button onClick={onInvertSelection} className="icon-btn-modern" disabled={loading || totalCount === 0} title="Invert selection (I)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m16 3 4 4-4 4" /><path d="M20 7H4" /><path d="m8 21-4-4 4-4" /><path d="M4 17h16" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="divider-v" />
+
+        <div className="pagination-modern">
+          <div className={`stat-badge-modern ${selectedCount > 0 ? 'active' : ''}`} title={selectedCount > 0 ? `${selectedCount} selected / ${totalCount} total` : `${totalCount} total items`}>
+            {selectedCount > 0 && (
+              <>
+                <span className="count">{selectedCount}</span>
+                <span className="sep">/</span>
+              </>
+            )}
+            {searchQuery && (
+              <>
+                <span className="filtered" title="Filtered">{filteredCount}</span>
+                <span className="sep">/</span>
+              </>
+            )}
+            <span className="total">{totalCount} {selectedCount === 0 ? 'items' : ''}</span>
+          </div>
+          <Dropdown
+            value={pageSize}
+            onChange={onPageSizeChange}
+            disabled={loading || totalCount === 0}
+            options={[
+              { value: 100, label: '100' },
+              { value: 200, label: '200' },
+              { value: 300, label: '300' },
+              { value: 500, label: '500' },
+              { value: 1000, label: '1000' },
+              { value: 99999, label: 'All' },
+            ]}
+          />
+          <div className="nav-group">
+            <button onClick={onPrevPage} disabled={loading || totalCount === 0 || currentPage <= 1} className="nav-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+            <span className="page-info">{currentPage}<span className="of">/</span>{totalPages}</span>
+            <button onClick={onNextPage} disabled={loading || totalCount === 0 || currentPage >= totalPages} className="nav-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+          </div>
+          <button
+            className={`help-btn-modern ${showShortcuts ? 'active' : ''}`}
+            onClick={onToggleShortcuts}
+            title="Keyboard shortcuts"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" x2="12.01" y1="17" y2="17" /></svg>
+          </button>
+          {hasSubfolders && (
+            <button
+              className={`help-btn-modern ${!subfolderBarPinned ? 'active' : ''}`}
+              onClick={onToggleSubfolderBar}
+              title={subfolderBarPinned ? 'Unpin subfolder bar' : 'Pin subfolder bar'}
+            >
+              {subfolderBarPinned ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 17v5" /><path d="M15 9.34V6h1a2 2 0 0 0 0-4H7.89" /><path d="m2 2 20 20" /><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h9.8" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="17" x2="12" y2="22" />
+                  <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 1 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

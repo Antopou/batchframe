@@ -24,6 +24,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   const [imageSrc, setImageSrc] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
+
   // ── Crop state ────────────────────────────────────────────────
   const [cropMode, setCropMode] = useState(false);
   const [cropAspect, setCropAspect] = useState(null); // ratio number or null
@@ -33,6 +34,37 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   const [detecting, setDetecting] = useState(false);
   const [noFace, setNoFace] = useState(false);
   const cropDragRef = useRef(null); // { handle, startPx, startRect, layout }
+
+  // ── UI Directional Hover state ────────────────────────────────────────
+  const [hoverZones, setHoverZones] = useState({ top: false, bottom: false, left: false, right: false });
+
+  useEffect(() => {
+    const handleMove = (e) => {
+      if (isDragging) return;
+      const x = e.clientX;
+      const y = e.clientY;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      
+      setHoverZones({
+        top: y < 150,
+        bottom: y > h - 150,
+        left: x < 150,
+        right: x > w - 150,
+      });
+    };
+    
+    const handleLeave = () => {
+      setHoverZones({ top: false, bottom: false, left: false, right: false });
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseout', handleLeave);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseout', handleLeave);
+    };
+  }, [isDragging]);
 
   const applyTransform = () => {
     if (!imageRef.current) return;
@@ -203,8 +235,15 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
     const container = containerRef.current;
     const img = imageRef.current;
     if (!container || !img || !img.naturalWidth) return null;
-    const cw = container.clientWidth;
-    const ch = container.clientHeight;
+
+    const style = window.getComputedStyle(container);
+    const pl = parseFloat(style.paddingLeft) || 0;
+    const pr = parseFloat(style.paddingRight) || 0;
+    const pt = parseFloat(style.paddingTop) || 0;
+    const pb = parseFloat(style.paddingBottom) || 0;
+
+    const cw = container.clientWidth - pl - pr;
+    const ch = container.clientHeight - pt - pb;
     const natAspect = img.naturalWidth / img.naturalHeight;
     const contAspect = cw / ch;
     let width, height;
@@ -215,7 +254,14 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       height = ch;
       width = ch * natAspect;
     }
-    return { left: (cw - width) / 2, top: (ch - height) / 2, width, height, cw, ch };
+    return { 
+      left: pl + (cw - width) / 2, 
+      top: pt + (ch - height) / 2, 
+      width, 
+      height, 
+      cw: container.clientWidth, 
+      ch: container.clientHeight 
+    };
   }, []);
 
   // Build a crop rect (fractions) of the largest area matching `ratio`, centered
@@ -420,8 +466,25 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         return;
       }
       if (e.key === 'f' || e.key === 'F') { e.preventDefault(); autoCropToFace(); return; }
-      if (e.key === 'Escape') { e.preventDefault(); setCropMode(false); }
-      else if (e.key === 'Enter') { e.preventDefault(); applyCrop(); }
+      if (e.key === 'Escape') { e.preventDefault(); setCropMode(false); return; }
+      if (e.key === 'Enter') { e.preventDefault(); applyCrop(); return; }
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        e.preventDefault();
+        const step = e.shiftKey ? 0.05 : 0.01;
+        setCropRect(prev => {
+          let { x, y, w, h } = prev;
+          if (e.key === 'ArrowLeft') x -= step;
+          if (e.key === 'ArrowRight') x += step;
+          if (e.key === 'ArrowUp') y -= step;
+          if (e.key === 'ArrowDown') y += step;
+          
+          x = Math.max(0, Math.min(1 - w, x));
+          y = Math.max(0, Math.min(1 - h, y));
+          
+          return { x, y, w, h };
+        });
+        return;
+      }
       return;
     }
     switch (e.key) {
@@ -500,15 +563,13 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
 
   return (
     <div className="preview-modal-overlay" onClick={cropMode ? undefined : onClose}>
-      <div className="preview-modal-content">
-        <div className={`preview-header-wrapper${cropMode ? ' disabled' : ''}`}>
-          <div className="preview-header" onClick={e => e.stopPropagation()}>
-            <div className="preview-info">
-              <span className="preview-filename">{image.name}</span>
-              <span className="preview-index">{currentIndex + 1} / {images.length}</span>
-            </div>
-            <button className="preview-close" onClick={onClose}>×</button>
+      <div className={`preview-modal-content ${hoverZones.top ? 'show-top' : ''} ${hoverZones.bottom ? 'show-bottom' : ''} ${hoverZones.left ? 'show-left' : ''} ${hoverZones.right ? 'show-right' : ''} ${cropMode ? 'crop-mode' : ''}`}>
+        <div className="preview-header" onClick={e => e.stopPropagation()}>
+          <div className="preview-info">
+            <span className="preview-filename">{image.name}</span>
+            <span className="preview-index">{currentIndex + 1} / {images.length}</span>
           </div>
+          <button className="preview-close" onClick={onClose}>×</button>
         </div>
 
         <div

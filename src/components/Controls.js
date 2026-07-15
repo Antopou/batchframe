@@ -328,23 +328,9 @@ function Controls({
         </div>
 
         <div className="selection-stats">
-            <div className="stat-badge">
-              <span className="count">{selectedCount}</span>
-              <span className="sep">/</span>
-              {searchQuery && (
-                <>
-                  <span className="filtered" title="Filtered">{filteredCount}</span>
-                  <span className="sep">/</span>
-                </>
-              )}
-              <span className="total">{totalCount}</span>
-            </div>
           <div className="button-group mini">
-            <button onClick={onSelectAll} className="btn-modern ghost sm" disabled={loading || totalCount === 0} title="Select All (Ctrl/Cmd+A)">All</button>
-            <button onClick={onDeselectAll} className="btn-modern ghost sm" disabled={loading || totalCount === 0} title="Deselect All (Esc)">None</button>
-            <button onClick={onInvertSelection} className="btn-modern ghost sm" disabled={loading || totalCount === 0} title="Invert selection (I)">Inv</button>
               {selectedCount > 0 && !browserMode && (
-                <button onClick={onExportPaths} className="icon-btn-modern" disabled={loading} title={`Export ${selectedCount} paths to .txt`}>
+                <button onClick={onExportPaths} className="icon-btn-modern sm" disabled={loading} title={`Export ${selectedCount} paths to .txt`}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                   </svg>
@@ -751,11 +737,43 @@ function Controls({
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
               )}
             </button>
+
+            <div className="divider-v" style={{ height: '16px', margin: '0 4px' }} />
+            <button onClick={onSelectAll} className="icon-btn-modern" disabled={loading || totalCount === 0} title="Select All (Ctrl/Cmd+A)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+            </button>
+            <button onClick={onDeselectAll} className="icon-btn-modern" disabled={loading || totalCount === 0} title="Deselect All (Esc)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+              </svg>
+            </button>
+            <button onClick={onInvertSelection} className="icon-btn-modern" disabled={loading || totalCount === 0} title="Invert selection (I)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>
+              </svg>
+            </button>
           </div>
 
           <div className="divider-v" />
 
           <div className="pagination-modern">
+            <div className={`stat-badge-modern ${selectedCount > 0 ? 'active' : ''}`} title={selectedCount > 0 ? `${selectedCount} selected / ${totalCount} total` : `${totalCount} total items`}>
+              {selectedCount > 0 && (
+                <>
+                  <span className="count">{selectedCount}</span>
+                  <span className="sep">/</span>
+                </>
+              )}
+              {searchQuery && (
+                <>
+                  <span className="filtered" title="Filtered">{filteredCount}</span>
+                  <span className="sep">/</span>
+                </>
+              )}
+              <span className="total">{totalCount} {selectedCount === 0 ? 'items' : ''}</span>
+            </div>
             <Dropdown
               value={pageSize}
               onChange={onPageSizeChange}
@@ -787,14 +805,20 @@ function Controls({
             </button>
             {hasSubfolders && (
               <button
-                className={`help-btn-modern ${subfolderBarPinned ? 'active' : ''}`}
+                className={`help-btn-modern ${!subfolderBarPinned ? 'active' : ''}`}
                 onClick={onToggleSubfolderBar}
-                title={subfolderBarPinned ? 'Auto-hide subfolder bar' : 'Pin subfolder bar'}
+                title={subfolderBarPinned ? 'Unpin subfolder bar' : 'Pin subfolder bar'}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="17" x2="12" y2="22"/>
-                  <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 1 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>
-                </svg>
+                {subfolderBarPinned ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 17v5"/><path d="M15 9.34V6h1a2 2 0 0 0 0-4H7.89"/><path d="m2 2 20 20"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h9.8"/>
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="17" x2="12" y2="22"/>
+                    <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 1 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>
+                  </svg>
+                )}
               </button>
             )}
           </div>

@@ -35,6 +35,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    titleBarStyle: 'hidden',
+    trafficLightPosition: { x: 14, y: 11 },
     webPreferences: {
       preload: preloadPath,
       nodeIntegration: false,
@@ -65,6 +67,14 @@ function createWindow() {
       } catch (e) { console.error('initial-folder send failed:', e); }
     });
   }
+
+  mainWindow.on('will-enter-full-screen', () => {
+    mainWindow.webContents.send('fullscreen-change', true);
+  });
+
+  mainWindow.on('will-leave-full-screen', () => {
+    mainWindow.webContents.send('fullscreen-change', false);
+  });
 
   mainWindow.on('closed', () => {
     stopFolderWatcher();

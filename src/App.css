@@ -18,7 +18,8 @@
   align-items: center;
   gap: 12px;
   padding: 0 20px;
-  height: 42px;
+  padding-left: 72px; /* Space for macOS traffic lights */
+  height: 36px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--glass-border);
   transition: transform 0.25s ease, opacity 0.25s ease;
@@ -26,6 +27,16 @@
   top: 0;
   z-index: 100;
   box-shadow: 0 1px 0 var(--glass-border);
+  -webkit-app-region: drag;
+}
+
+.App-header button, 
+.App-header input,
+.App-header .search-box,
+.App-header a,
+.App-header [role="button"],
+.App-header select {
+  -webkit-app-region: no-drag;
 }
 
 .App-header.header-visible {
@@ -297,21 +308,32 @@
   border-left: 1px solid var(--border-subtle);
 }
 
-.stat-badge {
+.stat-badge-modern {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px 10px;
-  background: var(--bg-highlight);
-  border-radius: 99px;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   font-size: 11px;
-  font-weight: 700;
-  color: var(--text-primary);
+  font-weight: 500;
+  color: var(--text-muted);
+  user-select: none;
+  transition: all var(--transition);
 }
 
-.stat-badge .count { color: var(--accent); }
-.stat-badge .sep { opacity: 0.3; }
-.stat-badge .total { color: var(--text-muted); }
+.stat-badge-modern.active {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.stat-badge-modern .count { color: var(--accent); font-weight: 600; }
+.stat-badge-modern .sep { color: var(--text-muted); font-weight: 400; }
+.stat-badge-modern .total { color: inherit; }
 
 /* ── Segmented Control ────────────────────────── */
 .segmented-control {
@@ -368,6 +390,7 @@
 
 input[type="range"] {
   -webkit-appearance: none;
+  appearance: none;
   width: 100px;
   height: 4px;
   background: var(--border);
@@ -396,6 +419,15 @@ input[type="range"]::-webkit-slider-thumb:hover {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.icon-btn-modern.sm {
+  width: 24px;
+  height: 24px;
+}
+.icon-btn-modern.sm svg {
+  width: 12px;
+  height: 12px;
 }
 
 .icon-btn-modern {
@@ -453,16 +485,17 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .nav-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  height: 28px;
   background: var(--bg-surface);
-  padding: 3px;
+  padding: 0 4px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
 }
 
 .nav-btn {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;

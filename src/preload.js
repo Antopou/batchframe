@@ -69,6 +69,8 @@ try {
       onManifestChanged:     (cb) => ipcRenderer.on('drive-manifest-changed', (_, p) => cb(p)),
       removeManifestChangedListeners: () => ipcRenderer.removeAllListeners('drive-manifest-changed'),
     },
+    onFullscreenChange: (callback) => ipcRenderer.on('fullscreen-change', (event, isFullscreen) => callback(isFullscreen)),
+    removeFullscreenChangeListeners: () => ipcRenderer.removeAllListeners('fullscreen-change'),
   };
 
   contextBridge.exposeInMainWorld('electronAPI', apis);

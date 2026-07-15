@@ -5,6 +5,9 @@ function SubfolderBar({
   subfolders,
   parentFolderPath,
   onNavigate,
+  onNavigateUp,
+  onNavigateForward,
+  hasForwardHistory,
   visible = true,
   hideFolderChips = false,
   onContextMenu,
@@ -13,7 +16,7 @@ function SubfolderBar({
   onRenameCommit,
   onRenameCancel,
 }) {
-  if (!parentFolderPath && subfolders.length === 0) return null;
+  if (!parentFolderPath && subfolders.length === 0 && !hasForwardHistory) return null;
 
   return (
     <div className={`subfolder-bar-wrapper ${!visible ? 'subfolder-bar-collapsed' : ''}`}>
@@ -21,11 +24,22 @@ function SubfolderBar({
         {parentFolderPath && (
           <button
             className="subfolder-up-btn"
-            onClick={() => onNavigate(parentFolderPath)}
-            title={`Go up to: ${parentFolderPath}`}
+            onClick={() => onNavigateUp ? onNavigateUp() : onNavigate(parentFolderPath)}
+            title={`Go up to: ${parentFolderPath} (Cmd/Ctrl + Left)`}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+        )}
+        {hasForwardHistory && (
+          <button
+            className="subfolder-up-btn"
+            onClick={onNavigateForward}
+            title="Go forward (Cmd/Ctrl + Right)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
             </svg>
           </button>
         )}

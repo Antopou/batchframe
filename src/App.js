@@ -709,6 +709,13 @@ function App() {
     }
   }, [previewIndex, pagedImages]);
 
+  const handleGoToPreview = useCallback((index) => {
+    if (index >= 0 && index < pagedImages.length) {
+      setPreviewIndex(index);
+      setPreviewImage(pagedImages[index]);
+    }
+  }, [pagedImages]);
+
   // Delete just the image currently shown in the preview, then advance to the
   // next one (close if it was the last). Locked images are protected.
   const handleDeletePreview = useCallback(async () => {
@@ -1987,6 +1994,7 @@ function App() {
           onClose={handleClosePreview}
           onNext={handleNextPreview}
           onPrev={handlePrevPreview}
+          onGoTo={handleGoToPreview}
           onLock={handleToggleLock}
           onDelete={handleDeletePreview}
           onToggleSelect={() => handleToggleImage(previewImage.path)}

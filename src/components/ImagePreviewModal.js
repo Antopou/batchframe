@@ -8,7 +8,44 @@ const MAX_ZOOM = 8;
 const clampZoom = (z) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
-function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPrev, onLock, onDelete, onToggleSelect, selected, locked, onSaveCrop, canCrop }) {
+const FilmstripThumbnail = React.memo(({ image, index, isActive, onClick }) => {
+  const [src, setSrc] = useState(image.previewSrc || '');
+
+  useEffect(() => {
+    let cancelled = false;
+    if (image.previewSrc) {
+      setSrc(image.previewSrc);
+      return;
+    }
+    if (!window.electronAPI || !image.path) return;
+    
+    window.electronAPI.getImageData(image.path).then(base64 => {
+      if (cancelled || !base64) return;
+      const ext = (image.name || '').toLowerCase().split('.').pop();
+      const mime = ext === 'png' ? 'image/png'
+        : ext === 'gif' ? 'image/gif'
+        : ext === 'webp' ? 'image/webp'
+        : ext === 'bmp' ? 'image/bmp'
+        : ext === 'svg' ? 'image/svg+xml'
+        : 'image/jpeg';
+      setSrc(`data:${mime};base64,${base64}`);
+    }).catch(err => {
+      if (!cancelled) console.error('Failed to load filmstrip thumb:', err);
+    });
+    return () => { cancelled = true; };
+  }, [image.path, image.previewSrc, image.name]);
+
+  return (
+    <div 
+      className={`filmstrip-thumb ${isActive ? 'active' : ''}`} 
+      onClick={() => onClick(index)}
+    >
+      {src ? <img src={src} alt={image.name} loading="lazy" /> : <div className="filmstrip-placeholder" />}
+    </div>
+  );
+});
+
+function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPrev, onGoTo, onLock, onDelete, onToggleSelect, selected, locked, onSaveCrop, canCrop }) {
   const zoomRef = useRef(1);
   const positionRef = useRef({ x: 0, y: 0 });
   const dragStartRef = useRef({ x: 0, y: 0 });
@@ -54,7 +91,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       });
     };
     
-    const handleLeave = () => {
+  const handleLeave = () => {
       setHoverZones({ top: false, bottom: false, left: false, right: false });
     };
 
@@ -65,6 +102,55 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       window.removeEventListener('mouseout', handleLeave);
     };
   }, [isDragging]);
+
+  // ── Filmstrip state ───────────────────────────────────────────
+  const [showFilmstrip, setShowFilmstrip] = useState(false);
+  const [cleanMode, setCleanMode] = useState(false);
+  const cleanModeRef = useRef(false);
+  useEffect(() => { cleanModeRef.current = cleanMode; }, [cleanMode]);
+  const filmstripRef = useRef(null);
+  const wasFullscreenRef = useRef(false);
+
+  const toggleCleanMode = useCallback(() => {
+    setCleanMode(prev => {
+      const next = !prev;
+      if (next) {
+        // Entering clean mode
+        wasFullscreenRef.current = !!document.fullscreenElement;
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(console.error);
+        }
+      } else {
+        // Exiting clean mode
+        if (!wasFullscreenRef.current && document.fullscreenElement) {
+          if (document.exitFullscreen) {
+            document.exitFullscreen().catch(console.error);
+          }
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (filmstripRef.current) {
+      const activeEl = filmstripRef.current.querySelector('.filmstrip-thumb.active');
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    }
+  }, [currentIndex, showFilmstrip]);
+
+  // Handle native browser fullscreen exits (like pressing Esc when HTML5 fullscreen is active)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setCleanMode(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   const applyTransform = () => {
     if (!imageRef.current) return;
@@ -493,10 +579,23 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         e.preventDefault();
         if (canCrop) enterCrop();
         return;
+      case 'f':
+      case 'F':
+        e.preventDefault();
+        if (e.metaKey || e.ctrlKey) {
+          toggleCleanMode();
+        } else {
+          setShowFilmstrip(prev => !prev);
+        }
+        return;
       case 'Escape':
         e.preventDefault();
         e.stopImmediatePropagation();
-        onClose();
+        if (cleanModeRef.current) {
+          toggleCleanMode();
+        } else {
+          onClose();
+        }
         return;
       case 'ArrowLeft':
         e.preventDefault();
@@ -563,20 +662,23 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
 
   return (
     <div className="preview-modal-overlay" onClick={cropMode ? undefined : onClose}>
-      <div className={`preview-modal-content ${hoverZones.top ? 'show-top' : ''} ${hoverZones.bottom ? 'show-bottom' : ''} ${hoverZones.left ? 'show-left' : ''} ${hoverZones.right ? 'show-right' : ''} ${cropMode ? 'crop-mode' : ''}`}>
-        <div className="preview-header" onClick={e => e.stopPropagation()}>
-          <div className="preview-info">
-            <span className="preview-filename">{image.name}</span>
-            <span className="preview-index">{currentIndex + 1} / {images.length}</span>
+      <div className={`preview-modal-content ${hoverZones.top ? 'show-top' : ''} ${hoverZones.bottom ? 'show-bottom' : ''} ${hoverZones.left ? 'show-left' : ''} ${hoverZones.right ? 'show-right' : ''} ${cropMode ? 'crop-mode' : ''} ${showFilmstrip ? 'filmstrip-active' : ''} ${cleanMode ? 'clean-mode' : ''}`}>
+        {!showFilmstrip && (
+          <div className="preview-header" onClick={e => e.stopPropagation()}>
+            <div className="preview-info">
+              <span className="preview-filename">{image.name}</span>
+              <span className="preview-index">{currentIndex + 1} / {images.length}</span>
+            </div>
+            <button className="preview-close" onClick={onClose}>×</button>
           </div>
-          <button className="preview-close" onClick={onClose}>×</button>
-        </div>
+        )}
 
         <div
           ref={containerRef}
           className={`preview-image-container${cropMode ? ' cropping' : ''}`}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
+          onDoubleClick={toggleCleanMode}
           style={{ cursor: cropMode ? 'default' : (zoomRef.current > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default') }}
         >
           {isLoading ? (
@@ -674,67 +776,104 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
             </div>
           </div>
         ) : (
-          <div className="preview-controls" onClick={e => e.stopPropagation()}>
-            <div className="preview-zoom-controls">
-              <button
-                onClick={() => setZoom(zoomRef.current / 1.25, null, true)}
-                disabled={zoomDisplay <= MIN_ZOOM}
-                title="Zoom out (-)"
+          <>
+            <>
+              <div 
+                className="preview-filmstrip-container" 
+                onClick={e => e.stopPropagation()}
+                style={{
+                  opacity: showFilmstrip ? 1 : 0,
+                  pointerEvents: showFilmstrip ? 'auto' : 'none',
+                  transition: 'opacity 0.3s ease'
+                }}
               >
-                −
-              </button>
-              <span className="zoom-level">{Math.round(zoomDisplay * 100)}%</span>
+                  <div className="preview-filmstrip" ref={filmstripRef}>
+                    {images.map((img, idx) => {
+                      if (Math.abs(idx - currentIndex) > 40) return null;
+                      return (
+                        <FilmstripThumbnail
+                          key={img.path || idx}
+                          image={img}
+                          index={idx}
+                          isActive={idx === currentIndex}
+                          onClick={(i) => { if (onGoTo) onGoTo(i); }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="preview-progress-bar">
+                  <div 
+                    className="preview-progress-fill" 
+                    style={{ 
+                      left: `${(currentIndex / Math.max(1, images.length - 1)) * 100}%`,
+                      transform: `translateX(-${(currentIndex / Math.max(1, images.length - 1)) * 100}%)`
+                    }} 
+                  />
+                </div>
+              </>
+            <div className="preview-controls" onClick={e => e.stopPropagation()}>
+              <div className="preview-zoom-controls">
+                <button
+                  onClick={() => setZoom(zoomRef.current / 1.25, null, true)}
+                  disabled={zoomDisplay <= MIN_ZOOM}
+                  title="Zoom out (-)"
+                >
+                  −
+                </button>
+                <span className="zoom-level">{Math.round(zoomDisplay * 100)}%</span>
+                <button
+                  onClick={() => setZoom(zoomRef.current * 1.25, null, true)}
+                  disabled={zoomDisplay >= MAX_ZOOM}
+                  title="Zoom in (+)"
+                >
+                  +
+                </button>
+                <button onClick={resetZoom} title="Reset zoom (0)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                  </svg>
+                </button>
+              </div>
+              
+              {canCrop && (
+                <button className="preview-crop-btn" onClick={enterCrop} title="Crop image (C)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+                    <path d="M18 22V8a2 2 0 0 0-2-2H2" />
+                  </svg>
+                  Crop
+                </button>
+              )}
+
               <button
-                onClick={() => setZoom(zoomRef.current * 1.25, null, true)}
-                disabled={zoomDisplay >= MAX_ZOOM}
-                title="Zoom in (+)"
+                className={`preview-crop-btn${selected ? ' active' : ''}`}
+                onClick={() => onToggleSelect()}
+                title={selected ? 'Deselect (S)' : 'Select (S)'}
               >
-                +
-              </button>
-              <button onClick={resetZoom} title="Reset zoom (0)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                  <path d="M3 3v5h5" />
+                  {selected
+                    ? <><path d="M20 6 9 17l-5-5" /></>
+                    : <><rect x="3" y="3" width="18" height="18" rx="2" /></>}
                 </svg>
+                {selected ? 'Selected' : 'Select'}
+              </button>
+
+              <button
+                className="preview-crop-btn"
+                onClick={() => onDelete()}
+                disabled={locked}
+                title={locked ? 'Locked (unlock to delete)' : 'Delete image (Del)'}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+                Delete
               </button>
             </div>
-            
-            {canCrop && (
-              <button className="preview-crop-btn" onClick={enterCrop} title="Crop image (C)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6 2v14a2 2 0 0 0 2 2h14" />
-                  <path d="M18 22V8a2 2 0 0 0-2-2H2" />
-                </svg>
-                Crop
-              </button>
-            )}
-
-            <button
-              className={`preview-crop-btn${selected ? ' active' : ''}`}
-              onClick={() => onToggleSelect()}
-              title={selected ? 'Deselect (S)' : 'Select (S)'}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                {selected
-                  ? <><path d="M20 6 9 17l-5-5" /></>
-                  : <><rect x="3" y="3" width="18" height="18" rx="2" /></>}
-              </svg>
-              {selected ? 'Selected' : 'Select'}
-            </button>
-
-            <button
-              className="preview-crop-btn"
-              onClick={() => onDelete()}
-              disabled={locked}
-              title={locked ? 'Locked (unlock to delete)' : 'Delete image (Del)'}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-              Delete
-            </button>
-          </div>
+          </>
         )}
       </div>
     </div>

@@ -398,14 +398,11 @@ async function refreshManifest(cacheRoot) {
   return m;
 }
 
-async function pushNewDataset(auth, { localPath, parentId, folderName, onProgress }) {
-  if (onProgress) onProgress({ type: 'status', text: 'Creating remote folder...' });
-  const created = await driveApi.createFolder(auth, { parentId, name: folderName });
-  
+async function linkDataset(auth, { localPath, driveFolderId, datasetName, onProgress }) {
   if (onProgress) onProgress({ type: 'status', text: 'Initializing manifest...' });
   const m = {
-    driveFolderId: created.id,
-    datasetName: folderName,
+    driveFolderId,
+    datasetName,
     files: {},
     folders: {}
   };
@@ -420,7 +417,7 @@ module.exports = {
   sanitizeName,
   pullDataset,
   pushDataset,
-  pushNewDataset,
+  linkDataset,
   detectConflicts,
   clearLocalCache,
   refreshManifest,

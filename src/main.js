@@ -830,19 +830,30 @@ ipcMain.handle('drive-push', async (_e, { cacheRoot, force = false }) => {
   }
 });
 
-ipcMain.handle('drive-push-new', async (_e, { localPath, parentId, folderName }) => {
+ipcMain.handle('drive-create-folder', async (_e, { parentId, name }) => {
   try {
     const auth = await driveOauth.getAuthClient();
-    const result = await driveSync.pushNewDataset(auth, {
+    const created = await driveApi.createFolder(auth, { parentId, name });
+    return { success: true, folder: created };
+  } catch (err) {
+    console.error('drive-create-folder failed:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('drive-link-dataset', async (_e, { localPath, driveFolderId, datasetName }) => {
+  try {
+    const auth = await driveOauth.getAuthClient();
+    const result = await driveSync.linkDataset(auth, {
       localPath,
-      parentId,
-      folderName,
+      driveFolderId,
+      datasetName,
       onProgress: relayProgress('push'),
     });
     notifyManifestChanged(localPath);
     return { success: true, cacheRoot: result.cacheRoot };
   } catch (err) {
-    console.error('drive-push-new failed:', err);
+    console.error('drive-link-dataset failed:', err);
     return { success: false, error: err.message };
   }
 });

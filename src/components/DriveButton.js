@@ -212,18 +212,32 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
     }
   }, [onDatasetOpened]);
 
-  const handlePushNew = useCallback(async ({ parentId, newName }) => {
+  const handleCreateFolder = useCallback(async ({ parentId, name }) => {
+    setBusy(true);
+    try {
+      const r = await window.electronAPI.drive.createFolder({ parentId, name });
+      if (!r.success) throw new Error(r.error || 'Failed to create folder');
+      return r.folder;
+    } catch (e) {
+      setError(e.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const handleLinkDataset = useCallback(async ({ driveFolderId, datasetName }) => {
     setShowPicker(false);
     setBusy(true);
     setError(null);
     setProgress({ phase: 'creating' });
     try {
-      const r = await window.electronAPI.drive.pushNew({
+      const r = await window.electronAPI.drive.linkDataset({
         localPath,
-        parentId,
-        folderName: newName
+        driveFolderId,
+        datasetName
       });
-      if (!r.success) throw new Error(r.error || 'Push failed');
+      if (!r.success) throw new Error(r.error || 'Link failed');
       onDatasetOpened?.(r.cacheRoot);
       setAutoOpenSync(true);
     } catch (e) {
@@ -316,9 +330,10 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
 
       {showPicker && (
         <DriveFolderPicker
-          localPath={!cacheRoot ? localPath : null}
+          localPath={localPath}
           onSelect={handlePicked}
-          onPushNew={handlePushNew}
+          onCreateFolder={handleCreateFolder}
+          onLinkDataset={handleLinkDataset}
           onClose={() => setShowPicker(false)}
         />
       )}

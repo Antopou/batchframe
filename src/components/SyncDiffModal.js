@@ -80,8 +80,13 @@ export default function SyncDiffModal({ manifest, cacheRoot, onConfirm, onCancel
       if (e.key === 'Escape') {
         onCancel();
       } else if (e.key === 'Enter') {
-        if (total > 0 && document.activeElement?.tagName !== 'BUTTON') {
-          onConfirm();
+        if (total > 0) {
+          const active = document.activeElement;
+          const isOtherButton = active && active.tagName === 'BUTTON' && !active.classList.contains('action-push');
+          if (!isOtherButton) {
+            e.preventDefault();
+            onConfirm();
+          }
         }
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         const actionsDiv = document.querySelector('.drive-picker-actions');

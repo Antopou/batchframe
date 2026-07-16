@@ -4,7 +4,7 @@ import './DriveFolderPicker.css';
 
 const ROOT = { id: 'root', name: 'My Drive' };
 
-function DriveFolderPicker({ localPath, onSelect, onPushNew, onClose }) {
+function DriveFolderPicker({ localPath, onSelect, onCreateFolder, onLinkDataset, onClose }) {
   const [crumbs, setCrumbs] = useState([ROOT]);
   const [folders, setFolders] = useState([]);
   const [images, setImages] = useState([]);
@@ -72,6 +72,23 @@ function DriveFolderPicker({ localPath, onSelect, onPushNew, onClose }) {
     if (focusIndex >= filteredFolders.length) setFocusIndex(filteredFolders.length - 1);
   }, [filteredFolders.length, focusIndex]);
 
+  const canChooseRoot = current.id !== 'root';
+  const folderToCreate = query.trim();
+  const exactMatchExists = folders.some((f) => f.name.toLowerCase() === folderToCreate.toLowerCase());
+  const showCreateOption = localPath && folderToCreate && !exactMatchExists;
+  const nothingHere = !loading && folders.length === 0 && images.length === 0;
+
+  const handleCreateAndEnter = async (name) => {
+    setLoading(true);
+    const created = await onCreateFolder({ parentId: current.id, name });
+    if (created) {
+      setQuery('');
+      openFolder(created);
+    } else {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') { onClose(); return; }
@@ -88,11 +105,15 @@ function DriveFolderPicker({ localPath, onSelect, onPushNew, onClose }) {
         } else if (localPath) {
           e.preventDefault();
           const q = query.trim().toLowerCase();
-          const exactMatch = q ? filteredFolders.find(f => f.name.toLowerCase() === q) : null;
-          if (exactMatch) {
-            openFolder(exactMatch);
-          } else {
-            onPushNew({ parentId: current.id, newName: query.trim() || localPath.split(/[/\\]/).pop() });
+          if (q) {
+            const exactMatch = filteredFolders.find(f => f.name.toLowerCase() === q);
+            if (exactMatch) {
+              openFolder(exactMatch);
+            } else {
+              handleCreateAndEnter(query.trim());
+            }
+          } else if (canChooseRoot) {
+            onLinkDataset({ driveFolderId: current.id, datasetName: current.name });
           }
         } else if (query && filteredFolders.length === 1) {
           e.preventDefault();
@@ -159,7 +180,7 @@ function DriveFolderPicker({ localPath, onSelect, onPushNew, onClose }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, filteredFolders, focusIndex, query]);
+  }, [onClose, filteredFolders, focusIndex, query, localPath, current, canChooseRoot, onLinkDataset, onCreateFolder]);
 
   // Keep the focused row visible when navigating with arrow keys.
   useEffect(() => {
@@ -179,12 +200,6 @@ function DriveFolderPicker({ localPath, onSelect, onPushNew, onClose }) {
   function chooseCurrent() {
     onSelect({ id: current.id, name: current.name });
   }
-
-  const canChooseRoot = current.id !== 'root';
-  const defaultName = localPath ? localPath.split(/[/\\]/).pop() : '';
-  const folderToCreate = query.trim() || defaultName;
-  const showCreateOption = !!(localPath && query.trim() && !folders.some(f => f.name.toLowerCase() === query.trim().toLowerCase()));
-  const nothingHere = !loading && !error && filteredFolders.length === 0 && filteredImages.length === 0;
 
   return (
     <div className="drive-picker-overlay" onClick={onClose}>
@@ -266,8 +281,8 @@ function DriveFolderPicker({ localPath, onSelect, onPushNew, onClose }) {
               {showCreateOption && (
                 <div
                   className="drive-picker-row create-new"
-                  onClick={() => onPushNew({ parentId: current.id, newName: folderToCreate })}
-                  title="Create this folder and upload"
+                  onClick={() => handleCreateAndEnter(folderToCreate)}
+                  title="Create this folder and navigate into it"
                   style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '4px', paddingBottom: '4px' }}
                 >
                   <span className="drive-picker-icon folder-icon" aria-hidden style={{ color: 'var(--accent)' }}>
@@ -317,8 +332,8 @@ function DriveFolderPicker({ localPath, onSelect, onPushNew, onClose }) {
               {showCreateOption && (
                 <div 
                   className="drive-picker-grid-item create-new" 
-                  onClick={() => onPushNew({ parentId: current.id, newName: folderToCreate })} 
-                  title={`Create ${folderToCreate} and upload`}
+                  onClick={() => handleCreateAndEnter(folderToCreate)} 
+                  title={`Create ${folderToCreate} and navigate into it`}
                 >
                   <div className="drive-picker-no-thumb" style={{ color: 'var(--accent)' }}>
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -373,8 +388,9 @@ function DriveFolderPicker({ localPath, onSelect, onPushNew, onClose }) {
             {localPath ? (
               <button
                 className="btn-terminal action-push"
-                onClick={() => onPushNew({ parentId: current.id, newName: folderToCreate })}
-                title={`Create "${folderToCreate}" here and upload`}
+                disabled={!canChooseRoot}
+                onClick={() => onLinkDataset({ driveFolderId: current.id, datasetName: current.name })}
+                title={!canChooseRoot ? "Navigate into a folder to push" : `Link local dataset to "${current.name}" and push`}
               >
                 [ push here ]
               </button>

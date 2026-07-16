@@ -255,10 +255,7 @@ const ImageGrid = forwardRef(function ImageGrid({
       driveState: driveStatesByPath?.[image.path] || null,
     };
 
-    const totalSelected = selectedImages.size + selectedFolders.size;
-    const isCursor = totalSelected > 0 && ((cursorIndex !== undefined && cursorIndex !== null)
-      ? imageIndex === (cursorIndex - folderCount)
-      : imageIndex === anchorIndex);
+    const isCursor = cursorIndex !== undefined && cursorIndex !== null && imageIndex === (cursorIndex - folderCount);
 
     visibleCards.push(
       isList

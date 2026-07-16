@@ -97,6 +97,8 @@ function App() {
   const keyboardSnapshotRef = useRef(null);
   const keyboardCursorRef   = useRef(null);
   const [keyboardCursorIndex, setKeyboardCursorIndex] = useState(null);
+  const [isShiftDown, setIsShiftDown] = useState(false);
+  const cursorTimeoutRef = useRef(null);
 
   // Smooth spacebar page-scroll animation state
   const scrollAnim = useRef({ target: 0, raf: null, minStep: 0 });
@@ -720,8 +722,16 @@ function App() {
   const handleOpenPreview = useCallback((image, index) => {
     setPreviewImage(image);
     setPreviewIndex(index);
-    setSelectedImages(new Set());
-    setSelectedFolders(new Set());
+    setKeyboardCursorIndex(null); // Hide cursor outline
+    if (cursorTimeoutRef.current) clearTimeout(cursorTimeoutRef.current);
+    setSelectedImages(prev => {
+      if (prev.has(image.path)) {
+        const next = new Set(prev);
+        next.delete(image.path);
+        return next;
+      }
+      return prev;
+    });
   }, []);
 
   const handleClosePreview = useCallback(() => {
@@ -782,6 +792,21 @@ function App() {
     }
   }, [previewImage, previewIndex, pagedImages, lockedImages, confirmRequired,
       showConfirm, browserMode, handleClosePreview]);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if (e.key === 'Shift') setIsShiftDown(true);
+    };
+    const handleGlobalKeyUp = (e) => {
+      if (e.key === 'Shift') setIsShiftDown(false);
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    window.addEventListener('keyup', handleGlobalKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+      window.removeEventListener('keyup', handleGlobalKeyUp);
+    };
+  }, []);
 
   // Save a cropped image as a new file next to the original, refresh the grid,
   // and open the freshly-cropped image in the preview so the result is visible.
@@ -851,7 +876,8 @@ function App() {
         keyboardSnapshotRef.current = null;
       }
       keyboardCursorRef.current = idx;
-      setKeyboardCursorIndex(idx);
+      setKeyboardCursorIndex(null); // Hide cursor outline on mouse click
+      if (cursorTimeoutRef.current) clearTimeout(cursorTimeoutRef.current);
     }
 
     setSelectedImages((prev) => {
@@ -1586,7 +1612,15 @@ function App() {
 
         const nextItem = allItems[nextIndex];
         keyboardCursorRef.current = nextIndex;
-        setKeyboardCursorIndex(nextIndex);
+        if (totalSelected > 1) {
+          setKeyboardCursorIndex(nextIndex); // Show cursor for pre-selection
+          if (cursorTimeoutRef.current) clearTimeout(cursorTimeoutRef.current);
+          cursorTimeoutRef.current = setTimeout(() => {
+            setKeyboardCursorIndex(null);
+          }, 1500);
+        } else {
+          setKeyboardCursorIndex(null); // Hide cursor when moving single selection
+        }
 
         if (extend && keyboardAnchorRef.current !== null && keyboardAnchorRef.current !== -1) {
           if (!keyboardSnapshotRef.current) {
@@ -2072,7 +2106,7 @@ function App() {
 
       <ImageGrid
         ref={gridRef}
-        cursorIndex={keyboardCursorIndex}
+        cursorIndex={isShiftDown ? keyboardCursorRef.current : keyboardCursorIndex}
         images={pagedImages}
         selectedImages={selectedImages}
         lockedImages={lockedImages}

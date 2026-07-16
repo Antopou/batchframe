@@ -91,6 +91,8 @@ function App() {
 
   const autoScrollBottom    = useRef(false);
   const folderPathRef       = useRef(null);
+  const [initialRoot] = useState(() => localStorage.getItem('batchframe-root-folder') || '');
+  const rootFolderPathRef   = useRef(initialRoot);
 
   // Smooth spacebar page-scroll animation state
   const scrollAnim = useRef({ target: 0, raf: null, minStep: 0 });
@@ -463,8 +465,16 @@ function App() {
   }, []);
 
   // ── Folder loading ──────────────────────────────────────────────
-  const loadElectronFolder = useCallback(async (pathToLoad, persist = true) => {
+  const loadElectronFolder = useCallback(async (pathToLoad, persist = true, isExplicitOpen = false) => {
     if (!pathToLoad) return;
+
+    if (isExplicitOpen) {
+      rootFolderPathRef.current = pathToLoad;
+      if (persist) {
+        localStorage.setItem('batchframe-root-folder', pathToLoad);
+      }
+    }
+
     setFolderPath(pathToLoad);
     setLoading(true);
     const token = ++folderLoadToken.current;
@@ -476,7 +486,13 @@ function App() {
       const mapped = list.map((img) => ({ ...img, previewSrc: '', source: 'electron' }));
       setImages(mapped);
       setSubfolders(folderInfo.subfolders);
-      setParentFolderPath(folderInfo.parentPath);
+
+      let parentPath = folderInfo.parentPath;
+      const root = rootFolderPathRef.current;
+      if (root && (pathToLoad === root || !pathToLoad.startsWith(root))) {
+        parentPath = null;
+      }
+      setParentFolderPath(parentPath);
       setSubfolderBarVisible(true);
       setSelectedImages(new Set());
       setSelectedFolders(new Set());
@@ -620,7 +636,7 @@ function App() {
   useEffect(() => {
     if (!window.electronAPI?.onInitialFolder) return;
     window.electronAPI.onInitialFolder((folder) => {
-      if (folder) loadElectronFolder(folder, true);
+      if (folder) loadElectronFolder(folder, true, true);
     });
   }, [loadElectronFolder]);
 
@@ -629,7 +645,7 @@ function App() {
       try {
         const path = await window.electronAPI.selectFolder();
         if (!path) return;
-        await loadElectronFolder(path, true);
+        await loadElectronFolder(path, true, true);
       } catch (err) {
         console.error('Error selecting folder:', err);
       }
@@ -641,7 +657,7 @@ function App() {
   const handleOpenLastFolder = useCallback(async () => {
     if (!window.electronAPI || !lastFolderPath) return;
     try {
-      await loadElectronFolder(lastFolderPath, true);
+      await loadElectronFolder(lastFolderPath, true, true);
     } catch (err) {
       console.error('Error opening last folder:', err);
       localStorage.removeItem(LAST_FOLDER_KEY);
@@ -670,14 +686,14 @@ function App() {
 
   const handleFolderPathEdit = useCallback(async (newPath) => {
     if (!newPath || !window.electronAPI) return;
-    await loadElectronFolder(newPath, true);
+    await loadElectronFolder(newPath, true, true);
     setShowRecentFolders(false);
   }, [loadElectronFolder]);
 
   const handleRecentFolderClick = useCallback((folder) => {
     setFolderPath(folder);
     setShowRecentFolders(false);
-    loadElectronFolder(folder, true);
+    loadElectronFolder(folder, true, true);
   }, [loadElectronFolder]);
 
   // ── Preview modal functions ─────────────────────────────
@@ -1929,7 +1945,7 @@ function App() {
             cacheRoot={driveCacheRoot}
             manifest={driveManifest}
             summary={driveSummary}
-            onDatasetOpened={(cacheRoot) => loadElectronFolder(cacheRoot, true)}
+            onDatasetOpened={(cacheRoot) => loadElectronFolder(cacheRoot, true, true)}
           />
         }
       />

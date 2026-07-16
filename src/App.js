@@ -1574,7 +1574,7 @@ function App() {
         return;
       }
 
-      const navigateSelection = (delta, extend = false) => {
+      const navigateSelection = (delta, extend = false, forceReset = false) => {
         const currentSubfolders = subfoldersRef.current || [];
         const currentFiltered = filteredImagesRef.current || [];
         const allItems = [
@@ -1586,8 +1586,8 @@ function App() {
         const totalSelected = selectedImages.size + selectedFolders.size;
         let currentIndex = keyboardCursorRef.current !== null ? keyboardCursorRef.current : -1;
         
-        // If nothing is selected, forget the old cursor and start from the beginning/end
-        if (totalSelected === 0) {
+        // If forceReset is true, forget the old cursor and start from the beginning/end
+        if (forceReset) {
           currentIndex = -1;
         }
 
@@ -1612,6 +1612,7 @@ function App() {
 
         const nextItem = allItems[nextIndex];
         keyboardCursorRef.current = nextIndex;
+        gridRef.current?.scrollToIndex(nextIndex);
         if (totalSelected > 1) {
           setKeyboardCursorIndex(nextIndex); // Show cursor for pre-selection
           if (cursorTimeoutRef.current) clearTimeout(cursorTimeoutRef.current);
@@ -1689,24 +1690,22 @@ function App() {
       } else if (e.key === 'ArrowRight' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         handleNavigateForward();
+      } else if (e.key === 'ArrowLeft' && e.altKey) {
+        e.preventDefault();
+        handleNavigateFolder(-1);
+      } else if (e.key === 'ArrowRight' && e.altKey) {
+        e.preventDefault();
+        handleNavigateFolder(1);
       } else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-        const hasSelection = selectedImages.size > 0 || selectedFolders.size > 0;
-        if (!hasSelection) {
-          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-            e.preventDefault();
-            handleNavigateFolder(e.key === 'ArrowRight' ? 1 : -1);
-          }
-        } else {
-          e.preventDefault();
-          const cols = gridRef.current?.getCols?.() || 1;
-          let delta = 0;
-          if (e.key === 'ArrowRight') delta = 1;
-          else if (e.key === 'ArrowLeft') delta = -1;
-          else if (e.key === 'ArrowDown') delta = cols;
-          else if (e.key === 'ArrowUp') delta = -cols;
-          
-          navigateSelection(delta, e.shiftKey);
-        }
+        e.preventDefault();
+        const cols = gridRef.current?.getCols?.() || 1;
+        let delta = 0;
+        if (e.key === 'ArrowRight') delta = 1;
+        else if (e.key === 'ArrowLeft') delta = -1;
+        else if (e.key === 'ArrowDown') delta = cols;
+        else if (e.key === 'ArrowUp') delta = -cols;
+        
+        navigateSelection(delta, e.shiftKey);
       } else if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleSelectAll();
@@ -1777,7 +1776,7 @@ function App() {
         setConfirmRequired(prev => !prev);
       } else if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        navigateSelection(e.shiftKey ? -1 : 1);
+        navigateSelection(e.shiftKey ? -1 : 1, false, true);
       } else if (e.key === ' ') {
         e.preventDefault();
 

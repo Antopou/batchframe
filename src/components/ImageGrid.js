@@ -56,8 +56,34 @@ const ImageGrid = forwardRef(function ImageGrid({
   const [isDragging, setIsDragging] = useState(false);
   const selectedImagesRef = useRef(selectedImages);
   const colsRef = useRef(1);
+  const rowHRef = useRef(0);
+  const gapRef = useRef(0);
 
   useImperativeHandle(ref, () => ({
+    scrollToIndex(index) {
+      if (!viewportRef.current || index < 0) return;
+      const vp = viewportRef.current;
+      const cols = colsRef.current;
+      const rowH = rowHRef.current;
+      const gap = gapRef.current;
+      const padV = 16;
+      
+      const row = Math.floor(index / cols);
+      const rowTop = padV + row * rowH;
+      const itemHeight = rowH - gap;
+      const rowBot = rowTop + itemHeight;
+      
+      const { scrollTop, clientHeight } = vp;
+      
+      // If the item is below the viewport, scroll down just enough
+      if (rowBot > scrollTop + clientHeight) {
+        vp.scrollTo({ top: rowBot - clientHeight + gap });
+      } 
+      // If the item is above the viewport, scroll up just enough
+      else if (rowTop < scrollTop) {
+        vp.scrollTo({ top: Math.max(0, rowTop - padV) });
+      }
+    },
     scrollToTop() {
       if (viewportRef.current) viewportRef.current.scrollTop = 0;
     },
@@ -189,7 +215,9 @@ const ImageGrid = forwardRef(function ImageGrid({
   const cols = isList ? 1 : gridCols;
   colsRef.current = cols;
   const rowH = isList ? LIST_ROW_H + LIST_GAP : gridColW + GAP;
+  rowHRef.current = rowH;
   const gapForMode = isList ? LIST_GAP : GAP;
+  gapRef.current = gapForMode;
   const totalRows = Math.ceil(entries.length / cols);
   const totalHeight = Math.max(0, totalRows * rowH - gapForMode);
 

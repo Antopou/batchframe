@@ -22,7 +22,17 @@
 }
 
 .image-card.cursor:not(.selected) {
-  border-color: var(--primary, #6495ED);
+  border-color: transparent;
+}
+
+.image-card.cursor:not(.selected)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--primary, #6495ED);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 10;
 }
 
 .image-card.selected {

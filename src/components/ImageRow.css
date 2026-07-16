@@ -4,9 +4,10 @@
   gap: 12px;
   padding: 8px 12px;
   height: 56px;
-  background: var(--bg-elevated);
+  background: transparent;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-bottom-color: rgba(255, 255, 255, 0.04);
+  border-radius: 0;
   cursor: pointer;
   user-select: none;
   transition: background 0.12s ease, border-color 0.12s ease;

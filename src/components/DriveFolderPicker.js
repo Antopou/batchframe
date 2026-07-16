@@ -269,10 +269,12 @@ function DriveFolderPicker({ localPath, onSelect, onCreateFolder, onLinkDataset,
 
           {nothingHere && !showCreateOption && (
             <div className="drive-picker-empty">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
-              </svg>
-              <span>{query ? `Nothing matches “${query}”.` : 'This folder is empty.'}</span>
+              <div className="drive-picker-empty-code">
+                <span className="empty-comment">
+                  {query ? `// 0 matches for "${query}"` : `// directory is empty`}
+                </span>
+                <span className="empty-blinker">_</span>
+              </div>
             </div>
           )}
 

@@ -111,6 +111,7 @@
 .drive-picker-body {
   flex: 1; overflow: auto;
   padding: 6px 8px; min-height: 240px;
+  display: flex; flex-direction: column;
 }
 
 .drive-picker-loading,
@@ -118,14 +119,32 @@
   padding: 20px; font-size: 12px; color: var(--text-muted); text-align: center;
 }
 .drive-picker-empty {
-  padding: 32px 20px;
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-  font-size: 12px; color: var(--text-muted); text-align: center;
-  animation: drive-picker-empty-in 0.16s ease-out both;
+  flex: 1;
+  padding: 40px 20px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  animation: drive-picker-empty-in 0.2s ease-out both;
 }
-.drive-picker-empty svg { opacity: 0.5; }
+.drive-picker-empty-code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}
+.empty-comment {
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+}
+.empty-blinker {
+  color: var(--accent);
+  margin-left: 6px;
+  font-weight: bold;
+  animation: drive-picker-blink 1s step-end infinite;
+}
+@keyframes drive-picker-blink {
+  50% { opacity: 0; }
+}
 @keyframes drive-picker-empty-in {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .drive-picker-error { color: #e57373; }

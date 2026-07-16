@@ -129,7 +129,7 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
   return (
     <div
       data-path={image.path}
-      className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'} ${isUpdating ? 'updating' : ''} ${isScanning ? 'scanning' : ''}`}
+      className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${isAnchor ? 'cursor' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'} ${isUpdating ? 'updating' : ''} ${isScanning ? 'scanning' : ''}`}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onMouseEnter={handleMouseEnter}

@@ -21,6 +21,10 @@
   border-color: rgba(108, 138, 255, 0.4);
 }
 
+.image-card.cursor:not(.selected) {
+  border-color: var(--primary, #6495ED);
+}
+
 .image-card.selected {
   border-color: var(--green);
   box-shadow: 0 0 0 3px var(--green-glow);

@@ -44,6 +44,7 @@ const ImageGrid = forwardRef(function ImageGrid({
   onRenameCancel,
   selectedFolders,
   onFolderLongPress,
+  cursorIndex,
 }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(0);
@@ -54,6 +55,7 @@ const ImageGrid = forwardRef(function ImageGrid({
   const dragRef = useRef({ active: false, startIndex: -1, mode: 'select', snapshot: null, moved: false });
   const [isDragging, setIsDragging] = useState(false);
   const selectedImagesRef = useRef(selectedImages);
+  const colsRef = useRef(1);
 
   useImperativeHandle(ref, () => ({
     scrollToTop() {
@@ -75,6 +77,9 @@ const ImageGrid = forwardRef(function ImageGrid({
         viewportRef.current.scrollBy(options);
       }
     },
+    getCols() {
+      return colsRef.current;
+    }
   }));
 
   useEffect(() => {
@@ -160,8 +165,10 @@ const ImageGrid = forwardRef(function ImageGrid({
     if (shiftKey && anchorIndex !== null) {
       onShiftSelectRange(anchorIndex, imageIndex);
     } else {
-      setAnchorIndex(imageIndex);
       onToggleImage(imagePath);
+      if (!selectedImagesRef.current.has(imagePath)) {
+        setAnchorIndex(imageIndex);
+      }
     }
   }, [dragSelectEnabled, onToggleImage, onShiftSelectRange, anchorIndex, orderSelectMode]);
 
@@ -180,6 +187,7 @@ const ImageGrid = forwardRef(function ImageGrid({
   const gridColW = gridW > 0 ? (gridW - (gridCols - 1) * GAP) / gridCols : previewSize;
 
   const cols = isList ? 1 : gridCols;
+  colsRef.current = cols;
   const rowH = isList ? LIST_ROW_H + LIST_GAP : gridColW + GAP;
   const gapForMode = isList ? LIST_GAP : GAP;
   const totalRows = Math.ceil(entries.length / cols);
@@ -246,10 +254,16 @@ const ImageGrid = forwardRef(function ImageGrid({
       isScanning: image.path === scanningPath,
       driveState: driveStatesByPath?.[image.path] || null,
     };
+
+    const totalSelected = selectedImages.size + selectedFolders.size;
+    const isCursor = totalSelected > 0 && ((cursorIndex !== undefined && cursorIndex !== null)
+      ? imageIndex === (cursorIndex - folderCount)
+      : imageIndex === anchorIndex);
+
     visibleCards.push(
       isList
         ? <ImageRow {...common} detail={listDetail} />
-        : <ImageCard {...common} isAnchor={imageIndex === anchorIndex} size={previewSize} imageFitMode={imageFitMode} />
+        : <ImageCard {...common} isAnchor={isCursor} size={previewSize} imageFitMode={imageFitMode} />
     );
   }
 

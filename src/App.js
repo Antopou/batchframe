@@ -93,6 +93,10 @@ function App() {
   const folderPathRef       = useRef(null);
   const [initialRoot] = useState(() => localStorage.getItem('batchframe-root-folder') || '');
   const rootFolderPathRef   = useRef(initialRoot);
+  const keyboardAnchorRef   = useRef(null);
+  const keyboardSnapshotRef = useRef(null);
+  const keyboardCursorRef   = useRef(null);
+  const [keyboardCursorIndex, setKeyboardCursorIndex] = useState(null);
 
   // Smooth spacebar page-scroll animation state
   const scrollAnim = useRef({ target: 0, raf: null, minStep: 0 });
@@ -352,6 +356,8 @@ function App() {
   useEffect(() => { subfoldersRef.current = subfolders; }, [subfolders]);
   useEffect(() => { folderPathRef.current = folderPath; }, [folderPath]);
 
+  // Redundant useEffect removed. Anchor/snapshot logic is managed synchronously in click/keyboard handlers.
+
   // ── Follow scanning position during AI scan ────────────────────
   useEffect(() => {
     if (!scanning || !scanningPath) return;
@@ -551,6 +557,20 @@ function App() {
 
   const handleFolderClick = useCallback((folderPath) => {
     if (selectedFolders.size > 0 || selectedImages.size > 0) {
+      const currentFiltered = filteredImagesRef.current || [];
+      const currentSubfolders = subfoldersRef.current || [];
+      const allItems = [
+        ...currentSubfolders.map(f => ({ type: 'folder', path: f.path })),
+        ...currentFiltered.map(img => ({ type: 'image', path: img.path }))
+      ];
+      const idx = allItems.findIndex(i => i.path === folderPath);
+      if (idx !== -1) {
+        keyboardAnchorRef.current = idx;
+        keyboardCursorRef.current = idx;
+        setKeyboardCursorIndex(idx);
+        keyboardSnapshotRef.current = null;
+      }
+
       setSelectedFolders((prev) => {
         const next = new Set(prev);
         if (next.has(folderPath)) next.delete(folderPath);
@@ -816,6 +836,24 @@ function App() {
       });
       return;
     }
+
+    const currentFiltered = filteredImagesRef.current || [];
+    const currentSubfolders = subfoldersRef.current || [];
+    const allItems = [
+      ...currentSubfolders.map(f => ({ type: 'folder', path: f.path })),
+      ...currentFiltered.map(img => ({ type: 'image', path: img.path }))
+    ];
+    const idx = allItems.findIndex(i => i.path === imagePath);
+    const isAdding = !selectedImages.has(imagePath);
+    if (idx !== -1) {
+      if (isAdding) {
+        keyboardAnchorRef.current = idx;
+        keyboardSnapshotRef.current = null;
+      }
+      keyboardCursorRef.current = idx;
+      setKeyboardCursorIndex(idx);
+    }
+
     setSelectedImages((prev) => {
       const next = new Set(prev);
       if (next.has(imagePath)) next.delete(imagePath); else next.add(imagePath);
@@ -1223,17 +1261,35 @@ function App() {
   const handleShiftSelectRange = useCallback((startIdx, endIdx) => {
     const min = Math.min(startIdx, endIdx);
     const max = Math.max(startIdx, endIdx);
+    const folderCount = subfoldersRef.current?.length || 0;
+    
+    keyboardCursorRef.current = endIdx + folderCount;
+    setKeyboardCursorIndex(keyboardCursorRef.current);
+    // We intentionally DO NOT update keyboardAnchorRef.current here so shift-arrow continues from the original anchor.
+
     setSelectedImages((prev) => {
-      const next = new Set(prev);
+      if (!keyboardSnapshotRef.current) {
+        keyboardSnapshotRef.current = { images: new Set(prev), folders: new Set(selectedFolders) };
+      }
+      const next = new Set(keyboardSnapshotRef.current.images);
       pagedImages.slice(min, max + 1).forEach((img) => next.add(img.path));
       return next;
     });
-  }, [pagedImages]);
+  }, [pagedImages, selectedFolders]);
 
   // ── Range select (drag — Google Drive style) ──────────────────
   const handleSetRangeSelectedFinal = useCallback((startIdx, endIdx, mode, snapshot) => {
     const min = Math.min(startIdx, endIdx);
     const max = Math.max(startIdx, endIdx);
+    const folderCount = subfoldersRef.current?.length || 0;
+    
+    keyboardCursorRef.current = endIdx + folderCount;
+    setKeyboardCursorIndex(keyboardCursorRef.current);
+    if (mode === 'select') {
+      keyboardAnchorRef.current = startIdx + folderCount;
+      keyboardSnapshotRef.current = null;
+    }
+
     const next = new Set(snapshot);
     pagedImages.slice(min, max + 1).forEach((img) => {
       if (mode === 'select') next.add(img.path);
@@ -1492,7 +1548,7 @@ function App() {
         return;
       }
 
-      const navigateSelection = (delta) => {
+      const navigateSelection = (delta, extend = false) => {
         const currentSubfolders = subfoldersRef.current || [];
         const currentFiltered = filteredImagesRef.current || [];
         const allItems = [
@@ -1501,29 +1557,70 @@ function App() {
         ];
         if (allItems.length === 0) return;
 
-        let currentIndex = -1;
-        if (selectedImages.size > 0) {
-          const lastImage = Array.from(selectedImages).pop();
-          currentIndex = allItems.findIndex(item => item.path === lastImage);
-        } else if (selectedFolders.size > 0) {
-          const lastFolder = Array.from(selectedFolders).pop();
-          currentIndex = allItems.findIndex(item => item.path === lastFolder);
+        const totalSelected = selectedImages.size + selectedFolders.size;
+        let currentIndex = keyboardCursorRef.current !== null ? keyboardCursorRef.current : -1;
+        
+        // If nothing is selected, forget the old cursor and start from the beginning/end
+        if (totalSelected === 0) {
+          currentIndex = -1;
+        }
+
+        if (currentIndex === -1) {
+          if (selectedImages.size > 0) {
+            const lastImage = Array.from(selectedImages).pop();
+            currentIndex = allItems.findIndex(item => item.path === lastImage);
+          } else if (selectedFolders.size > 0) {
+            const lastFolder = Array.from(selectedFolders).pop();
+            currentIndex = allItems.findIndex(item => item.path === lastFolder);
+          }
         }
 
         let nextIndex = 0;
         if (currentIndex !== -1) {
-          nextIndex = (currentIndex + delta + allItems.length) % allItems.length;
+          nextIndex = currentIndex + delta;
+          if (nextIndex < 0) nextIndex = 0;
+          if (nextIndex >= allItems.length) nextIndex = allItems.length - 1;
         } else if (delta < 0) {
           nextIndex = allItems.length - 1;
         }
 
         const nextItem = allItems[nextIndex];
-        if (nextItem.type === 'folder') {
-          setSelectedFolders(new Set([nextItem.path]));
-          setSelectedImages(new Set());
+        keyboardCursorRef.current = nextIndex;
+        setKeyboardCursorIndex(nextIndex);
+
+        if (extend && keyboardAnchorRef.current !== null && keyboardAnchorRef.current !== -1) {
+          if (!keyboardSnapshotRef.current) {
+            keyboardSnapshotRef.current = { images: new Set(selectedImages), folders: new Set(selectedFolders) };
+          }
+          const min = Math.min(keyboardAnchorRef.current, nextIndex);
+          const max = Math.max(keyboardAnchorRef.current, nextIndex);
+          const nextImages = new Set(keyboardSnapshotRef.current.images);
+          const nextFolders = new Set(keyboardSnapshotRef.current.folders);
+          for (let i = min; i <= max; i++) {
+            const item = allItems[i];
+            if (item.type === 'folder') nextFolders.add(item.path);
+            else nextImages.add(item.path);
+          }
+          setSelectedFolders(nextFolders);
+          setSelectedImages(nextImages);
         } else {
-          setSelectedImages(new Set([nextItem.path]));
-          setSelectedFolders(new Set());
+          keyboardSnapshotRef.current = null;
+          
+          if (totalSelected > 1) {
+            // Pre-select state behavior: when multiple items are selected, 
+            // normal arrow keys move the cursor AND the anchor, but do NOT change the selection.
+            // This ensures that a subsequent Shift+Arrow starts the new selection from here!
+            keyboardAnchorRef.current = nextIndex;
+          } else {
+            keyboardAnchorRef.current = nextIndex;
+            if (nextItem.type === 'folder') {
+              setSelectedFolders(new Set([nextItem.path]));
+              setSelectedImages(new Set());
+            } else {
+              setSelectedImages(new Set([nextItem.path]));
+              setSelectedFolders(new Set());
+            }
+          }
         }
       };
 
@@ -1558,16 +1655,23 @@ function App() {
       } else if (e.key === 'ArrowRight' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         handleNavigateForward();
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      } else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
         const hasSelection = selectedImages.size > 0 || selectedFolders.size > 0;
         if (!hasSelection) {
-          // With nothing selected, arrows do the same as the ‹ › toolbar buttons:
-          // step the folder name's trailing number (…/25 → …/24 or …/26).
-          e.preventDefault();
-          handleNavigateFolder(e.key === 'ArrowRight' ? 1 : -1);
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            handleNavigateFolder(e.key === 'ArrowRight' ? 1 : -1);
+          }
         } else {
           e.preventDefault();
-          navigateSelection(e.key === 'ArrowRight' ? 1 : -1);
+          const cols = gridRef.current?.getCols?.() || 1;
+          let delta = 0;
+          if (e.key === 'ArrowRight') delta = 1;
+          else if (e.key === 'ArrowLeft') delta = -1;
+          else if (e.key === 'ArrowDown') delta = cols;
+          else if (e.key === 'ArrowUp') delta = -cols;
+          
+          navigateSelection(delta, e.shiftKey);
         }
       } else if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
@@ -1968,6 +2072,7 @@ function App() {
 
       <ImageGrid
         ref={gridRef}
+        cursorIndex={keyboardCursorIndex}
         images={pagedImages}
         selectedImages={selectedImages}
         lockedImages={lockedImages}

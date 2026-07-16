@@ -13,7 +13,7 @@ const LONG_PRESS_MS = 500;
 // Right click / long-press: context menu (Push / Clear cache / Sign out).
 // State overlays: green dot (connected), amber count pill (dirty), spinner ring (busy).
 // Transient progress pill anchored under the button during pull/push.
-function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
+function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened }) {
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
@@ -24,6 +24,7 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
   const [reviewPush, setReviewPush] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [error, setError] = useState(null);
+  const [autoOpenSync, setAutoOpenSync] = useState(false);
 
   const btnRef = useRef(null);
   const longPressTimer = useRef(null);
@@ -55,6 +56,14 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
     const t = setTimeout(() => setError(null), 5000);
     return () => clearTimeout(t);
   }, [error]);
+
+  // Auto-open sync panel after pushNew completes and manifest is loaded
+  useEffect(() => {
+    if (autoOpenSync && manifest && status?.configured) {
+      setAutoOpenSync(false);
+      setTimeout(() => setReviewPush(true), 100);
+    }
+  }, [autoOpenSync, manifest, status?.configured]);
 
   // ── Handlers ───────────────────────────────────────────────
   const doSignIn = useCallback(async () => {
@@ -203,6 +212,28 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
     }
   }, [onDatasetOpened]);
 
+  const handlePushNew = useCallback(async ({ parentId, newName }) => {
+    setShowPicker(false);
+    setBusy(true);
+    setError(null);
+    setProgress({ phase: 'creating' });
+    try {
+      const r = await window.electronAPI.drive.pushNew({
+        localPath,
+        parentId,
+        folderName: newName
+      });
+      if (!r.success) throw new Error(r.error || 'Push failed');
+      onDatasetOpened?.(r.cacheRoot);
+      setAutoOpenSync(true);
+    } catch (e) {
+      setError(e.message);
+      setProgress(null);
+    } finally {
+      setBusy(false);
+    }
+  }, [localPath, onDatasetOpened]);
+
   // ── Derived UI state ───────────────────────────────────────
   if (!window.electronAPI?.drive) return null;
 
@@ -285,7 +316,9 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
 
       {showPicker && (
         <DriveFolderPicker
+          localPath={!cacheRoot ? localPath : null}
           onSelect={handlePicked}
+          onPushNew={handlePushNew}
           onClose={() => setShowPicker(false)}
         />
       )}

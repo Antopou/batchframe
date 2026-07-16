@@ -4,7 +4,7 @@ import './DriveFolderPicker.css';
 
 const ROOT = { id: 'root', name: 'My Drive' };
 
-function DriveFolderPicker({ onSelect, onClose }) {
+function DriveFolderPicker({ localPath, onSelect, onPushNew, onClose }) {
   const [crumbs, setCrumbs] = useState([ROOT]);
   const [folders, setFolders] = useState([]);
   const [images, setImages] = useState([]);
@@ -85,6 +85,15 @@ function DriveFolderPicker({ onSelect, onClose }) {
         if (focusIndex >= 0 && filteredFolders[focusIndex]) {
           e.preventDefault();
           openFolder(filteredFolders[focusIndex]);
+        } else if (localPath) {
+          e.preventDefault();
+          const q = query.trim().toLowerCase();
+          const exactMatch = q ? filteredFolders.find(f => f.name.toLowerCase() === q) : null;
+          if (exactMatch) {
+            openFolder(exactMatch);
+          } else {
+            onPushNew({ parentId: current.id, newName: query.trim() || localPath.split(/[/\\]/).pop() });
+          }
         } else if (query && filteredFolders.length === 1) {
           e.preventDefault();
           openFolder(filteredFolders[0]);
@@ -172,6 +181,9 @@ function DriveFolderPicker({ onSelect, onClose }) {
   }
 
   const canChooseRoot = current.id !== 'root';
+  const defaultName = localPath ? localPath.split(/[/\\]/).pop() : '';
+  const folderToCreate = query.trim() || defaultName;
+  const showCreateOption = !!(localPath && query.trim() && !folders.some(f => f.name.toLowerCase() === query.trim().toLowerCase()));
   const nothingHere = !loading && !error && filteredFolders.length === 0 && filteredImages.length === 0;
 
   return (
@@ -240,7 +252,7 @@ function DriveFolderPicker({ onSelect, onClose }) {
             </div>
           )}
 
-          {nothingHere && (
+          {nothingHere && !showCreateOption && (
             <div className="drive-picker-empty">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
@@ -251,6 +263,23 @@ function DriveFolderPicker({ onSelect, onClose }) {
 
           {!loading && viewMode === 'list' && (
             <>
+              {showCreateOption && (
+                <div
+                  className="drive-picker-row create-new"
+                  onClick={() => onPushNew({ parentId: current.id, newName: folderToCreate })}
+                  title="Create this folder and upload"
+                  style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '4px', paddingBottom: '4px' }}
+                >
+                  <span className="drive-picker-icon folder-icon" aria-hidden style={{ color: 'var(--accent)' }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                  </span>
+                  <span className="drive-picker-name" style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.8)' }}>
+                    Create <strong style={{ color: 'var(--accent)', fontStyle: 'normal' }}>"{folderToCreate}"</strong> here...
+                  </span>
+                </div>
+              )}
               {filteredFolders.map((f, idx) => (
                 <div
                   key={f.id}
@@ -283,8 +312,24 @@ function DriveFolderPicker({ onSelect, onClose }) {
             </>
           )}
 
-          {!loading && viewMode === 'grid' && (filteredFolders.length > 0 || filteredImages.length > 0) && (
+          {!loading && viewMode === 'grid' && (filteredFolders.length > 0 || filteredImages.length > 0 || showCreateOption) && (
             <div className="drive-picker-grid">
+              {showCreateOption && (
+                <div 
+                  className="drive-picker-grid-item create-new" 
+                  onClick={() => onPushNew({ parentId: current.id, newName: folderToCreate })} 
+                  title={`Create ${folderToCreate} and upload`}
+                >
+                  <div className="drive-picker-no-thumb" style={{ color: 'var(--accent)' }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                  </div>
+                  <div className="drive-picker-grid-label" style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.8)' }}>
+                    Create <strong style={{ color: 'var(--accent)', fontStyle: 'normal' }}>"{folderToCreate}"</strong>
+                  </div>
+                </div>
+              )}
               {filteredFolders.map((f, idx) => (
                 <div 
                   key={f.id} 
@@ -325,14 +370,24 @@ function DriveFolderPicker({ onSelect, onClose }) {
         <div className="drive-picker-footer">
           <div className="drive-picker-actions" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button className="btn-terminal action-cancel" onClick={onClose}>[ cancel ]</button>
-            <button
-              className="btn-terminal action-open"
-              disabled={!canChooseRoot && images.length === 0}
-              onClick={chooseCurrent}
-              title={!canChooseRoot ? 'Pick a subfolder before importing' : `Open ${current.name} (Cmd/Ctrl + Enter)`}
-            >
-              [ open ]
-            </button>
+            {localPath ? (
+              <button
+                className="btn-terminal action-push"
+                onClick={() => onPushNew({ parentId: current.id, newName: folderToCreate })}
+                title={`Create "${folderToCreate}" here and upload`}
+              >
+                [ push here ]
+              </button>
+            ) : (
+              <button
+                className="btn-terminal action-open"
+                disabled={!canChooseRoot && images.length === 0}
+                onClick={chooseCurrent}
+                title={!canChooseRoot ? 'Pick a subfolder before importing' : `Open ${current.name} (Cmd/Ctrl + Enter)`}
+              >
+                [ open ]
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -2082,6 +2082,7 @@ function App() {
         onSetActiveCharacter={setActiveCharacter}
         driveSlot={
           <DriveButton
+            localPath={folderPath}
             cacheRoot={driveCacheRoot}
             manifest={driveManifest}
             summary={driveSummary}

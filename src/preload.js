@@ -57,6 +57,7 @@ try {
       listFolder:        (folderId) => ipcRenderer.invoke('drive-list-folder', { folderId }),
       pull:              ({ driveFolderId, datasetName }) => ipcRenderer.invoke('drive-pull', { driveFolderId, datasetName }),
       push:              ({ cacheRoot, force }) => ipcRenderer.invoke('drive-push', { cacheRoot, force }),
+      pushNew:           ({ localPath, parentId, folderName }) => ipcRenderer.invoke('drive-push-new', { localPath, parentId, folderName }),
       detectConflicts:   ({ cacheRoot }) => ipcRenderer.invoke('drive-detect-conflicts', { cacheRoot }),
       clearCache:        ({ cacheRoot, keepManifest }) => ipcRenderer.invoke('drive-clear-cache', { cacheRoot, keepManifest }),
       refreshManifest:   ({ cacheRoot }) => ipcRenderer.invoke('drive-refresh-manifest', { cacheRoot }),

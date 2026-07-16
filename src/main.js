@@ -830,6 +830,23 @@ ipcMain.handle('drive-push', async (_e, { cacheRoot, force = false }) => {
   }
 });
 
+ipcMain.handle('drive-push-new', async (_e, { localPath, parentId, folderName }) => {
+  try {
+    const auth = await driveOauth.getAuthClient();
+    const result = await driveSync.pushNewDataset(auth, {
+      localPath,
+      parentId,
+      folderName,
+      onProgress: relayProgress('push'),
+    });
+    notifyManifestChanged(localPath);
+    return { success: true, cacheRoot: result.cacheRoot };
+  } catch (err) {
+    console.error('drive-push-new failed:', err);
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('drive-detect-conflicts', async (_e, { cacheRoot }) => {
   try {
     const auth = await driveOauth.getAuthClient();

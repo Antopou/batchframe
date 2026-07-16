@@ -299,32 +299,61 @@ function DriveButton({ cacheRoot, manifest, summary, onDatasetOpened }) {
       )}
 
       {conflictDialog && (
-        <div className="dialog-backdrop" onClick={() => setConflictDialog(null)}>
-          <div className="dialog-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
-            <div className="dialog-title">Drive has newer changes</div>
-            <div className="dialog-message">
-              {conflictDialog.conflicts.length} file{conflictDialog.conflicts.length === 1 ? '' : 's'} changed on Drive since your last pull:
-              <ul className="drive-conflict-list">
-                {conflictDialog.conflicts.slice(0, 8).map((c, i) => (
-                  <li key={i}>
-                    <span className="drive-conflict-reason">{c.reason}</span>
-                    <span className="drive-conflict-name"> {c.relPath || c.remoteName || c.fileId}</span>
-                  </li>
-                ))}
-                {conflictDialog.conflicts.length > 8 && (
-                  <li>… and {conflictDialog.conflicts.length - 8} more</li>
-                )}
-              </ul>
+        <div className="drive-picker-overlay" onClick={() => setConflictDialog(null)}>
+          <div className="drive-picker" onClick={(e) => e.stopPropagation()}>
+            <div className="terminal-omnibar">
+              <div className="terminal-prompt">
+                <span className="terminal-root">~</span>
+                <span className="terminal-sep">/</span>
+                <span className="terminal-dir">Drive Conflict</span>
+                <span className="terminal-arrow">❯</span>
+              </div>
             </div>
-            <div className="dialog-actions">
-              <button className="dialog-btn cancel" onClick={() => setConflictDialog(null)}>[ cancel ]</button>
-              <button className="dialog-btn confirm-primary" onClick={doPullFirst}>Pull first</button>
-              <button
-                className="dialog-btn confirm-danger"
-                onClick={() => { setConflictDialog(null); doPush({ force: true }); }}
-              >
-                Force push
-              </button>
+            
+            <div className="drive-picker-body">
+              <div style={{ padding: '12px 16px', color: '#9a9aa2', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                {conflictDialog.conflicts.length} file{conflictDialog.conflicts.length === 1 ? '' : 's'} changed on Drive since your last pull:
+              </div>
+              <div className="sync-diff-list">
+                {conflictDialog.conflicts.slice(0, 8).map((c, i) => {
+                  let badge = '[~]';
+                  let colorClass = 'diff-mod';
+                  if (c.reason === 'removed' || c.reason === 'trashed') {
+                    badge = '[-]';
+                    colorClass = 'diff-del';
+                  } else if (c.reason === 'new-on-drive') {
+                    badge = '[+]';
+                    colorClass = 'diff-new';
+                  }
+                  return (
+                    <div key={i} className="sync-diff-item">
+                      <span className={`sync-diff-icon ${colorClass}`}>{badge}</span>
+                      <span className="drive-picker-name" style={{ color: '#e6e6e8' }}>
+                        {c.relPath || c.remoteName || c.fileId}
+                      </span>
+                    </div>
+                  );
+                })}
+                {conflictDialog.conflicts.length > 8 && (
+                  <div className="sync-diff-item" style={{ color: '#6a6a72' }}>
+                    … and {conflictDialog.conflicts.length - 8} more
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="drive-picker-footer">
+              <div className="drive-picker-actions" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button className="btn-terminal action-cancel" onClick={() => setConflictDialog(null)}>[ cancel ]</button>
+                <button className="btn-terminal action-push" onClick={doPullFirst}>[ pull first ]</button>
+                <button
+                  className="btn-terminal"
+                  style={{ color: 'var(--red)' }}
+                  onClick={() => { setConflictDialog(null); doPush({ force: true }); }}
+                >
+                  [ force push ]
+                </button>
+              </div>
             </div>
           </div>
         </div>

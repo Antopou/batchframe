@@ -181,17 +181,34 @@ async function detectConflicts(auth, cacheRoot) {
 // PUSH
 // -----------------------------------------------------------------------------
 
-// Ensure a Drive folder exists for the given relative dir, creating any missing
-// ancestors. Returns the Drive folder ID for the final directory.
-async function ensureFolder(auth, m, relDir) {
+async function ensureFolder(auth, m, relDir, folderLocks = {}) {
   if (!relDir || relDir === '.' || relDir === '') return m.driveFolderId;
   if (m.folders[relDir]?.driveFileId) return m.folders[relDir].driveFileId;
-  const parentRel = relDir.includes('/') ? relDir.slice(0, relDir.lastIndexOf('/')) : '';
-  const parentId = await ensureFolder(auth, m, parentRel);
-  const name = relDir.split('/').pop();
-  const created = await driveApi.createFolder(auth, { parentId, name });
-  m.folders[relDir] = { driveFileId: created.id };
-  return created.id;
+  
+  if (folderLocks[relDir]) return await folderLocks[relDir];
+  
+  const promise = (async () => {
+    const parentRel = relDir.includes('/') ? relDir.slice(0, relDir.lastIndexOf('/')) : '';
+    const parentId = await ensureFolder(auth, m, parentRel, folderLocks);
+    const name = relDir.split('/').pop();
+    
+    let folder = await driveApi.findFolder(auth, parentId, name);
+    let createdId;
+    if (folder) {
+      createdId = folder.id;
+      if (folder.name !== name) {
+        await driveApi.updateFile(auth, createdId, { name });
+      }
+    } else {
+      const created = await driveApi.createFolder(auth, { parentId, name });
+      createdId = created.id;
+    }
+    
+    m.folders[relDir] = { driveFileId: createdId };
+    return createdId;
+  })();
+  folderLocks[relDir] = promise;
+  return promise;
 }
 
 async function pushDataset(auth, cacheRoot, { onProgress, force = false } = {}) {
@@ -209,6 +226,7 @@ async function pushDataset(auth, cacheRoot, { onProgress, force = false } = {}) 
   }
 
   // Categorise entries. Order matters for renames-on-modified etc.
+  const folderLocks = {};
   const news = [];
   const modifieds = [];
   const renameds = [];
@@ -262,7 +280,7 @@ async function pushDataset(auth, cacheRoot, { onProgress, force = false } = {}) 
     if (oldName !== newName) params.name = newName;
     if (oldDir !== newDir) {
       const oldParentId = m.folders[oldDir]?.driveFileId || m.driveFolderId;
-      const newParentId = await ensureFolder(auth, m, newDir);
+      const newParentId = await ensureFolder(auth, m, newDir, folderLocks);
       params.addParents = newParentId;
       params.removeParents = oldParentId;
     }
@@ -299,7 +317,7 @@ async function pushDataset(auth, cacheRoot, { onProgress, force = false } = {}) 
     const abs = path.join(cacheRoot, manifest.toNative(rel));
     const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
     const name = rel.split('/').pop();
-    const parentId = await ensureFolder(auth, m, dir);
+    const parentId = await ensureFolder(auth, m, dir, folderLocks);
     const created = await driveApi.uploadFile(auth, {
       parentId,
       name,

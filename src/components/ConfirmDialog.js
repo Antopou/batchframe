@@ -46,26 +46,44 @@ function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger = true
   }, [onConfirm, onCancel]);
 
   return (
-    <div className="dialog-backdrop" onMouseDown={onCancel}>
-      <div className="dialog-box" onMouseDown={(e) => e.stopPropagation()}>
-        <div className={`dialog-icon-wrap ${danger ? 'danger' : 'info'}`}>
-          {danger ? <TrashIcon /> : <InfoIcon />}
+    <div className="drive-picker-overlay" onMouseDown={onCancel}>
+      <div className="drive-picker" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="terminal-omnibar">
+          <div className="terminal-prompt">
+            <span className="terminal-root">~</span>
+            <span className="terminal-sep">/</span>
+            <span className="terminal-dir">{danger ? 'Danger' : 'Confirm'}</span>
+            <span className="terminal-arrow">❯</span>
+          </div>
         </div>
-        {title && <div className="dialog-title">{title}</div>}
-        <div className="dialog-message">{message}</div>
-        <div className="dialog-actions">
-          <button className="dialog-btn cancel" onClick={onCancel}>
-            Cancel
-          </button>
-          <button
-            ref={confirmButtonRef}
-            className={`dialog-btn ${danger ? 'confirm-danger' : 'confirm-primary'}`}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </button>
+        
+        <div className="drive-picker-body">
+          <div style={{ padding: '24px 20px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+            <div className={`dialog-icon-wrap ${danger ? 'danger' : 'info'}`} style={{ flexShrink: 0, marginTop: '2px' }}>
+              {danger ? <TrashIcon /> : <InfoIcon />}
+            </div>
+            <div>
+              {title && <div style={{ fontSize: '15px', fontWeight: '600', color: '#e6e6e8', marginBottom: '8px' }}>{title}</div>}
+              <div style={{ fontSize: '13px', color: '#9a9aa2', lineHeight: '1.5' }}>{message}</div>
+            </div>
+          </div>
         </div>
-        <div className="dialog-hint">Enter to confirm · Esc to cancel</div>
+
+        <div className="drive-picker-footer">
+          <div className="drive-picker-actions" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button className="btn-terminal action-cancel" onClick={onCancel}>
+              [ cancel ]
+            </button>
+            <button
+              ref={confirmButtonRef}
+              className="btn-terminal action-push"
+              style={danger ? { color: 'var(--red)' } : {}}
+              onClick={onConfirm}
+            >
+              [ {confirmLabel.toLowerCase()} ]
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

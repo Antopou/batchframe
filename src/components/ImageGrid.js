@@ -45,7 +45,6 @@ const ImageGrid = forwardRef(function ImageGrid({
   selectedFolders,
   onFolderLongPress,
   cursorIndex,
-  onDragStartImage,
   onDropOnFolder,
 }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
@@ -284,15 +283,6 @@ const ImageGrid = forwardRef(function ImageGrid({
       aiHit: aiScores && aiThreshold != null && (aiScores[image.path]?.score ?? -1) >= aiThreshold,
       isScanning: image.path === scanningPath,
       driveState: driveStatesByPath?.[image.path] || null,
-      onDragStartImage: (e, path) => {
-        if (dragRef.current && dragRef.current.active) {
-          dragRef.current.active = false;
-          setIsDragging(false);
-        }
-        if (onDragStartImage) {
-          onDragStartImage(e, path);
-        }
-      },
     };
 
     const isCursor = cursorIndex !== undefined && cursorIndex !== null && imageIndex === (cursorIndex - folderCount);

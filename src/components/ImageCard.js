@@ -13,8 +13,6 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
   const prevSrcRef  = useRef('');
   const isFirstLoad = useRef(true);
   const lastClickTimeRef = useRef(0);
-  const dragTimer = useRef(null);
-  const startPos = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,44 +87,8 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
   };
 
   const handleMouseDown = (event) => {
-    if (event.button !== 0) return;
-    
-    startPos.current = { x: event.clientX, y: event.clientY };
-    dragTimer.current = setTimeout(() => {
-      setDragReady(true);
-      dragTimer.current = null;
-    }, 300);
-
-    if (onDragMouseDown) {
-      onDragMouseDown(image.path, imageIndex, isSelected, event.button);
-    }
-  };
-
-  const cancelDragTimer = () => {
-    if (dragTimer.current) {
-      clearTimeout(dragTimer.current);
-      dragTimer.current = null;
-    }
-  };
-
-  const handleMouseMove = (event) => {
-    if (dragTimer.current && startPos.current) {
-      const dx = Math.abs(event.clientX - startPos.current.x);
-      const dy = Math.abs(event.clientY - startPos.current.y);
-      // Cancel long-press if they actually started dragging (more than 3px)
-      if (dx > 3 || dy > 3) {
-        cancelDragTimer();
-      }
-    }
-  };
-
-  const handleMouseUpOrLeave = () => {
-    cancelDragTimer();
-    setDragReady(false);
-  };
-
-  const handleDragEnd = () => {
-    setDragReady(false);
+    if (!onDragMouseDown) return;
+    onDragMouseDown(image.path, imageIndex, isSelected, event.button);
   };
 
   const handleMouseEnter = () => {
@@ -172,15 +134,9 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
       className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${isAnchor ? 'cursor' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'} ${isUpdating ? 'updating' : ''} ${isScanning ? 'scanning' : ''}`}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUpOrLeave}
-      onMouseLeave={handleMouseUpOrLeave}
       onMouseEnter={handleMouseEnter}
       onContextMenu={handleContextMenu}
       title={`${image.name}${isLocked ? ' (locked)' : ''}`}
-      draggable={!orderSelectMode && dragReady}
-      onDragStart={(e) => onDragStartImage && onDragStartImage(e, image.path)}
-      onDragEnd={handleDragEnd}
     >
       {!src ? (
         <div className="image-loading-placeholder">

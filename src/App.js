@@ -127,6 +127,7 @@ function App() {
   // Move state
   const [isMoving, setIsMoving] = useState(false);
   const [moveProgress, setMoveProgress] = useState({ current: 0, total: 0 });
+  const lastTargetRef = useRef({ base: null, target: null });
 
   // Auto-reload state
   const [autoReloadEnabled, setAutoReloadEnabled] = useState(() => localStorage.getItem('autoReloadEnabled') === 'true');
@@ -983,8 +984,17 @@ function App() {
   // ── Move selected to folder ────────────────────────────────────
   const handleMoveSelected = useCallback(async () => {
     if (!window.electronAPI || selectedImages.size === 0) return;
-    const dest = await window.electronAPI.selectFolder();
+    
+    let defaultDir = folderPath;
+    if (lastTargetRef.current.base === folderPath && lastTargetRef.current.target) {
+      defaultDir = lastTargetRef.current.target;
+    }
+    
+    const dest = await window.electronAPI.selectFolder(defaultDir);
     if (!dest) return;
+    
+    lastTargetRef.current = { base: folderPath, target: dest };
+    
     if (dest === folderPath) return;
     const movable = images.filter(img => selectedImages.has(img.path) && !lockedImages.has(img.path));
     if (movable.length === 0) return;
@@ -1013,8 +1023,17 @@ function App() {
   // ── Copy selected to folder ────────────────────────────────────
   const handleCopySelected = useCallback(async () => {
     if (!window.electronAPI || selectedImages.size === 0) return;
-    const dest = await window.electronAPI.selectFolder();
+    
+    let defaultDir = folderPath;
+    if (lastTargetRef.current.base === folderPath && lastTargetRef.current.target) {
+      defaultDir = lastTargetRef.current.target;
+    }
+    
+    const dest = await window.electronAPI.selectFolder(defaultDir);
     if (!dest) return;
+    
+    lastTargetRef.current = { base: folderPath, target: dest };
+    
     const filePaths = [...selectedImages].filter(p => !lockedImages.has(p));
     if (filePaths.length === 0) return;
     setIsCopying(true);
@@ -1314,74 +1333,6 @@ function App() {
       }
     }
   }, [folderPath, autoReloadEnabled, loadElectronFolder]);
-
-  const handleDragStartImage = useCallback((e, imagePath) => {
-    let pathsToMove = [imagePath];
-    if (selectedImages.has(imagePath)) {
-      pathsToMove = Array.from(selectedImages);
-    }
-    e.dataTransfer.setData('application/x-batchframe-images', JSON.stringify(pathsToMove));
-    e.dataTransfer.effectAllowed = 'move';
-
-    if (pathsToMove.length > 1) {
-      const ghost = document.getElementById('batchframe-drag-ghost');
-      const countLabel = document.getElementById('batchframe-drag-ghost-count');
-      const imagesContainer = document.getElementById('batchframe-drag-ghost-images');
-      
-      if (ghost && countLabel && imagesContainer) {
-        countLabel.textContent = pathsToMove.length;
-        imagesContainer.innerHTML = '';
-        
-        const previewPaths = pathsToMove.slice(0, 3);
-        const total = previewPaths.length;
-        
-        const offset = 8;
-        const maxOffset = (total - 1) * offset;
-        
-        // Find the actual rendered size of the card to perfectly match it
-        let cardSize = previewSize;
-        if (pathsToMove.length > 0) {
-          const safePath0 = pathsToMove[0].replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-          const cardEl = document.querySelector(`div[data-path="${safePath0}"]`);
-          if (cardEl && cardEl.clientWidth > 0) {
-            cardSize = cardEl.clientWidth;
-          }
-        }
-        
-        ghost.style.width = `${cardSize + maxOffset}px`;
-        ghost.style.height = `${cardSize + maxOffset}px`;
-        
-        previewPaths.reverse().forEach((path, idx) => {
-          // Escape backslashes and quotes for the CSS selector
-          const safePath = path.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-          const imgEl = document.querySelector(`div[data-path="${safePath}"] img`);
-          
-          const img = document.createElement('img');
-          if (imgEl && imgEl.src) {
-            img.src = imgEl.src;
-          }
-          
-          Object.assign(img.style, {
-            position: 'absolute',
-            top: `${(total - 1 - idx) * offset}px`,
-            left: `${(total - 1 - idx) * offset}px`,
-            width: `${cardSize}px`,
-            height: `${cardSize}px`,
-            objectFit: imageFitMode === 'contain' ? 'contain' : 'cover',
-            borderRadius: '8px',
-            boxShadow: '0 0 0 3px rgba(80,179,89,0.3), 0 4px 12px rgba(0,0,0,0.4)',
-            border: '2px solid #50B359', // Match the selection green color
-            backgroundColor: imageFitMode === 'contain' ? '#1e1e1e' : '#333',
-            zIndex: idx
-          });
-          imagesContainer.appendChild(img);
-        });
-
-        // Set drag image offset to point to the center of the first image
-        e.dataTransfer.setDragImage(ghost, cardSize / 2 + maxOffset, cardSize / 2 + maxOffset);
-      }
-    }
-  }, [selectedImages, previewSize, imageFitMode]);
 
   const handleDropOnFolder = useCallback(async (e, folder) => {
     e.preventDefault();
@@ -2108,39 +2059,6 @@ function App() {
       onDragOver={handleAppDragOver}
       onDrop={handleAppDrop}
     >
-      <div 
-        id="batchframe-drag-ghost" 
-        style={{ 
-          position: 'absolute', 
-          top: -1000, 
-          left: -1000, 
-          pointerEvents: 'none',
-          zIndex: -1
-        }}
-      >
-        <div id="batchframe-drag-ghost-images" style={{ position: 'relative', width: '100%', height: '100%' }}>
-          {/* Images will be injected here */}
-        </div>
-        <div 
-          style={{
-            position: 'absolute',
-            bottom: '0px',
-            right: '0px',
-            backgroundColor: '#007aff', 
-            color: 'white', 
-            padding: '4px 10px', 
-            borderRadius: '12px', 
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            fontWeight: 'bold',
-            fontSize: '13px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-            border: '2px solid white',
-            zIndex: 10
-          }}
-        >
-          <span id="batchframe-drag-ghost-count">0</span>
-        </div>
-      </div>
       {!isFullscreen && (
         <header className={`App-header ${headerVisible ? 'header-visible' : 'header-hidden'}`}>
           {/*
@@ -2319,8 +2237,6 @@ function App() {
         onRenameCancel={() => setEditingFolderPath(null)}
         selectedFolders={selectedFolders}
         onFolderLongPress={handleFolderLongPress}
-        onDragStartImage={handleDragStartImage}
-        onDropOnFolder={handleDropOnFolder}
       />
 
       {previewImage && (

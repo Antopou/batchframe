@@ -180,9 +180,10 @@ function notifyManifestChanged(cacheRoot) {
 }
 
 // IPC Handlers
-ipcMain.handle('select-folder', async () => {
+ipcMain.handle('select-folder', async (event, defaultPath) => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],
+    defaultPath: defaultPath || undefined
   });
   return result.filePaths[0] || null;
 });

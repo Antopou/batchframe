@@ -181,6 +181,20 @@ async function findFolder(auth, parentId, name) {
   return exact || data.files[0];
 }
 
+async function findFileInFolder(auth, parentId, name) {
+  const drive = driveFor(auth);
+  const escapedName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const { data } = await drive.files.list({
+    q: `'${parentId}' in parents and name = '${escapedName}' and mimeType != '${FOLDER_MIME}' and trashed = false`,
+    fields: 'files(id, name, md5Checksum, size, modifiedTime)',
+    spaces: 'drive',
+  });
+  if (!data.files || data.files.length === 0) return null;
+  // Try to find exact match first
+  const exact = data.files.find(f => f.name === name);
+  return exact || data.files[0];
+}
+
 async function getStartPageToken(auth) {
   const drive = driveFor(auth);
   const { data } = await drive.changes.getStartPageToken();
@@ -220,6 +234,7 @@ module.exports = {
   trashFile,
   createFolder,
   findFolder,
+  findFileInFolder,
   getStartPageToken,
   listChanges,
 };

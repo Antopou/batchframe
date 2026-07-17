@@ -318,12 +318,24 @@ async function pushDataset(auth, cacheRoot, { onProgress, force = false } = {}) 
     const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
     const name = rel.split('/').pop();
     const parentId = await ensureFolder(auth, m, dir, folderLocks);
-    const created = await driveApi.uploadFile(auth, {
-      parentId,
-      name,
-      localPath: abs,
-      mimeType: extMime(rel),
-    });
+    
+    // Deduplicate: Check if it already exists on Drive
+    const existing = await driveApi.findFileInFolder(auth, parentId, name);
+    let created;
+    if (existing) {
+      created = await driveApi.updateFile(auth, existing.id, {
+        localPath: abs,
+        mimeType: extMime(rel),
+      });
+    } else {
+      created = await driveApi.uploadFile(auth, {
+        parentId,
+        name,
+        localPath: abs,
+        mimeType: extMime(rel),
+      });
+    }
+    
     entry.driveFileId = created.id;
     entry.driveMd5 = created.md5Checksum || null;
     entry.driveModifiedTime = created.modifiedTime || null;

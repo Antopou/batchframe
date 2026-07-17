@@ -87,7 +87,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
   }, [refreshStatus]);
 
   const doPush = useCallback(async ({ force = false } = {}) => {
-    if (!cacheRoot) return;
+    if (!cacheRoot || !manifest) return;
     setBusy(true);
     setError(null);
     try {
@@ -101,7 +101,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
     } finally {
       setBusy(false);
     }
-  }, [cacheRoot]);
+  }, [cacheRoot, manifest]);
 
   const doPullFirst = useCallback(async () => {
     if (!manifest) return;

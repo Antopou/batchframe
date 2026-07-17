@@ -590,8 +590,11 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   const handleTargetWidthChange = useCallback((e) => {
     const val = e.target.value;
     setTargetWidth(val);
-    if (val && !isNaN(val) && cropRect.w && cropRect.h) {
-      const h = Math.round((parseInt(val, 10) * cropRect.h) / cropRect.w);
+    const img = imageRef.current;
+    if (val && !isNaN(val) && cropRect.w && cropRect.h && img && img.naturalWidth) {
+      const currentCropW = cropRect.w * img.naturalWidth;
+      const currentCropH = cropRect.h * img.naturalHeight;
+      const h = Math.round((parseInt(val, 10) * currentCropH) / currentCropW);
       setTargetHeight(h.toString());
     } else if (!val) {
       setTargetHeight('');
@@ -601,30 +604,22 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   const handleTargetHeightChange = useCallback((e) => {
     const val = e.target.value;
     setTargetHeight(val);
-    if (val && !isNaN(val) && cropRect.w && cropRect.h) {
-      const w = Math.round((parseInt(val, 10) * cropRect.w) / cropRect.h);
+    const img = imageRef.current;
+    if (val && !isNaN(val) && cropRect.w && cropRect.h && img && img.naturalHeight) {
+      const currentCropW = cropRect.w * img.naturalWidth;
+      const currentCropH = cropRect.h * img.naturalHeight;
+      const w = Math.round((parseInt(val, 10) * currentCropW) / currentCropH);
       setTargetWidth(w.toString());
     } else if (!val) {
       setTargetWidth('');
     }
   }, [cropRect.w, cropRect.h]);
 
-  useEffect(() => {
-    if (targetWidth && cropRect.w && cropRect.h) {
-      const h = Math.round((parseInt(targetWidth, 10) * cropRect.h) / cropRect.w);
-      setTargetHeight(h.toString());
-    }
-  }, [cropRect.w, cropRect.h]);
-
   // ── Keyboard ─────────────────────────────────────────────────
   const handleKeydown = useCallback((e) => {
+    const isInputFocused = document.activeElement && document.activeElement.tagName === 'INPUT';
+
     if (cropMode) {
-      if (e.key >= '0' && e.key <= '6') {
-        const preset = ASPECT_PRESETS[Number(e.key)];
-        if (preset) { e.preventDefault(); chooseAspect(preset.ratio); }
-        return;
-      }
-      if (e.key === 'f' || e.key === 'F') { e.preventDefault(); autoCropToFace(); return; }
       if (e.key === 'Escape') {
         if (showResizePanel) {
           e.preventDefault();
@@ -636,6 +631,15 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         return;
       }
       if (e.key === 'Enter') { e.preventDefault(); applyCrop(); return; }
+
+      if (isInputFocused) return;
+
+      if (e.key >= '0' && e.key <= '6') {
+        const preset = ASPECT_PRESETS[Number(e.key)];
+        if (preset) { e.preventDefault(); chooseAspect(preset.ratio); }
+        return;
+      }
+      if (e.key === 'f' || e.key === 'F') { e.preventDefault(); autoCropToFace(); return; }
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
         if (e.metaKey || e.ctrlKey) {
           if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {

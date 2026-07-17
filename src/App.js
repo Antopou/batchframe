@@ -206,7 +206,10 @@ function App() {
     };
     load();
     const onChange = ({ cacheRoot }) => {
-      if (cacheRoot === folderPath) load();
+      if (!cacheRoot || !folderPath) return;
+      if (cacheRoot === folderPath || folderPath.startsWith(cacheRoot + '/') || folderPath.startsWith(cacheRoot + '\\')) {
+        load();
+      }
     };
     window.electronAPI.drive.onManifestChanged(onChange);
     return () => {

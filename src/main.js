@@ -258,7 +258,7 @@ ipcMain.handle('get-subfolders', async (event, folderPath) => {
 ipcMain.handle('create-folder', async (event, { parentPath, name }) => {
   try {
     const newPath = path.join(parentPath, name);
-    await fs.mkdir(newPath);
+    await fs.mkdir(newPath, { recursive: true });
     return { success: true, path: newPath };
   } catch (error) {
     console.error('Create folder error:', error);
@@ -517,6 +517,9 @@ ipcMain.handle('start-folder-watch', async (event, folderPath) => {
   if (!folderPath) return { success: false };
   try {
     const fsSync = require('fs');
+    if (!fsSync.existsSync(folderPath)) {
+      fsSync.mkdirSync(folderPath, { recursive: true });
+    }
     folderWatcher = fsSync.watch(folderPath, { persistent: false }, async (eventType, filename) => {
       if (!filename) return;
       const ext = path.extname(filename).toLowerCase();

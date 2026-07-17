@@ -4,6 +4,7 @@ import './SubfolderBar.css';
 function SubfolderBar({
   subfolders,
   parentFolderPath,
+  currentFolder,
   onNavigate,
   onNavigateUp,
   onNavigateForward,
@@ -16,7 +17,8 @@ function SubfolderBar({
   onRenameCommit,
   onRenameCancel,
 }) {
-  if (!parentFolderPath && subfolders.length === 0 && !hasForwardHistory) return null;
+  if (!currentFolder) return null;
+  if (!parentFolderPath && subfolders.length === 0 && !hasForwardHistory && !onCreateFolder) return null;
 
   return (
     <div className={`subfolder-bar-wrapper ${!visible ? 'subfolder-bar-collapsed' : ''}`}>

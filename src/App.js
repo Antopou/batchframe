@@ -2094,6 +2094,7 @@ function App() {
       <SubfolderBar
         subfolders={subfolders}
         parentFolderPath={parentFolderPath}
+        currentFolder={folderPath}
         onNavigate={handleNavigateToFolder}
         onNavigateUp={handleNavigateUp}
         onNavigateForward={handleNavigateForward}

@@ -8,6 +8,8 @@ const MAX_ZOOM = 8;
 const clampZoom = (z) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
+const preloadCache = new Map();
+
 const FilmstripThumbnail = React.memo(({ image, index, isActive, onClick }) => {
   const [src, setSrc] = useState(image.previewSrc || '');
 
@@ -230,46 +232,81 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
     }
 
     const loadImage = async () => {
-      setImageSrc('');
-      setIsLoading(true);
-
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const minLoadTime = new Promise(resolve => setTimeout(resolve, 250));
-
-      if (!window.electronAPI || !image.path) {
-        await minLoadTime;
+      // 1. Check cache first
+      if (preloadCache.has(image.path)) {
+        setImageSrc(preloadCache.get(image.path));
         setIsLoading(false);
-        return;
-      }
+      } else {
+        setImageSrc('');
+        setIsLoading(true);
 
-      try {
-        const base64 = await window.electronAPI.getImageData(image.path);
-        if (!base64) {
-          await minLoadTime;
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        if (!window.electronAPI || !image.path) {
           setIsLoading(false);
           return;
         }
 
-        const ext = (image.name || '').toLowerCase().split('.').pop();
-        const mime = ext === 'png' ? 'image/png'
-          : ext === 'gif' ? 'image/gif'
-            : ext === 'webp' ? 'image/webp'
-              : ext === 'bmp' ? 'image/bmp'
-                : ext === 'svg' ? 'image/svg+xml'
-                  : 'image/jpeg';
+        try {
+          const base64 = await window.electronAPI.getImageData(image.path);
+          if (base64) {
+            const ext = (image.name || '').toLowerCase().split('.').pop();
+            const mime = ext === 'png' ? 'image/png'
+              : ext === 'gif' ? 'image/gif'
+                : ext === 'webp' ? 'image/webp'
+                  : ext === 'bmp' ? 'image/bmp'
+                    : ext === 'svg' ? 'image/svg+xml'
+                      : 'image/jpeg';
+            const dataUri = `data:${mime};base64,${base64}`;
+            preloadCache.set(image.path, dataUri);
+            if (preloadCache.size > 50) {
+              const firstKey = preloadCache.keys().next().value;
+              preloadCache.delete(firstKey);
+            }
+            setImageSrc(dataUri);
+          }
+          setIsLoading(false);
+        } catch (err) {
+          console.error('Failed to load preview image:', err);
+          setIsLoading(false);
+        }
+      }
 
-        setImageSrc(`data:${mime};base64,${base64}`);
-        await minLoadTime;
-        setIsLoading(false);
-      } catch (err) {
-        console.error('Failed to load preview image:', err);
-        await minLoadTime;
-        setIsLoading(false);
+      // 2. Preload surrounding images (5 ahead, 3 behind)
+      if (images && images.length > 0 && window.electronAPI) {
+        const preloadPaths = [];
+        for (let i = 1; i <= 5; i++) {
+          if (currentIndex + i < images.length) preloadPaths.push(images[currentIndex + i]);
+        }
+        for (let i = 1; i <= 3; i++) {
+          if (currentIndex - i >= 0) preloadPaths.push(images[currentIndex - i]);
+        }
+
+        for (const pImage of preloadPaths) {
+          if (!pImage || !pImage.path || preloadCache.has(pImage.path) || pImage.previewSrc) continue;
+          window.electronAPI.getImageData(pImage.path).then(base64 => {
+            if (base64) {
+              const ext = (pImage.name || '').toLowerCase().split('.').pop();
+              const mime = ext === 'png' ? 'image/png'
+                : ext === 'gif' ? 'image/gif'
+                  : ext === 'webp' ? 'image/webp'
+                    : ext === 'bmp' ? 'image/bmp'
+                      : ext === 'svg' ? 'image/svg+xml'
+                        : 'image/jpeg';
+              const dataUri = `data:${mime};base64,${base64}`;
+              preloadCache.set(pImage.path, dataUri);
+              if (preloadCache.size > 50) {
+                const firstKey = preloadCache.keys().next().value;
+                preloadCache.delete(firstKey);
+              }
+            }
+          }).catch(() => {}); // ignore errors for background preloads
+        }
       }
     };
 
     loadImage();
-  }, [image]);
+  }, [image, images, currentIndex]);
 
   // Keep the container rect cached so the wheel path never forces a reflow
   useEffect(() => {

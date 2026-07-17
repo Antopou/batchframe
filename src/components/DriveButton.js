@@ -123,12 +123,11 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
   }, [manifest]);
 
   const doClear = useCallback(async () => {
-    if (!cacheRoot) return;
     setConfirmClear(false);
     setBusy(true);
     setError(null);
     try {
-      const r = await window.electronAPI.drive.clearCache({ cacheRoot, keepManifest: true });
+      const r = await window.electronAPI.drive.clearAllCache();
       if (!r.ok) {
         setError(r.error === 'unsynced-changes' ? 'Push first — unsynced edits exist.' : (r.error || 'Clear failed'));
       }
@@ -137,7 +136,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
     } finally {
       setBusy(false);
     }
-  }, [cacheRoot]);
+  }, []);
 
   const openMenuAtRect = useCallback((rect) => {
     setMenu({ x: rect.left, y: rect.bottom + 6 });
@@ -273,13 +272,10 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
 
   const menuItems = [];
   if (status?.signedIn) {
-    if (cacheRoot && manifest?.datasetName) {
-      menuItems.push({ label: `Folder: ${manifest.datasetName}`, disabled: true });
-      menuItems.push({ separator: true });
-    }
+    // Removed Folder label as requested
     menuItems.push({
       label: `Push to Drive${dirty ? ` (${dirty})` : ''}`,
-      disabled: !cacheRoot || dirty === 0 || busy,
+      disabled: !cacheRoot || busy,
       onClick: async () => {
         setBusy(true);
         try {
@@ -293,8 +289,8 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
       },
     });
     menuItems.push({
-      label: 'Clear local cache',
-      disabled: !cacheRoot || busy,
+      label: 'Clear Data',
+      disabled: busy,
       onClick: () => setConfirmClear(true),
     });
     menuItems.push({
@@ -303,7 +299,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
       onClick: () => setShowPicker(true),
     });
     menuItems.push({ separator: true });
-    menuItems.push({ label: 'Sign out', onClick: doSignOut });
+    menuItems.push({ label: 'Sign out', danger: true, onClick: doSignOut });
   }
 
   return (
@@ -409,9 +405,9 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
 
       {confirmClear && (
         <ConfirmDialog
-          title="Clear local cache?"
-          message="Removes downloaded files from disk. Manifest is kept so re-opening is fast. Any unsynced edits will block this."
-          confirmLabel="Clear"
+          title="Clear Data?"
+          message="Removes all downloaded Drive files from your disk to save space. Manifests are kept so re-opening is fast. Any unsynced edits will block this."
+          confirmLabel="Clear All"
           danger
           onConfirm={doClear}
           onCancel={() => setConfirmClear(false)}

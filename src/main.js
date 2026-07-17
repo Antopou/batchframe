@@ -882,6 +882,39 @@ ipcMain.handle('drive-clear-cache', async (_e, { cacheRoot, keepManifest = true 
   }
 });
 
+ipcMain.handle('drive-clear-all-cache', async (_e) => {
+  try {
+    const baseDir = driveCacheBaseDir();
+    let entries;
+    try {
+      entries = await require('fs').promises.readdir(baseDir, { withFileTypes: true });
+    } catch {
+      return { ok: true };
+    }
+    
+    const errors = [];
+    for (const e of entries) {
+      if (e.isDirectory()) {
+        const fullPath = path.join(baseDir, e.name);
+        if (require('fs').existsSync(path.join(fullPath, '.sync-manifest.json'))) {
+          const res = await driveSync.clearLocalCache(fullPath, { keepManifest: true });
+          if (!res.ok) {
+            if (res.error === 'unsynced-changes') {
+              errors.push(`'${e.name}' (has unsynced edits)`);
+            } else {
+              errors.push(`'${e.name}' (${res.error})`);
+            }
+          }
+        }
+      }
+    }
+    if (errors.length > 0) return { ok: false, error: 'Could not clear: ' + errors.join(', ') + '. Please push these datasets first.' };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('drive-refresh-manifest', async (_e, { cacheRoot }) => {
   try {
     const m = await driveSync.refreshManifest(cacheRoot);

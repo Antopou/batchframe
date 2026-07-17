@@ -61,6 +61,7 @@ try {
       linkDataset:       ({ localPath, driveFolderId, datasetName }) => ipcRenderer.invoke('drive-link-dataset', { localPath, driveFolderId, datasetName }),
       detectConflicts:   ({ cacheRoot }) => ipcRenderer.invoke('drive-detect-conflicts', { cacheRoot }),
       clearCache:        ({ cacheRoot, keepManifest }) => ipcRenderer.invoke('drive-clear-cache', { cacheRoot, keepManifest }),
+      clearAllCache:     () => ipcRenderer.invoke('drive-clear-all-cache'),
       refreshManifest:   ({ cacheRoot }) => ipcRenderer.invoke('drive-refresh-manifest', { cacheRoot }),
       getManifest:       ({ cacheRoot }) => ipcRenderer.invoke('drive-get-manifest', { cacheRoot }),
       manifestForPath:   (absPath) => ipcRenderer.invoke('drive-manifest-for-path', absPath),

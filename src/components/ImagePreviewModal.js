@@ -300,7 +300,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                 preloadCache.delete(firstKey);
               }
             }
-          }).catch(() => {}); // ignore errors for background preloads
+          }).catch(() => { }); // ignore errors for background preloads
         }
       }
     };

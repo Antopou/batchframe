@@ -177,6 +177,9 @@ function Controls({
       if (e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         setShowAIScan(v => !v);
+      } else if (e.key.toLowerCase() === 'e' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setIsEditing(true);
       }
     };
     window.addEventListener('keydown', handler);

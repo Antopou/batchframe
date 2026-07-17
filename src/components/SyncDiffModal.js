@@ -152,7 +152,9 @@ export default function SyncDiffModal({ manifest, cacheRoot, onConfirm, onCancel
 
         <div className="drive-picker-body">
           {total === 0 ? (
-            <div className="drive-picker-empty">Everything is up to date!</div>
+            <div className="drive-picker-empty">
+              <div className="drive-picker-empty-code">Everything is up to date!</div>
+            </div>
           ) : viewMode === 'list' ? (
             <div className="sync-diff-list">
               {allItems.map((item) => (

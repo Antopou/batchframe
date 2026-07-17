@@ -16,6 +16,7 @@ function SubfolderBar({
   editingFolderPath,
   onRenameCommit,
   onRenameCancel,
+  onDropOnFolder,
 }) {
   if (!currentFolder) return null;
   if (!parentFolderPath && subfolders.length === 0 && !hasForwardHistory && !onCreateFolder) return null;
@@ -59,6 +60,8 @@ function SubfolderBar({
               className="subfolder-chip"
               onClick={() => onNavigate(folder.path)}
               onContextMenu={(e) => onContextMenu && onContextMenu(e, folder)}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+              onDrop={(e) => onDropOnFolder && onDropOnFolder(e, folder)}
               title={folder.path}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

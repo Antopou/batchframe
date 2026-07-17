@@ -31,7 +31,7 @@ function RenameInput({ folder, onCommit, onCancel }) {
   );
 }
 
-function FolderThumbnail({ folder, preview, onClick, onContextMenu, size, orderNumber, orderSelectMode, isEditing, onRenameCommit, onRenameCancel, isSelected, onLongPress }) {
+function FolderThumbnail({ folder, preview, onClick, onContextMenu, size, orderNumber, orderSelectMode, isEditing, onRenameCommit, onRenameCancel, isSelected, onLongPress, onDropOnFolder }) {
   const tiles = (preview || []).filter(p => p && p.dataUrl).slice(0, 4);
   const hasTiles = tiles.length > 0;
   
@@ -72,6 +72,8 @@ function FolderThumbnail({ folder, preview, onClick, onContextMenu, size, orderN
       onPointerLeave={handlePointerUp}
       onDoubleClick={() => onClick && onClick(folder.path)}
       onContextMenu={(e) => onContextMenu && onContextMenu(e, folder)}
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+      onDrop={(e) => onDropOnFolder && onDropOnFolder(e, folder)}
       title={folder.path}
       style={size ? { width: size, height: size } : undefined}
     >

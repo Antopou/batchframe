@@ -7,11 +7,14 @@ function ImageRow({
   image, imageIndex, isSelected, isLocked, onCardClick, onToggleLock,
   onDragMouseDown, onDragMouseEnter, onPreview,
   orderNumber, orderSelectMode, onContextMenu,
-  aiScore, aiCharacter, aiHit, isScanning, driveState,
+  aiScore, aiCharacter, aiHit, isScanning, driveState, onDragStartImage,
   detail = 'thumb',
 }) {
   const [src, setSrc] = useState(image.previewSrc || '');
   const [imageError, setImageError] = useState(false);
+  const [dragReady, setDragReady] = useState(false);
+  const dragTimer = useRef(null);
+  const startPos = useRef(null);
   const wantThumb = detail !== 'plain';
 
   useEffect(() => {
@@ -50,7 +53,46 @@ function ImageRow({
     if (e.detail === 2) onPreview(image, imageIndex);
     else onCardClick(image.path, imageIndex, e.shiftKey);
   };
-  const handleMouseDown = (e) => onDragMouseDown && onDragMouseDown(image.path, imageIndex, isSelected, e.button);
+  const handleMouseDown = (e) => {
+    if (e.button !== 0) return;
+    
+    startPos.current = { x: e.clientX, y: e.clientY };
+    dragTimer.current = setTimeout(() => {
+      setDragReady(true);
+      dragTimer.current = null;
+    }, 300);
+
+    if (onDragMouseDown) {
+      onDragMouseDown(image.path, imageIndex, isSelected, e.button);
+    }
+  };
+
+  const cancelDragTimer = () => {
+    if (dragTimer.current) {
+      clearTimeout(dragTimer.current);
+      dragTimer.current = null;
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (dragTimer.current && startPos.current) {
+      const dx = Math.abs(e.clientX - startPos.current.x);
+      const dy = Math.abs(e.clientY - startPos.current.y);
+      if (dx > 3 || dy > 3) {
+        cancelDragTimer();
+      }
+    }
+  };
+
+  const handleMouseUpOrLeave = () => {
+    cancelDragTimer();
+    setDragReady(false);
+  };
+
+  const handleDragEnd = () => {
+    setDragReady(false);
+  };
+
   const handleMouseEnter = () => onDragMouseEnter && onDragMouseEnter(image.path, imageIndex);
   const handleContextMenu = (e) => { e.preventDefault(); if (onContextMenu) onContextMenu(e, image); };
   const handleLockClick = (e) => { e.stopPropagation(); if (onToggleLock) onToggleLock(image.path); };
@@ -65,9 +107,15 @@ function ImageRow({
       className={`image-row ${detail === 'plain' ? 'plain' : 'thumb'} ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${isScanning ? 'scanning' : ''}`}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUpOrLeave}
+      onMouseLeave={handleMouseUpOrLeave}
       onMouseEnter={handleMouseEnter}
       onContextMenu={handleContextMenu}
       title={image.name}
+      draggable={!orderSelectMode && dragReady}
+      onDragStart={(e) => onDragStartImage && onDragStartImage(e, image.path)}
+      onDragEnd={handleDragEnd}
     >
       {wantThumb ? (
         <div className="image-row-thumb">

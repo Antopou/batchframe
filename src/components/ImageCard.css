@@ -5,7 +5,7 @@
   border: 2px solid transparent;
   border-radius: 8px;
   overflow: hidden;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -48,6 +48,13 @@
 .image-card.locked.selected {
   border-color: var(--green);
   box-shadow: 0 0 0 3px var(--green-glow);
+}
+
+.image-card.drag-ready {
+  transform: scale(1.04);
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  border-color: var(--primary, #6495ED);
 }
 
 .image-card img {

@@ -4,12 +4,24 @@
 const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
+const { Readable } = require('stream');
 const { google } = require('googleapis');
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
 function driveFor(auth) {
   return google.drive({ version: 'v3', auth });
+}
+
+// Upload sources: a file on disk (sync engine) or bytes already in memory (a
+// crop from the renderer's canvas, which never touches disk). Returns null when
+// neither is given, so metadata-only updates skip the media part entirely.
+function mediaBody({ localPath, buffer, mimeType }) {
+  if (!localPath && !buffer) return null;
+  return {
+    mimeType: mimeType || 'application/octet-stream',
+    body: buffer ? Readable.from(buffer) : fs.createReadStream(localPath),
+  };
 }
 
 // Detects an image by mimeType prefix OR by extension (some uploads land as
@@ -36,7 +48,7 @@ async function listFolder(auth, folderId, { includeAll = false } = {}) {
   do {
     const { data } = await drive.files.list({
       q: `'${folderId}' in parents and trashed = false`,
-      fields: 'nextPageToken, files(id, name, mimeType, md5Checksum, size, modifiedTime, parents, thumbnailLink, hasThumbnail)',
+      fields: 'nextPageToken, files(id, name, mimeType, md5Checksum, size, modifiedTime, parents, thumbnailLink, hasThumbnail, webViewLink, imageMediaMetadata(width, height))',
       pageSize: 1000,
       pageToken,
       spaces: 'drive',
@@ -86,7 +98,7 @@ async function getFileMetadata(auth, fileId) {
   const drive = driveFor(auth);
   const { data } = await drive.files.get({
     fileId,
-    fields: 'id, name, mimeType, md5Checksum, size, modifiedTime, parents, trashed, thumbnailLink, hasThumbnail',
+    fields: 'id, name, mimeType, md5Checksum, size, modifiedTime, parents, trashed, thumbnailLink, hasThumbnail, webViewLink, imageMediaMetadata(width, height)',
   });
   return data;
 }
@@ -110,24 +122,21 @@ async function downloadFile(auth, fileId, destPath, { onBytes } = {}) {
 }
 
 // Creates a new file in the given parent folder. Returns the new fileId.
-async function uploadFile(auth, { parentId, name, localPath, mimeType }) {
+async function uploadFile(auth, { parentId, name, localPath, buffer, mimeType }) {
   const drive = driveFor(auth);
   const { data } = await drive.files.create({
     requestBody: {
       name,
       parents: [parentId],
     },
-    media: {
-      mimeType: mimeType || 'application/octet-stream',
-      body: fs.createReadStream(localPath),
-    },
+    media: mediaBody({ localPath, buffer, mimeType }),
     fields: 'id, name, md5Checksum, size, modifiedTime, parents',
   });
   return data;
 }
 
 // Replaces the media of an existing file. Optionally renames / re-parents.
-async function updateFile(auth, fileId, { localPath, mimeType, name, addParents, removeParents } = {}) {
+async function updateFile(auth, fileId, { localPath, buffer, mimeType, name, addParents, removeParents } = {}) {
   const drive = driveFor(auth);
   const params = {
     fileId,
@@ -139,12 +148,8 @@ async function updateFile(auth, fileId, { localPath, mimeType, name, addParents,
     if (addParents) params.addParents = addParents;
     if (removeParents) params.removeParents = removeParents;
   }
-  if (localPath) {
-    params.media = {
-      mimeType: mimeType || 'application/octet-stream',
-      body: fs.createReadStream(localPath),
-    };
-  }
+  const media = mediaBody({ localPath, buffer, mimeType });
+  if (media) params.media = media;
   const { data } = await drive.files.update(params);
   return data;
 }
@@ -152,6 +157,21 @@ async function updateFile(auth, fileId, { localPath, mimeType, name, addParents,
 async function trashFile(auth, fileId) {
   const drive = driveFor(auth);
   await drive.files.update({ fileId, requestBody: { trashed: true } });
+}
+
+// Server-side copy — Drive duplicates the bytes on its own storage, so nothing
+// is downloaded or uploaded. `name` is optional (defaults to "Copy of …").
+async function copyFile(auth, fileId, { parentId, name } = {}) {
+  const drive = driveFor(auth);
+  const requestBody = {};
+  if (parentId) requestBody.parents = [parentId];
+  if (name) requestBody.name = name;
+  const { data } = await drive.files.copy({
+    fileId,
+    requestBody,
+    fields: 'id, name, md5Checksum, size, modifiedTime, parents',
+  });
+  return data;
 }
 
 async function createFolder(auth, { parentId, name }) {
@@ -232,6 +252,7 @@ module.exports = {
   uploadFile,
   updateFile,
   trashFile,
+  copyFile,
   createFolder,
   findFolder,
   findFileInFolder,

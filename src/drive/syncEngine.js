@@ -73,8 +73,24 @@ async function pullDataset(auth, { driveFolderId, datasetName, cacheBaseDir, onP
   const nextFolders = {};
   for (const f of folders) nextFolders[f.relPath] = { driveFileId: f.id };
 
+  // Local dirty state survives a pull. Without this, re-pulling mid-cull
+  // re-downloads locally-deleted files and erases their 'deleted' marks (so
+  // the eventual push would delete nothing on Drive), clobbers unpushed
+  // local edits, and turns unpushed renames into duplicates.
+  const carryOver = {};       // relPath -> entry, every non-clean entry
+  const dirtyIds = new Set(); // driveFileIds owned by those entries
+  for (const [rel, entry] of Object.entries(existing.files)) {
+    if (entry.state && entry.state !== 'clean') {
+      carryOver[rel] = entry;
+      if (entry.driveFileId) dirtyIds.add(entry.driveFileId);
+    }
+  }
+
   const toDownload = [];
   for (const f of files) {
+    // A dirty local entry owns this Drive file (deleted / modified / renamed
+    // locally) — leave it alone; the next push reconciles it.
+    if (dirtyIds.has(f.id)) continue;
     const prior = existing.files[f.relPath];
     const localExists = prior && (await manifest.statLocal(cacheRoot, f.relPath));
     const upToDate = prior
@@ -93,6 +109,9 @@ async function pullDataset(auth, { driveFolderId, datasetName, cacheBaseDir, onP
       state: 'clean',
     };
   }
+
+  // Dirty entries win over any same-relPath clean entry from the walk.
+  Object.assign(nextFiles, carryOver);
 
   const total = toDownload.length;
   let done = 0;
@@ -427,6 +446,7 @@ async function linkDataset(auth, { localPath, driveFolderId, datasetName, onProg
 module.exports = {
   cachePathFor,
   sanitizeName,
+  runPool,
   pullDataset,
   pushDataset,
   linkDataset,

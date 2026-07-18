@@ -62,6 +62,8 @@ function IconBtn({ active, onClick, disabled, title, children }) {
 
 function Controls({
   folderPath,
+  folderLabel,
+  driveLive,
   lastFolderPath,
   recentFolders,
   showRecentFolders,
@@ -175,6 +177,7 @@ function Controls({
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
       if (e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey) {
+        if (driveLive) return; // AI scan needs real local files
         e.preventDefault();
         setShowAIScan(v => !v);
       } else if (e.key.toLowerCase() === 'e' && (e.ctrlKey || e.metaKey)) {
@@ -184,7 +187,7 @@ function Controls({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [driveLive]);
 
   const handlePathSubmit = () => {
     if (editPath.trim() && editPath !== folderPath) {
@@ -222,8 +225,8 @@ function Controls({
     };
   }, [isEditing]);
 
-  const folderName = folderPath ? folderPath.replace(/\\/g, '/').split('/').pop() : '';
-  const hasNumericSuffix = /\d+$/.test(folderName);
+  const folderName = folderLabel || (folderPath ? folderPath.replace(/\\/g, '/').split('/').pop() : '');
+  const hasNumericSuffix = !driveLive && /\d+$/.test(folderName);
 
   return (
     <div className="controls-modern">
@@ -279,7 +282,9 @@ function Controls({
             ) : (
               <div className="path-display" onClick={handlePathFocus} title="Click to edit path">
                 <span className="path-text">
-                  {folderPath.length > 40 ? '…' + folderPath.slice(-37) : folderPath}
+                  {folderLabel
+                    ? `☁ ${folderLabel}`
+                    : folderPath.length > 40 ? '…' + folderPath.slice(-37) : folderPath}
                 </span>
               </div>
             )}
@@ -489,7 +494,7 @@ function Controls({
               Rename
             </button>
           )}
-          {!browserMode && (
+          {!browserMode && !driveLive && (
             <button
               className={`action-btn${showAIScan ? ' active' : ''}`}
               onClick={() => setShowAIScan(v => !v)}
@@ -500,7 +505,7 @@ function Controls({
               AI
             </button>
           )}
-          {!browserMode && (
+          {!browserMode && !driveLive && (
             <button
               onClick={onUseSelectedAsRefs}
               className="action-btn ref"
@@ -515,7 +520,7 @@ function Controls({
               Ref
             </button>
           )}
-          {!browserMode && (
+          {!browserMode && !driveLive && (
             photoshopPath ? (
               <button
                 onClick={onOpenInPhotoshop}
@@ -592,7 +597,7 @@ function Controls({
       )}
 
       {/* ── AI Scan Panel ── */}
-      {totalCount > 0 && !browserMode && showAIScan && (
+      {totalCount > 0 && !browserMode && !driveLive && showAIScan && (
         <div className="controls-section">
           <AIScanPanel
             totalCount={totalCount}

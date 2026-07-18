@@ -166,6 +166,16 @@ function App() {
   const [driveSummary, setDriveSummary] = useState(null);
   const [driveStatesByPath, setDriveStatesByPath] = useState(null);
 
+  // Live Drive mode: folderPath is a drive:// URI and edits go straight to
+  // Drive. driveLiveRequest is bumped by Cmd+Shift+D to open the live picker;
+  // driveLabelsRef maps drive:// paths to display names for the breadcrumb.
+  const [driveLiveRequest, setDriveLiveRequest] = useState(0);
+  const driveLabelsRef = useRef(new Map());
+  const isDriveLive = !!folderPath && folderPath.startsWith('drive://');
+  const folderLabel = isDriveLive
+    ? (driveLabelsRef.current.get(folderPath) || 'Drive folder')
+    : null;
+
   // Listen to fullscreen changes
   useEffect(() => {
     if (window.electronAPI?.onFullscreenChange) {
@@ -499,6 +509,14 @@ function App() {
       setImages(mapped);
       setSubfolders(folderInfo.subfolders);
 
+      // Remember display names for drive:// paths (ids aren't readable).
+      if (pathToLoad.startsWith('drive://')) {
+        if (folderInfo.name) driveLabelsRef.current.set(pathToLoad, folderInfo.name);
+        for (const sf of folderInfo.subfolders || []) {
+          driveLabelsRef.current.set(sf.path, sf.name);
+        }
+      }
+
       let parentPath = folderInfo.parentPath;
       const root = rootFolderPathRef.current;
       if (root && (pathToLoad === root || !pathToLoad.startsWith(root))) {
@@ -690,6 +708,13 @@ function App() {
       setLastFolderPath('');
     }
   }, [lastFolderPath, loadElectronFolder]);
+
+  // Live Drive open: no pull — the drive:// URI itself becomes the workspace.
+  const handleOpenLive = useCallback(({ id, name }) => {
+    const livePath = `drive://${id}`;
+    driveLabelsRef.current.set(livePath, name);
+    loadElectronFolder(livePath, true, true);
+  }, [loadElectronFolder]);
 
   const handleBrowserFolderSelect = useCallback((event) => {
     const files = Array.from(event.target.files || []).filter((f) => f.type.startsWith('image/'));
@@ -977,9 +1002,10 @@ function App() {
   }, []);
 
   const handleOpenInPhotoshop = useCallback(() => {
+    if (isDriveLive) return; // Photoshop would edit a temp copy, not Drive
     if (!photoshopPath || selectedImages.size === 0) return;
     window.electronAPI.openInApp([...selectedImages], photoshopPath);
-  }, [photoshopPath, selectedImages]);
+  }, [photoshopPath, selectedImages, isDriveLive]);
 
   // ── Move selected to folder ────────────────────────────────────
   const handleMoveSelected = useCallback(async () => {
@@ -1274,9 +1300,10 @@ function App() {
 
   // Toolbar shortcut: add the current selection as references in one click
   const handleUseSelectedAsRefs = useCallback(() => {
+    if (isDriveLive) return; // refs are copied on the local filesystem
     if (selectedImages.size === 0) return;
     handleAddToRefs([...selectedImages]);
-  }, [selectedImages, handleAddToRefs]);
+  }, [selectedImages, handleAddToRefs, isDriveLive]);
 
   const handleNavigateFolder = useCallback((delta) => {
     if (!folderPath) return;
@@ -1617,6 +1644,9 @@ function App() {
     ];
     // Filter out actions requiring selection if none selected
     return actions.filter(a => {
+      if (isDriveLive && ['open-photoshop', 'use-as-ref'].includes(a.id)) {
+        return false; // these need real local files
+      }
       if (['copy-selected', 'move-selected', 'delete-selected', 'keep-selected', 'lock-selected', 'unlock-selected', 'bulk-rename', 'open-photoshop', 'use-as-ref'].includes(a.id)) {
         return selectedImages.size > 0;
       }
@@ -1626,7 +1656,7 @@ function App() {
     setViewMode, setListDetail, setImageFitMode, handleSelectAll, handleDeselectAll, handleInvertSelection,
     handleCopySelected, handleMoveSelected, handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected,
     handleOpenBulkRename, handleOpenInPhotoshop, handleUseSelectedAsRefs, setDragSelectEnabled, setOrderSelectMode,
-    setSortBy, setSortDir, handleSelectFolder, selectedImages.size
+    setSortBy, setSortDir, handleSelectFolder, selectedImages.size, isDriveLive
   ]);
 
   // ── Keyboard shortcuts ──────────────────────────────────────────
@@ -1636,6 +1666,15 @@ function App() {
       if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         setShowCommandPalette(p => !p);
+        return;
+      }
+
+      // Open a Drive folder LIVE (edits apply to Drive directly).
+      // Must be tested before the plain Cmd+D branch below, which doesn't
+      // exclude shift and would otherwise swallow the chord.
+      if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+        e.preventDefault();
+        setDriveLiveRequest((n) => n + 1);
         return;
       }
 
@@ -2096,6 +2135,8 @@ function App() {
       <Controls
         browserMode={browserMode}
         folderPath={folderPath}
+        folderLabel={folderLabel}
+        driveLive={isDriveLive}
         lastFolderPath={lastFolderPath}
         recentFolders={recentFolders}
         onOpenLastFolder={handleOpenLastFolder}
@@ -2175,11 +2216,14 @@ function App() {
         onSetActiveCharacter={setActiveCharacter}
         driveSlot={
           <DriveButton
-            localPath={folderPath}
+            localPath={isDriveLive ? null : folderPath}
             cacheRoot={driveCacheRoot}
             manifest={driveManifest}
             summary={driveSummary}
             onDatasetOpened={(cacheRoot) => loadElectronFolder(cacheRoot, true, true)}
+            liveRequest={driveLiveRequest}
+            onOpenLive={handleOpenLive}
+            liveActive={isDriveLive}
           />
         }
       />
@@ -2242,7 +2286,7 @@ function App() {
       {previewImage && (
         <ImagePreviewModal
           image={previewImage}
-          images={images}
+          images={pagedImages}
           currentIndex={previewIndex}
           onClose={handleClosePreview}
           onNext={handleNextPreview}

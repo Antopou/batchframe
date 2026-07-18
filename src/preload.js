@@ -10,7 +10,7 @@ try {
     selectFile: (options) => ipcRenderer.invoke('select-file', options),
     getImages: (folderPath) => ipcRenderer.invoke('get-images', folderPath),
     deleteImages: (filePaths) => ipcRenderer.invoke('delete-images', filePaths),
-    getImageData: (imagePath) => ipcRenderer.invoke('get-image-data', imagePath),
+    getImageData: (imagePath, variant) => ipcRenderer.invoke('get-image-data', imagePath, variant),
     getSubfolders: (folderPath) => ipcRenderer.invoke('get-subfolders', folderPath),
     getFolderPreview: (folderPath, limit) => ipcRenderer.invoke('get-folder-preview', { folderPath, limit }),
     createFolder: (parentPath, name) => ipcRenderer.invoke('create-folder', { parentPath, name }),

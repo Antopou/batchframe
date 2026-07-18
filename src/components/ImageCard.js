@@ -42,7 +42,9 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
       if (isUpdate) setIsUpdating(true);
 
       try {
-        const base64 = await window.electronAPI.getImageData(image.path);
+        // 'thumb' is a hint for Drive-backed paths (serves a small thumbnail
+        // as a full data: URI); local paths ignore it and return bare base64.
+        const base64 = await window.electronAPI.getImageData(image.path, 'thumb');
         if (!base64 || cancelled) return;
 
         const ext = (image.name || '').toLowerCase().split('.').pop();
@@ -53,7 +55,7 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
           : ext === 'svg' ? 'image/svg+xml'
           : 'image/jpeg';
 
-        const dataUrl = `data:${mime};base64,${base64}`;
+        const dataUrl = base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
         if (imageCache.size >= 500) {
           imageCache.delete(imageCache.keys().next().value);
         }

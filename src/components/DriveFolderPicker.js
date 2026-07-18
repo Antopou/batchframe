@@ -4,7 +4,9 @@ import './DriveFolderPicker.css';
 
 const ROOT = { id: 'root', name: 'My Drive' };
 
-function DriveFolderPicker({ localPath, onSelect, onCreateFolder, onLinkDataset, onClose }) {
+// mode: 'normal' pulls into the local cache workflow; 'live' opens the folder
+// directly as a drive:// workspace (caller confirms and sets folderPath).
+function DriveFolderPicker({ localPath, mode = 'normal', onSelect, onCreateFolder, onLinkDataset, onClose }) {
   const [crumbs, setCrumbs] = useState([ROOT]);
   const [folders, setFolders] = useState([]);
   const [images, setImages] = useState([]);
@@ -401,9 +403,13 @@ function DriveFolderPicker({ localPath, onSelect, onCreateFolder, onLinkDataset,
                 className="btn-terminal action-open"
                 disabled={!canChooseRoot && images.length === 0}
                 onClick={chooseCurrent}
-                title={!canChooseRoot ? 'Pick a subfolder before importing' : `Open ${current.name} (Cmd/Ctrl + Enter)`}
+                title={!canChooseRoot
+                  ? 'Pick a subfolder before importing'
+                  : mode === 'live'
+                    ? `Open ${current.name} live — edits apply directly to Drive (Cmd/Ctrl + Enter)`
+                    : `Open ${current.name} (Cmd/Ctrl + Enter)`}
               >
-                [ open ]
+                {mode === 'live' ? '[ open live ]' : '[ open ]'}
               </button>
             )}
           </div>

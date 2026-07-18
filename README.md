@@ -26,6 +26,7 @@ A fast, keyboard-driven desktop application to cull, organize, and manage large 
 - **Cloud Sync**: Directly pull and push folders from/to a Google Drive account.
 - **Conflict Resolution**: Safely detects unsynced changes and prompts you if there are remote conflicts before overwriting.
 - **Local Caching**: Images are cached locally for instantaneous loading, with a tiny visual indicator showing sync status.
+- **Live Drive Mode** (`Cmd/Ctrl+Shift+D`): Open a Drive folder directly as your workspace — no pull, no push. Renames, moves, deletes, and crops apply straight to Drive as you make them (deletes go to Drive's trash). The grid loads from Drive thumbnails; nothing is bulk-downloaded. Photoshop and AI scanning are unavailable in this mode since they need real local files.
 
 ### 🎨 Deep Integrations
 - **Photoshop Link**: One-click export of selected images directly into Adobe Photoshop for manual touch-ups.
@@ -52,6 +53,8 @@ Power users can navigate entirely via the keyboard (when not focused on a text i
 - **Shift + L** - Unlock selected images
 - **Del / Backspace** - Delete selected images (sends to Recycle Bin)
 - **Shift + Del** - Keep selected, delete everything else
+- **Ctrl+D / Cmd+D** - Open the Google Drive panel (pull/push sync)
+- **Ctrl+Shift+D / Cmd+Shift+D** - Open a Drive folder live (edits apply directly to Drive)
 - **Ctrl+A / Cmd+A** - Select all images
 - **Escape** - Deselect all images
 - **Space / Shift+Space** - Scroll page up/down continuously

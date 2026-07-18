@@ -54,6 +54,26 @@
   z-index: 2;
 }
 .drive-btn.connected.has-changes::after { display: none; }
+.drive-btn.connected.live::after { display: none; }
+
+/* Live mode: edits apply directly to Drive. Cyan, gently pulsing. */
+.drive-btn.live {
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.22);
+}
+.drive-btn-badge-live {
+  background: #22d3ee;
+  color: #002229;
+  letter-spacing: 0.4px;
+  box-shadow:
+    0 0 0 2px var(--bg-elevated, #1e1e22),
+    0 0 6px rgba(34, 211, 238, 0.65);
+  animation: drive-live-pulse 2.2s ease-in-out infinite;
+}
+@keyframes drive-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--bg-elevated, #1e1e22), 0 0 4px rgba(34, 211, 238, 0.45); }
+  50%      { box-shadow: 0 0 0 2px var(--bg-elevated, #1e1e22), 0 0 10px rgba(34, 211, 238, 0.85); }
+}
 
 .drive-btn-badge {
   position: absolute;

@@ -13,6 +13,13 @@ const driveOauth = require('./drive/oauthClient');
 const driveApi = require('./drive/driveApi');
 const driveManifest = require('./drive/manifest');
 const driveSync = require('./drive/syncEngine');
+const driveFs = require('./drive/driveFs');
+
+// Auth for live `drive://` paths. Kept as a helper so every guard reads the
+// same and sign-in problems surface as one consistent error.
+function liveAuth() {
+  return driveOauth.getAuthClient();
+}
 
 // Disable GPU acceleration to work around GPU process errors — Windows only.
 // On macOS this forces all rendering onto the CPU, which keeps the machine
@@ -137,6 +144,7 @@ function readImageDimensions(buf, ext) {
 // All helpers are best-effort — they never throw into the caller.
 
 async function markManifestModified(absPath) {
+  if (driveFs.isDrivePath(absPath)) return; // live mode has no manifest
   try {
     const found = await driveManifest.findForAbsPath(absPath);
     if (!found) return;
@@ -148,6 +156,7 @@ async function markManifestModified(absPath) {
 }
 
 async function markManifestDeleted(absPath) {
+  if (driveFs.isDrivePath(absPath)) return; // live mode has no manifest
   try {
     const found = await driveManifest.findForAbsPath(absPath);
     if (!found) return;
@@ -158,6 +167,7 @@ async function markManifestDeleted(absPath) {
 }
 
 async function markManifestRenamed(oldAbsPath, newAbsPath) {
+  if (driveFs.isDrivePath(oldAbsPath)) return; // live mode has no manifest
   try {
     const found = await driveManifest.findForAbsPath(oldAbsPath);
     if (!found) return;
@@ -189,6 +199,9 @@ ipcMain.handle('select-folder', async (event, defaultPath) => {
 });
 
 ipcMain.handle('get-images', async (event, folderPath) => {
+  if (driveFs.isDrivePath(folderPath)) {
+    return driveFs.getImages(await liveAuth(), folderPath);
+  }
   try {
     const files = await fs.readdir(folderPath);
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
@@ -214,6 +227,9 @@ ipcMain.handle('get-images', async (event, folderPath) => {
 });
 
 ipcMain.handle('get-folder-preview', async (event, { folderPath, limit = 4 }) => {
+  if (driveFs.isDrivePath(folderPath)) {
+    return driveFs.getFolderPreview(await liveAuth(), folderPath, limit);
+  }
   try {
     const files = await fs.readdir(folderPath);
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
@@ -243,6 +259,9 @@ ipcMain.handle('get-folder-preview', async (event, { folderPath, limit = 4 }) =>
 });
 
 ipcMain.handle('get-subfolders', async (event, folderPath) => {
+  if (driveFs.isDrivePath(folderPath)) {
+    return driveFs.getSubfolders(await liveAuth(), folderPath);
+  }
   try {
     const entries = await fs.readdir(folderPath, { withFileTypes: true });
     const subfolders = entries
@@ -257,6 +276,9 @@ ipcMain.handle('get-subfolders', async (event, folderPath) => {
 });
 
 ipcMain.handle('create-folder', async (event, { parentPath, name }) => {
+  if (driveFs.isDrivePath(parentPath)) {
+    return driveFs.createFolder(await liveAuth(), { parentPath, name });
+  }
   try {
     const newPath = path.join(parentPath, name);
     await fs.mkdir(newPath, { recursive: true });
@@ -268,6 +290,9 @@ ipcMain.handle('create-folder', async (event, { parentPath, name }) => {
 });
 
 ipcMain.handle('rename-folder', async (event, { oldPath, newName }) => {
+  if (driveFs.isDrivePath(oldPath)) {
+    return driveFs.renameFolder(await liveAuth(), { oldPath, newName });
+  }
   try {
     const newPath = path.join(path.dirname(oldPath), newName);
     await fs.rename(oldPath, newPath);
@@ -279,6 +304,9 @@ ipcMain.handle('rename-folder', async (event, { oldPath, newName }) => {
 });
 
 ipcMain.handle('delete-folder', async (event, folderPath) => {
+  if (driveFs.isDrivePath(folderPath)) {
+    return driveFs.deleteFolder(await liveAuth(), folderPath);
+  }
   try {
     const { default: trash } = await import('trash');
     await trash(folderPath);
@@ -290,6 +318,10 @@ ipcMain.handle('delete-folder', async (event, folderPath) => {
 });
 
 ipcMain.handle('delete-images', async (event, filePaths) => {
+  if (filePaths.length && driveFs.isDrivePath(filePaths[0])) {
+    return driveFs.deleteImages(await liveAuth(), filePaths,
+      (p) => event.sender.send('delete-progress', p));
+  }
   const total = filePaths.length;
   const chunkSize = 20; // Smaller chunks for more frequent progress updates
   let success = true;
@@ -332,7 +364,10 @@ ipcMain.handle('delete-images', async (event, filePaths) => {
   }
 });
 
-ipcMain.handle('get-image-data', async (event, imagePath) => {
+ipcMain.handle('get-image-data', async (event, imagePath, variant) => {
+  if (driveFs.isDrivePath(imagePath)) {
+    return driveFs.getImageData(await liveAuth(), imagePath, variant || 'full');
+  }
   try {
     const data = await fs.readFile(imagePath);
     return Buffer.from(data).toString('base64');
@@ -343,6 +378,9 @@ ipcMain.handle('get-image-data', async (event, imagePath) => {
 });
 
 ipcMain.handle('save-cropped-image', async (event, { originalPath, dataUrl }) => {
+  if (driveFs.isDrivePath(originalPath)) {
+    return driveFs.saveCroppedImage(await liveAuth(), { originalPath, dataUrl });
+  }
   try {
     const match = /^data:image\/(\w+);base64,(.+)$/s.exec(dataUrl || '');
     if (!match) return { success: false, error: 'Invalid image data' };
@@ -374,6 +412,9 @@ ipcMain.handle('save-cropped-image', async (event, { originalPath, dataUrl }) =>
 });
 
 ipcMain.handle('rename-images', async (event, renames) => {
+  if (renames.length && driveFs.isDrivePath(renames[0].oldPath)) {
+    return driveFs.renameImages(await liveAuth(), renames);
+  }
   try {
     for (const { oldPath, newName } of renames) {
       const newPath = path.join(path.dirname(oldPath), newName);
@@ -424,6 +465,13 @@ ipcMain.handle('select-file', async (event, options = {}) => {
 });
 
 ipcMain.handle('move-images', async (event, { filePaths, destFolder }) => {
+  if (driveFs.isDrivePath(destFolder) || (filePaths.length && driveFs.isDrivePath(filePaths[0]))) {
+    if (!driveFs.isDrivePath(destFolder) || !filePaths.every(driveFs.isDrivePath)) {
+      return { success: false, moved: [], failed: filePaths.map((p) => ({ path: p, error: 'Cannot move between Drive and local storage in live mode' })) };
+    }
+    return driveFs.moveImages(await liveAuth(), { filePaths, destFolder },
+      (p) => event.sender.send('move-progress', p));
+  }
   const results = { moved: [], failed: [] };
   const exists = (p) => fs.access(p).then(() => true).catch(() => false);
 
@@ -463,6 +511,13 @@ ipcMain.handle('move-images', async (event, { filePaths, destFolder }) => {
 });
 
 ipcMain.handle('copy-images', async (event, { filePaths, destFolder }) => {
+  if (driveFs.isDrivePath(destFolder) || (filePaths.length && driveFs.isDrivePath(filePaths[0]))) {
+    if (!driveFs.isDrivePath(destFolder) || !filePaths.every(driveFs.isDrivePath)) {
+      return { success: false, copied: [], failed: filePaths.map((p) => ({ src: p, error: 'Cannot copy between Drive and local storage in live mode' })) };
+    }
+    return driveFs.copyImages(await liveAuth(), { filePaths, destFolder },
+      (p) => event.sender.send('copy-progress', p));
+  }
   const results = { success: true, copied: [], failed: [] };
   const exists = (p) => fs.access(p).then(() => true).catch(() => false);
   for (let i = 0; i < filePaths.length; i++) {
@@ -502,12 +557,17 @@ ipcMain.handle('export-paths', async (event, { filePaths }) => {
 // ── Folder watcher (auto-reload on external changes, e.g. Photoshop save) ──
 let folderWatcher = null;
 let watchDebounce = null;
+let driveWatchStop = null;
 const pendingChanges = new Set();
 
 function stopFolderWatcher() {
   if (folderWatcher) {
     try { folderWatcher.close(); } catch {}
     folderWatcher = null;
+  }
+  if (driveWatchStop) {
+    try { driveWatchStop(); } catch {}
+    driveWatchStop = null;
   }
   if (watchDebounce) { clearTimeout(watchDebounce); watchDebounce = null; }
   pendingChanges.clear();
@@ -516,6 +576,22 @@ function stopFolderWatcher() {
 ipcMain.handle('start-folder-watch', async (event, folderPath) => {
   stopFolderWatcher();
   if (!folderPath) return { success: false };
+  // Live Drive folders can't use fs.watch — poll the listing and emit the
+  // same folder-change payloads, so web-UI edits appear in the grid.
+  if (driveFs.isDrivePath(folderPath)) {
+    try {
+      const auth = await liveAuth();
+      driveWatchStop = driveFs.watchFolder(auth, folderPath, (changes) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('folder-change', { folderPath, changes });
+        }
+      });
+      return { success: true };
+    } catch (err) {
+      console.error('drive watch failed:', err);
+      return { success: false, error: err.message };
+    }
+  }
   try {
     const fsSync = require('fs');
     if (!fsSync.existsSync(folderPath)) {
@@ -556,12 +632,29 @@ ipcMain.handle('stop-folder-watch', async () => {
   return { success: true };
 });
 
+// For live Drive paths, "open" and "reveal" both mean the Drive web UI.
+async function openInDriveWeb(filePath) {
+  try {
+    const auth = await liveAuth();
+    const meta = await driveApi.getFileMetadata(auth, driveFs.driveId(filePath));
+    if (meta.webViewLink) {
+      await shell.openExternal(meta.webViewLink);
+      return { success: true };
+    }
+    return { success: false, error: 'No web link available' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
 ipcMain.handle('open-path', async (event, filePath) => {
+  if (driveFs.isDrivePath(filePath)) return openInDriveWeb(filePath);
   const err = await shell.openPath(filePath);
   return { success: !err, error: err || null };
 });
 
-ipcMain.handle('show-in-folder', (event, filePath) => {
+ipcMain.handle('show-in-folder', async (event, filePath) => {
+  if (driveFs.isDrivePath(filePath)) return openInDriveWeb(filePath);
   shell.showItemInFolder(filePath);
   return { success: true };
 });
@@ -570,6 +663,9 @@ const REFS_BASE  = path.join(__dirname, '..', 'references');
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
 ipcMain.handle('path-exists', async (_, p) => {
+  if (driveFs.isDrivePath(p)) {
+    return driveFs.pathExists(await liveAuth(), p);
+  }
   try { await fs.access(p); return true; } catch { return false; }
 });
 
@@ -688,6 +784,11 @@ ipcMain.handle('detect-faces', async (event, { imagePaths }) => {
 
 ipcMain.handle('get-image-metadata', async (event, filePath) => {
   try {
+    // Live Drive paths: pull the bytes into the local byte-cache first, then
+    // run the same PNG chunk parse below on the materialised file.
+    if (driveFs.isDrivePath(filePath)) {
+      filePath = await driveFs.materialize(await liveAuth(), filePath);
+    }
     const buf = await fs.readFile(filePath);
     const PNG_SIG = [137, 80, 78, 71, 13, 10, 26, 10];
     for (let i = 0; i < 8; i++) {
@@ -954,6 +1055,8 @@ ipcMain.handle('drive-get-manifest', async (_e, { cacheRoot }) => {
 ipcMain.handle('drive-manifest-for-path', async (_e, absPath) => {
   try {
     if (!absPath) return { isCache: false };
+    // Live drive:// workspaces have no manifest by design.
+    if (driveFs.isDrivePath(absPath)) return { isCache: false };
     // Only treat as cache if the path itself contains a manifest at its root.
     const m = await driveManifest.read(absPath);
     if (!m) return { isCache: false };

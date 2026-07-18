@@ -25,7 +25,8 @@ function ImageRow({
       const cached = imageCache.get(cacheKey);
       if (cached) { setSrc(cached); return; }
       try {
-        const base64 = await window.electronAPI.getImageData(image.path);
+        // 'thumb' is a hint for Drive-backed paths; local paths ignore it.
+        const base64 = await window.electronAPI.getImageData(image.path, 'thumb');
         if (!base64 || cancelled) return;
         const ext = (image.name || '').toLowerCase().split('.').pop();
         const mime = ext === 'png' ? 'image/png'
@@ -34,7 +35,7 @@ function ImageRow({
           : ext === 'bmp' ? 'image/bmp'
           : ext === 'svg' ? 'image/svg+xml'
           : 'image/jpeg';
-        const dataUrl = `data:${mime};base64,${base64}`;
+        const dataUrl = base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
         if (imageCache.size >= 500) imageCache.delete(imageCache.keys().next().value);
         imageCache.set(cacheKey, dataUrl);
         setSrc(dataUrl);

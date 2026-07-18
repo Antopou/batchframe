@@ -13,16 +13,20 @@ const LONG_PRESS_MS = 500;
 // Right click / long-press: context menu (Push / Clear cache / Sign out).
 // State overlays: green dot (connected), amber count pill (dirty), spinner ring (busy).
 // Transient progress pill anchored under the button during pull/push.
-function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened }) {
+// liveRequest (a counter, bumped by Cmd+Shift+D) opens the picker in live
+// mode; a picked folder is confirmed and handed to onOpenLive({ id, name }).
+function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened, liveRequest, onOpenLive, liveActive }) {
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [progress, setProgress] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState('normal'); // 'normal' | 'live'
   const [menu, setMenu] = useState(null); // { x, y }
   const [conflictDialog, setConflictDialog] = useState(null);
   const [reviewPush, setReviewPush] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmLive, setConfirmLive] = useState(null); // { id, name } | null
   const [error, setError] = useState(null);
   const [autoOpenSync, setAutoOpenSync] = useState(false);
 
@@ -64,6 +68,41 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
       setTimeout(() => setReviewPush(true), 100);
     }
   }, [autoOpenSync, manifest, status?.configured]);
+
+  // Cmd+Shift+D: open the picker in live mode, signing in first if needed.
+  // Reads status fresh so a stale prop can't route us wrong.
+  useEffect(() => {
+    if (!liveRequest || !window.electronAPI?.drive) return;
+    let cancelled = false;
+    (async () => {
+      const st = await window.electronAPI.drive.status();
+      if (cancelled) return;
+      setStatus(st);
+      if (!st?.configured) {
+        setError('Set GOOGLE_CLIENT_ID in .env to use Drive');
+        return;
+      }
+      if (!st.signedIn) {
+        setSigningIn(true);
+        try {
+          const r = await window.electronAPI.drive.signIn();
+          if (!r.success) throw new Error(r.error || 'Sign-in failed');
+          if (cancelled) return;
+          setStatus(await window.electronAPI.drive.status());
+        } catch (e) {
+          if (!cancelled) setError(e.message);
+          return;
+        } finally {
+          if (!cancelled) setSigningIn(false);
+        }
+      }
+      if (!cancelled) {
+        setPickerMode('live');
+        setShowPicker(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [liveRequest]);
 
   // ── Handlers ───────────────────────────────────────────────
   const doSignIn = useCallback(async () => {
@@ -165,6 +204,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
         setReviewPush(true);
       }
     } else {
+      setPickerMode('normal');
       setShowPicker(true);
     }
   }, [status, doSignIn, summary?.dirty, cacheRoot]);
@@ -196,6 +236,11 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
 
   const handlePicked = useCallback(async ({ id, name }) => {
     setShowPicker(false);
+    if (pickerMode === 'live') {
+      // No pull — confirm, then the app opens drive://<id> as the workspace.
+      setConfirmLive({ id, name });
+      return;
+    }
     setBusy(true);
     setError(null);
     setProgress({ phase: 'listing' });
@@ -209,7 +254,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
     } finally {
       setBusy(false);
     }
-  }, [onDatasetOpened]);
+  }, [onDatasetOpened, pickerMode]);
 
   const handleCreateFolder = useCallback(async ({ parentId, name }) => {
     setBusy(true);
@@ -258,6 +303,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
     dirty > 0 && 'has-changes',
     (busy || signingIn || progress) && 'busy',
     menu && 'menu-open',
+    liveActive && 'live',
   ].filter(Boolean).join(' ');
 
   const tooltip = !status
@@ -266,9 +312,11 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
       ? 'Set CLIENT_ID in src/drive/config.js'
       : !status.signedIn
         ? 'Sign in to Google Drive'
-        : cacheRoot
-          ? `Drive · ${manifest?.datasetName || ''}${dirty ? ` · ${dirty} unsynced` : ''}`
-          : 'Open folder from Drive';
+        : liveActive
+          ? 'LIVE — edits apply directly to Drive'
+          : cacheRoot
+            ? `Drive · ${manifest?.datasetName || ''}${dirty ? ` · ${dirty} unsynced` : ''}`
+            : 'Open folder from Drive';
 
   const menuItems = [];
   if (status?.signedIn) {
@@ -296,7 +344,12 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
     menuItems.push({
       label: 'Change folder…',
       disabled: busy,
-      onClick: () => setShowPicker(true),
+      onClick: () => { setPickerMode('normal'); setShowPicker(true); },
+    });
+    menuItems.push({
+      label: 'Open live folder…',
+      disabled: busy,
+      onClick: () => { setPickerMode('live'); setShowPicker(true); },
     });
     menuItems.push({ separator: true });
     menuItems.push({ label: 'Sign out', danger: true, onClick: doSignOut });
@@ -315,9 +368,11 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
         title={tooltip}
       >
         <span className="drive-btn-icon"><DriveIcon size={14} /></span>
-        {dirty > 0 && status?.signedIn && (
+        {liveActive && status?.signedIn ? (
+          <span className="drive-btn-badge drive-btn-badge-live">LIVE</span>
+        ) : dirty > 0 && status?.signedIn ? (
           <span className="drive-btn-badge">{dirty > 99 ? '99+' : dirty}</span>
-        )}
+        ) : null}
       </button>
 
       {progress && <ProgressPill progress={progress} />}
@@ -326,11 +381,27 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened 
 
       {showPicker && (
         <DriveFolderPicker
-          localPath={localPath}
+          localPath={pickerMode === 'live' ? null : localPath}
+          mode={pickerMode}
           onSelect={handlePicked}
           onCreateFolder={handleCreateFolder}
           onLinkDataset={handleLinkDataset}
           onClose={() => setShowPicker(false)}
+        />
+      )}
+
+      {confirmLive && (
+        <ConfirmDialog
+          title={`Open "${confirmLive.name}" live?`}
+          message="Every edit — crop, rename, move, delete — applies directly to your Drive as you make it. Deletes go to Drive's trash. Nothing is downloaded up front."
+          confirmLabel="Open Live"
+          danger
+          onConfirm={() => {
+            const picked = confirmLive;
+            setConfirmLive(null);
+            onOpenLive?.(picked);
+          }}
+          onCancel={() => setConfirmLive(null)}
         />
       )}
 

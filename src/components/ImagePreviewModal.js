@@ -21,7 +21,9 @@ const FilmstripThumbnail = React.memo(({ image, index, isActive, onClick }) => {
     }
     if (!window.electronAPI || !image.path) return;
 
-    window.electronAPI.getImageData(image.path).then(base64 => {
+    // 'thumb' keeps Drive-backed strips cheap (small thumbnail, disk-cached);
+    // local paths ignore it and return full-size bare base64 as before.
+    window.electronAPI.getImageData(image.path, 'thumb').then(base64 => {
       if (cancelled || !base64) return;
       const ext = (image.name || '').toLowerCase().split('.').pop();
       const mime = ext === 'png' ? 'image/png'
@@ -30,7 +32,7 @@ const FilmstripThumbnail = React.memo(({ image, index, isActive, onClick }) => {
             : ext === 'bmp' ? 'image/bmp'
               : ext === 'svg' ? 'image/svg+xml'
                 : 'image/jpeg';
-      setSrc(`data:${mime};base64,${base64}`);
+      setSrc(base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`);
     }).catch(err => {
       if (!cancelled) console.error('Failed to load filmstrip thumb:', err);
     });

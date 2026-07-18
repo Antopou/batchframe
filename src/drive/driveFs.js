@@ -381,19 +381,57 @@ async function deleteImages(auth, filePaths, onProgress) {
   return firstError ? { success: false, error: firstError.message } : { success: true };
 }
 
+// Finder-style " (n)" suffix on name collision. `reserved` collects names
+// already claimed earlier in the same batch so concurrent jobs don't pick
+// the same suffix.
+async function resolveDriveName(auth, parentId, name, reserved) {
+  const ext = path.extname(name);
+  const base = path.basename(name, ext);
+  const taken = async (candidate) => {
+    if (reserved.has(candidate)) return true;
+    const hit = await driveApi.findFileInFolder(auth, parentId, candidate);
+    return !!hit;
+  };
+  let candidate = name;
+  let n = 1;
+  while (await taken(candidate)) {
+    candidate = `${base} (${n})${ext}`;
+    n += 1;
+  }
+  reserved.add(candidate);
+  return candidate;
+}
+
 // move-images({ filePaths, destFolder }) → { success, moved, failed }
 async function moveImages(auth, { filePaths, destFolder }, onProgress) {
   const destId = driveId(destFolder);
   const results = { moved: [], failed: [] };
   let done = 0;
-  const jobs = filePaths.map((src) => async () => {
+  const reserved = new Set();
+  const prepared = [];
+  for (const src of filePaths) {
     try {
       const id = driveId(src);
       const meta = await metaFor(auth, id);
-      await driveApi.updateFile(auth, id, {
+      const sameParent = (meta.parents || []).includes(destId);
+      const finalName = sameParent
+        ? meta.name
+        : await resolveDriveName(auth, destId, meta.name, reserved);
+      prepared.push({ src, id, meta, finalName });
+    } catch (err) {
+      results.failed.push({ path: src, error: err.message });
+      done += 1;
+      onProgress?.({ current: done, total: filePaths.length });
+    }
+  }
+  const jobs = prepared.map(({ src, id, meta, finalName }) => async () => {
+    try {
+      const opts = {
         addParents: destId,
         removeParents: (meta.parents || []).join(','),
-      });
+      };
+      if (finalName !== meta.name) opts.name = finalName;
+      await driveApi.updateFile(auth, id, opts);
       results.moved.push(src);
     } catch (err) {
       results.failed.push({ path: src, error: err.message });
@@ -412,9 +450,22 @@ async function copyImages(auth, { filePaths, destFolder }, onProgress) {
   const destId = driveId(destFolder);
   const results = { success: true, copied: [], failed: [] };
   let done = 0;
-  const jobs = filePaths.map((src) => async () => {
+  const reserved = new Set();
+  const prepared = [];
+  for (const src of filePaths) {
     try {
-      const created = await driveApi.copyFile(auth, driveId(src), { parentId: destId });
+      const meta = await metaFor(auth, driveId(src));
+      const finalName = await resolveDriveName(auth, destId, meta.name, reserved);
+      prepared.push({ src, finalName });
+    } catch (err) {
+      results.failed.push({ src, error: err.message });
+      done += 1;
+      onProgress?.({ current: done, total: filePaths.length });
+    }
+  }
+  const jobs = prepared.map(({ src, finalName }) => async () => {
+    try {
+      const created = await driveApi.copyFile(auth, driveId(src), { parentId: destId, name: finalName });
       results.copied.push(joinDrive(destFolder, created.id));
     } catch (err) {
       results.failed.push({ src, error: err.message });

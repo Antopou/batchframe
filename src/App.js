@@ -11,6 +11,8 @@ import RenameModal from './components/RenameModal';
 import AutoCropModal from './components/AutoCropModal';
 import CommandPalette from './components/CommandPalette';
 import DriveButton from './components/DriveButton';
+import DriveDestinationPicker from './components/DriveDestinationPicker';
+import LocalDestinationPicker from './components/LocalDestinationPicker';
 import { boxToCropRect } from './utils/faceCrop';
 
 const LAST_FOLDER_KEY = 'batchframe-last-folder';
@@ -123,6 +125,9 @@ function App() {
 
   // Command Palette
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+
+  // Drive folder picker for move/copy destinations (replaces native folder dialog when in Drive live mode)
+  const [drivePickAction, setDrivePickAction] = useState(null);
 
   // Move state
   const [isMoving, setIsMoving] = useState(false);
@@ -1008,20 +1013,9 @@ function App() {
   }, [photoshopPath, selectedImages, isDriveLive]);
 
   // ── Move selected to folder ────────────────────────────────────
-  const handleMoveSelected = useCallback(async () => {
-    if (!window.electronAPI || selectedImages.size === 0) return;
-    
-    let defaultDir = folderPath;
-    if (lastTargetRef.current.base === folderPath && lastTargetRef.current.target) {
-      defaultDir = lastTargetRef.current.target;
-    }
-    
-    const dest = await window.electronAPI.selectFolder(defaultDir);
-    if (!dest) return;
-    
+  const performMoveToDest = useCallback(async (dest) => {
+    if (!dest || dest === folderPath) return;
     lastTargetRef.current = { base: folderPath, target: dest };
-    
-    if (dest === folderPath) return;
     const movable = images.filter(img => selectedImages.has(img.path) && !lockedImages.has(img.path));
     if (movable.length === 0) return;
     const proceed = confirmRequired
@@ -1046,20 +1040,14 @@ function App() {
     }
   }, [selectedImages, images, lockedImages, folderPath, confirmRequired, showConfirm]);
 
-  // ── Copy selected to folder ────────────────────────────────────
-  const handleCopySelected = useCallback(async () => {
+  const handleMoveSelected = useCallback(async () => {
     if (!window.electronAPI || selectedImages.size === 0) return;
-    
-    let defaultDir = folderPath;
-    if (lastTargetRef.current.base === folderPath && lastTargetRef.current.target) {
-      defaultDir = lastTargetRef.current.target;
-    }
-    
-    const dest = await window.electronAPI.selectFolder(defaultDir);
-    if (!dest) return;
-    
+    setDrivePickAction('move');
+  }, [selectedImages]);
+
+  // ── Copy selected to folder ────────────────────────────────────
+  const performCopyToDest = useCallback(async (dest) => {
     lastTargetRef.current = { base: folderPath, target: dest };
-    
     const filePaths = [...selectedImages].filter(p => !lockedImages.has(p));
     if (filePaths.length === 0) return;
     setIsCopying(true);
@@ -1074,7 +1062,42 @@ function App() {
       setIsCopying(false);
       setCopyProgress({ current: 0, total: 0 });
     }
-  }, [selectedImages, lockedImages]);
+  }, [selectedImages, lockedImages, folderPath]);
+
+  const handleCopySelected = useCallback(async () => {
+    if (!window.electronAPI || selectedImages.size === 0) return;
+    setDrivePickAction('copy');
+  }, [selectedImages]);
+
+  const handleDrivePickCreateFolder = useCallback(async ({ parentId, name }) => {
+    try {
+      const r = await window.electronAPI.drive.createFolder({ parentId, name });
+      if (!r.success) throw new Error(r.error || 'Failed to create folder');
+      return r.folder;
+    } catch (e) {
+      console.error('Create folder failed:', e);
+      return null;
+    }
+  }, []);
+
+  const handleDrivePickSelected = useCallback(async ({ id, name }) => {
+    const action = drivePickAction;
+    setDrivePickAction(null);
+    if (!action || !id) return;
+    const dest = `drive://${id}`;
+    driveLabelsRef.current.set(dest, name);
+    if (action === 'move') await performMoveToDest(dest);
+    else if (action === 'copy') await performCopyToDest(dest);
+  }, [drivePickAction, performMoveToDest, performCopyToDest]);
+
+  const handleLocalPickSelected = useCallback(async (destPath) => {
+    const action = drivePickAction;
+    setDrivePickAction(null);
+    if (!action || !destPath) return;
+    lastTargetRef.current = { base: folderPath, target: destPath };
+    if (action === 'move') await performMoveToDest(destPath);
+    else if (action === 'copy') await performCopyToDest(destPath);
+  }, [drivePickAction, folderPath, performMoveToDest, performCopyToDest]);
 
   // ── Export selected paths to .txt ─────────────────────────────
   const handleExportPaths = useCallback(async () => {
@@ -2354,6 +2377,29 @@ function App() {
           onRun={handleAutoCropFace}
           onClose={handleCloseAutoCrop}
         />
+      )}
+      {drivePickAction && (
+        isDriveLive ? (
+          <DriveDestinationPicker
+            action={drivePickAction}
+            sourceFolderId={folderPath ? folderPath.replace(/^drive:\/\//, '').split('/').filter(Boolean).pop() : null}
+            onSelect={handleDrivePickSelected}
+            onCreateFolder={handleDrivePickCreateFolder}
+            onClose={() => setDrivePickAction(null)}
+          />
+        ) : (
+          <LocalDestinationPicker
+            action={drivePickAction}
+            startPath={
+              lastTargetRef.current.base === folderPath && lastTargetRef.current.target
+                ? lastTargetRef.current.target
+                : folderPath
+            }
+            sourcePath={folderPath}
+            onSelect={handleLocalPickSelected}
+            onClose={() => setDrivePickAction(null)}
+          />
+        )
       )}
       <CommandPalette
         isOpen={showCommandPalette}

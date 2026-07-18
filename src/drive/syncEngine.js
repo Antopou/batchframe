@@ -183,6 +183,9 @@ async function detectConflicts(auth, cacheRoot) {
       continue;
     }
     // File we don't track — is it a new file inside one of our folders?
+    // Skip if it's a folder we already track (e.g. created by our own recent push).
+    if (folderIds.has(c.fileId)) continue;
+
     const parents = c.file.parents || [];
     if (parents.some((p) => folderIds.has(p))) {
       conflicts.push({
@@ -368,6 +371,7 @@ async function pushDataset(auth, cacheRoot, { onProgress, force = false } = {}) 
 
   // Refresh the change cursor so the next push has a clean baseline.
   m.startPageToken = newStartPageToken || (await driveApi.getStartPageToken(auth));
+  m.pulledAt = new Date().toISOString();
   await manifest.write(cacheRoot, m);
   onProgress?.({ phase: 'done', current: total, total });
   return { ok: true, manifest: m };
@@ -431,9 +435,12 @@ async function refreshManifest(cacheRoot) {
 
 async function linkDataset(auth, { localPath, driveFolderId, datasetName, onProgress }) {
   if (onProgress) onProgress({ type: 'status', text: 'Initializing manifest...' });
+  const startPageToken = await driveApi.getStartPageToken(auth);
   const m = {
     driveFolderId,
     datasetName,
+    pulledAt: new Date().toISOString(),
+    startPageToken,
     files: {},
     folders: {}
   };

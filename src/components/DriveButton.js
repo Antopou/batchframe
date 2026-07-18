@@ -337,6 +337,11 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
       },
     });
     menuItems.push({
+      label: 'Pull from Drive',
+      disabled: !cacheRoot || busy,
+      onClick: doPullFirst,
+    });
+    menuItems.push({
       label: 'Clear Data',
       disabled: busy,
       onClick: () => setConfirmClear(true),

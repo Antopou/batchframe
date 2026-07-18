@@ -8,8 +8,11 @@
 /* ── Trigger button ── */
 .drive-btn {
   position: relative;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   padding: 0;
   border-radius: 8px;
   background: var(--bg-elevated, #1e1e22);
@@ -20,47 +23,54 @@
   -webkit-user-select: none;
   user-select: none;
 }
+
 .drive-btn:hover {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.12);
 }
-.drive-btn:active { transform: scale(0.96); }
-.drive-btn.unconfigured { opacity: 0.5; cursor: help; }
+
+.drive-btn:active {
+  transform: scale(0.96);
+}
+
+.drive-btn.unconfigured {
+  opacity: 0.5;
+  cursor: help;
+}
+
 .drive-btn.menu-open {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.16);
 }
 
 .drive-btn-icon {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
   position: relative;
   z-index: 1;
 }
 
-/* Green connected dot — bottom-right, glowing. */
-.drive-btn.connected::after {
-  content: '';
-  position: absolute;
-  bottom: 3px;
-  right: 3px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #4ade80;
-  box-shadow:
-    0 0 0 2px var(--bg-elevated, #1e1e22),
-    0 0 6px rgba(74, 222, 128, 0.7);
-  z-index: 2;
+/* ── Connection State ── */
+/* When not connected (or not signed in), the icon is dimmed and grayscale */
+.drive-btn:not(.connected) .drive-btn-icon {
+  filter: grayscale(100%) opacity(0.5);
+  transition: filter 0.2s ease;
 }
-.drive-btn.connected.has-changes::after { display: none; }
-.drive-btn.connected.live::after { display: none; }
+
+.drive-btn.connected .drive-btn-icon {
+  filter: grayscale(0%) opacity(1);
+  transition: filter 0.2s ease;
+}
 
 /* Live mode: edits apply directly to Drive. Cyan, gently pulsing. */
 .drive-btn.live {
   border-color: rgba(34, 211, 238, 0.45);
   box-shadow: 0 0 10px rgba(34, 211, 238, 0.22);
 }
+
 .drive-btn-badge-live {
   background: #22d3ee;
   color: #002229;
@@ -68,32 +78,49 @@
   box-shadow:
     0 0 0 2px var(--bg-elevated, #1e1e22),
     0 0 6px rgba(34, 211, 238, 0.65);
-  animation: drive-live-pulse 2.2s ease-in-out infinite;
+  animation: drive-live-pulse 4s ease-in-out infinite;
 }
+
 @keyframes drive-live-pulse {
-  0%, 100% { box-shadow: 0 0 0 2px var(--bg-elevated, #1e1e22), 0 0 4px rgba(34, 211, 238, 0.45); }
-  50%      { box-shadow: 0 0 0 2px var(--bg-elevated, #1e1e22), 0 0 10px rgba(34, 211, 238, 0.85); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--bg-elevated, #1e1e22), 0 0 4px rgba(34, 211, 238, 0.35);
+  }
+
+  50% {
+    box-shadow: 0 0 0 2px var(--bg-elevated, #1e1e22), 0 0 6px rgba(34, 211, 238, 0.55);
+  }
 }
 
 .drive-btn-badge {
   position: absolute;
-  bottom: 1px;
-  right: 1px;
-  min-width: 14px;
-  height: 12px;
-  padding: 0 3px;
+  bottom: -2px;
+  right: -2px;
+  min-width: 12px;
+  height: 10px;
+  padding: 0 2px;
   border-radius: 999px;
   background: #ffcc66;
   color: #1a1300;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
-  line-height: 12px;
+  line-height: 10px;
   text-align: center;
   box-shadow:
-    0 0 0 2px var(--bg-elevated, #1e1e22),
+    0 0 0 1px var(--bg-elevated, #1e1e22),
     0 0 6px rgba(255, 204, 102, 0.6);
   font-variant-numeric: tabular-nums;
   z-index: 2;
+  transition: background 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.drive-btn-badge.syncing {
+  background: #22d3ee;
+  color: #002229;
+  box-shadow:
+    0 0 0 1px var(--bg-elevated, #1e1e22),
+    0 0 6px rgba(34, 211, 238, 0.65);
 }
 
 /* Elegant traveling green border. Uses double-background trick:
@@ -102,81 +129,98 @@
   border-color: transparent;
   background:
     linear-gradient(var(--bg-elevated, #1e1e22), var(--bg-elevated, #1e1e22)) padding-box,
-    conic-gradient(
-      from var(--drive-angle),
-      rgba(74, 222, 128, 0)   0deg,
-      rgba(74, 222, 128, 0)   200deg,
-      #4ade80                 300deg,
-      #86efac                 340deg,
-      rgba(74, 222, 128, 0)   360deg
-    ) border-box;
-  animation: drive-border-rotate 1.4s linear infinite;
+    conic-gradient(from var(--drive-angle),
+      rgba(74, 222, 128, 0) 0deg,
+      rgba(74, 222, 128, 0) 200deg,
+      #4ade80 300deg,
+      #86efac 340deg,
+      rgba(74, 222, 128, 0) 360deg) border-box;
+  animation: drive-border-rotate 0.8s linear infinite;
   box-shadow: 0 0 12px rgba(74, 222, 128, 0.28);
 }
+
 @keyframes drive-border-rotate {
-  to { --drive-angle: 360deg; }
+  to {
+    --drive-angle: 360deg;
+  }
 }
 
 /* ── Inline pill in the toolbar row ── */
 .drive-pill {
-  display: inline-flex; align-items: center; gap: 8px;
-  height: 30px;
-  padding: 0 12px 0 10px;
-  background: var(--bg-elevated, #1e1e22);
-  border: 1px solid var(--border, #2c2c30);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 999px;
-  font-size: 11.5px;
-  color: var(--text-primary, #eee);
-  animation: drive-pill-in 0.16s ease-out both;
+  font-size: 11px;
+  animation: drive-pill-in 0.2s ease-out both;
   max-width: 320px;
 }
+
 @keyframes drive-pill-in {
-  from { transform: translateX(-6px); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
+  from {
+    transform: translateX(-6px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .drive-pill-label {
-  font-weight: 600;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
 .drive-pill-count {
-  font-size: 10.5px;
-  color: var(--text-muted, #7c7c85);
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
   font-variant-numeric: tabular-nums;
 }
 
 /* Small ring spinner — matches the button's traveling border in feel. */
 .drive-pill-ring {
-  width: 12px; height: 12px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background:
-    conic-gradient(
-      from var(--drive-angle),
-      rgba(74, 222, 128, 0)   0deg,
-      rgba(74, 222, 128, 0)   220deg,
-      #4ade80                 320deg,
-      rgba(74, 222, 128, 0)   360deg
-    );
+    conic-gradient(from var(--drive-angle),
+      rgba(74, 222, 128, 0) 0deg,
+      rgba(74, 222, 128, 0) 220deg,
+      #4ade80 320deg,
+      rgba(74, 222, 128, 0) 360deg);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
-          mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
-  animation: drive-border-rotate 1.4s linear infinite;
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  animation: drive-border-rotate 1s linear infinite;
 }
 
 .drive-pill-bar {
   position: relative;
   display: inline-block;
-  width: 70px;
-  height: 3px;
+  width: 48px;
+  height: 2px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
+
 .drive-pill-fill {
-  position: absolute; inset: 0 auto 0 0;
-  background: linear-gradient(90deg, #4ade80, #86efac);
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #4ade80;
   border-radius: 2px;
-  transition: width 200ms ease;
-  box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+  transition: width 200ms ease-out;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
 }
 
 .drive-pill-error {
@@ -188,27 +232,79 @@
 
 /* ── Conflict dialog list ── */
 .drive-conflict-list {
-  list-style: none; padding: 0; margin: 10px 0 0;
-  max-height: 220px; overflow: auto;
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  max-height: 220px;
+  overflow: auto;
   font-size: 11.5px;
   border: 1px solid var(--border, #2c2c30);
   border-radius: 8px;
 }
+
 .drive-conflict-list li {
   padding: 8px 10px;
-  display: flex; gap: 10px; align-items: center;
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
-.drive-conflict-list li + li { border-top: 1px solid var(--border, #2c2c30); }
+
+.drive-conflict-list li+li {
+  border-top: 1px solid var(--border, #2c2c30);
+}
+
 .drive-conflict-reason {
-  padding: 2px 7px; border-radius: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
   background: rgba(255, 204, 102, 0.14);
-  color: #ffcc66; text-transform: uppercase;
-  font-size: 9.5px; font-weight: 700; letter-spacing: 0.4px;
-  min-width: 68px; text-align: center;
+  color: #ffcc66;
+  text-transform: uppercase;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  min-width: 68px;
+  text-align: center;
 }
+
 .drive-conflict-name {
   color: var(--text-secondary, #aaa);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
   font-family: 'JetBrains Mono', 'Consolas', monospace;
   font-size: 11px;
+}
+
+/* ── Cloud Sync Icon Animation ── */
+.drive-icon-syncing {
+  animation: drive-cloud-pulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes drive-cloud-pulse {
+  0% {
+    opacity: 0.75;
+    filter: drop-shadow(0 0 2px rgba(34, 211, 238, 0.2));
+  }
+
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.6));
+  }
+}
+/* ── Cloud Arrow Animation ── */
+.cloud-arrow-up {
+  animation: cloud-arrow-bounce-up 4s ease-in-out infinite;
+}
+@keyframes cloud-arrow-bounce-up {
+  0%, 100% { transform: translateY(0.3px); }
+  50%      { transform: translateY(-0.3px); }
+}
+
+.cloud-arrow-down {
+  animation: cloud-arrow-bounce-down 4s ease-in-out infinite;
+}
+@keyframes cloud-arrow-bounce-down {
+  0%, 100% { transform: translateY(-0.3px); }
+  50%      { transform: translateY(0.3px); }
 }

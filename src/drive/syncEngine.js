@@ -88,9 +88,20 @@ async function pullDataset(auth, { driveFolderId, datasetName, cacheBaseDir, onP
 
   const toDownload = [];
   for (const f of files) {
-    // A dirty local entry owns this Drive file (deleted / modified / renamed
-    // locally) — leave it alone; the next push reconciles it.
+    // If we have a local dirty file at this path, it survives the pull.
+    // If it's a 'new' file (no driveFileId), it might be a partially pushed file
+    // that crashed before the manifest saved. Adopt the Drive ID to prevent conflicts!
+    if (carryOver[f.relPath]) {
+      if (!carryOver[f.relPath].driveFileId) {
+        carryOver[f.relPath].driveFileId = f.id;
+        dirtyIds.add(f.id);
+      }
+      continue;
+    }
+    
+    // A dirty local entry (e.g. renamed locally) owns this Drive file.
     if (dirtyIds.has(f.id)) continue;
+    
     const prior = existing.files[f.relPath];
     const localExists = prior && (await manifest.statLocal(cacheRoot, f.relPath));
     const upToDate = prior
@@ -99,7 +110,9 @@ async function pullDataset(auth, { driveFolderId, datasetName, cacheBaseDir, onP
       && prior.driveModifiedTime === f.modifiedTime
       && localExists
       && localExists.size === f.size;
+      
     if (!upToDate) toDownload.push(f);
+    
     nextFiles[f.relPath] = {
       driveFileId: f.id,
       driveMd5: f.md5,
@@ -268,113 +281,123 @@ async function pushDataset(auth, cacheRoot, { onProgress, force = false } = {}) 
 
   onProgress?.({ phase: 'pushing', current: 0, total });
 
-  // 1. Deletes first — cheap, and frees up any name collisions before uploads.
-  for (const rel of deleteds) {
-    const entry = m.files[rel];
-    if (entry.driveFileId) {
-      try { await driveApi.trashFile(auth, entry.driveFileId); }
-      catch (err) {
-        // If the file is already gone on Drive (404), treat as success.
-        if (err.code !== 404 && err.response?.status !== 404) throw err;
+  let pushSuccess = false;
+  try {
+    // 1. Deletes first
+    const delJobs = deleteds.map((rel) => async () => {
+      const entry = m.files[rel];
+      if (entry.driveFileId) {
+        try { await driveApi.trashFile(auth, entry.driveFileId); }
+        catch (err) {
+          // If the file is already gone on Drive (404), treat as success.
+          if (err.code !== 404 && err.response?.status !== 404) throw err;
+        }
       }
-    }
-    delete m.files[rel];
-    tick(rel);
-  }
-
-  // 2. Renames — metadata-only updates.
-  for (const rel of renameds) {
-    const entry = m.files[rel];
-    if (!entry.driveFileId) {
-      // No prior Drive fileId — fall through to new-file upload path.
-      news.push(rel);
-      done += 0; // not counted yet; will be counted in news loop below
-      // Ensure it isn't double-processed:
       delete m.files[rel];
-      continue;
-    }
-    const oldRel = entry.renamedFrom || rel;
-    const oldName = oldRel.split('/').pop();
-    const newName = rel.split('/').pop();
-    const oldDir = oldRel.includes('/') ? oldRel.slice(0, oldRel.lastIndexOf('/')) : '';
-    const newDir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
-    const params = {};
-    if (oldName !== newName) params.name = newName;
-    if (oldDir !== newDir) {
-      const oldParentId = m.folders[oldDir]?.driveFileId || m.driveFolderId;
-      const newParentId = await ensureFolder(auth, m, newDir, folderLocks);
-      params.addParents = newParentId;
-      params.removeParents = oldParentId;
-    }
-    const updated = await driveApi.updateFile(auth, entry.driveFileId, params);
-    entry.state = 'clean';
-    entry.driveMd5 = updated.md5Checksum || entry.driveMd5;
-    entry.driveModifiedTime = updated.modifiedTime || entry.driveModifiedTime;
-    delete entry.renamedFrom;
-    tick(rel);
+      tick(rel);
+    });
+    await runPool(delJobs, UPLOAD_CONCURRENCY);
+
+    // 2. Renames — metadata-only updates.
+    const renJobs = renameds.map((rel) => async () => {
+      const entry = m.files[rel];
+      if (!entry.driveFileId) {
+        news.push(rel);
+        delete m.files[rel];
+        return;
+      }
+      const oldRel = entry.renamedFrom || rel;
+      const oldName = oldRel.split('/').pop();
+      const newName = rel.split('/').pop();
+      const oldDir = oldRel.includes('/') ? oldRel.slice(0, oldRel.lastIndexOf('/')) : '';
+      const newDir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+      const params = {};
+      if (oldName !== newName) params.name = newName;
+      if (oldDir !== newDir) {
+        const oldParentId = m.folders[oldDir]?.driveFileId || m.driveFolderId;
+        const newParentId = await ensureFolder(auth, m, newDir, folderLocks);
+        params.addParents = newParentId;
+        params.removeParents = oldParentId;
+      }
+      const updated = await driveApi.updateFile(auth, entry.driveFileId, params);
+      entry.state = 'clean';
+      entry.driveMd5 = updated.md5Checksum || entry.driveMd5;
+      entry.driveModifiedTime = updated.modifiedTime || entry.driveModifiedTime;
+      delete entry.renamedFrom;
+      tick(rel);
+    });
+    await runPool(renJobs, UPLOAD_CONCURRENCY);
+
+    // 3. Modifieds — content update.
+    const modJobs = modifieds.map((rel) => async () => {
+      const entry = m.files[rel];
+      if (!entry) return;
+      const abs = path.join(cacheRoot, manifest.toNative(rel));
+      const updated = await driveApi.updateFile(auth, entry.driveFileId, {
+        localPath: abs,
+        mimeType: extMime(rel),
+      });
+      entry.state = 'clean';
+      entry.driveMd5 = updated.md5Checksum || null;
+      entry.driveModifiedTime = updated.modifiedTime || null;
+      const s = await fs.stat(abs);
+      entry.localMtime = s.mtimeMs;
+      entry.localSize = s.size;
+      tick(rel);
+    });
+    await runPool(modJobs, UPLOAD_CONCURRENCY);
+
+    // 4. News — fresh uploads.
+    const newJobs = news.map((rel) => async () => {
+      const entry = m.files[rel];
+      if (!entry) return;
+      const abs = path.join(cacheRoot, manifest.toNative(rel));
+      const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+      const name = rel.split('/').pop();
+      const parentId = await ensureFolder(auth, m, dir, folderLocks);
+      
+      // Deduplicate: Check if it already exists on Drive
+      const existing = await driveApi.findFileInFolder(auth, parentId, name);
+      let created;
+      if (existing) {
+        created = await driveApi.updateFile(auth, existing.id, {
+          localPath: abs,
+          mimeType: extMime(rel),
+        });
+      } else {
+        created = await driveApi.uploadFile(auth, {
+          parentId,
+          name,
+          localPath: abs,
+          mimeType: extMime(rel),
+        });
+      }
+      
+      entry.driveFileId = created.id;
+      entry.driveMd5 = created.md5Checksum || null;
+      entry.driveModifiedTime = created.modifiedTime || null;
+      entry.state = 'clean';
+      const s = await fs.stat(abs);
+      entry.localMtime = s.mtimeMs;
+      entry.localSize = s.size;
+      tick(rel);
+    });
+    await runPool(newJobs, UPLOAD_CONCURRENCY);
+
+    // Refresh the change cursor so the next push has a clean baseline.
+    m.startPageToken = newStartPageToken || (await driveApi.getStartPageToken(auth));
+    m.pulledAt = new Date().toISOString();
+    pushSuccess = true;
+  } finally {
+    // Save manifest even on crash so we don't lose newly attached driveFileIds!
+    await manifest.write(cacheRoot, m);
   }
 
-  // 3. Modifieds — content update.
-  const modJobs = modifieds.map((rel) => async () => {
-    const entry = m.files[rel];
-    const abs = path.join(cacheRoot, manifest.toNative(rel));
-    const updated = await driveApi.updateFile(auth, entry.driveFileId, {
-      localPath: abs,
-      mimeType: extMime(rel),
-    });
-    entry.state = 'clean';
-    entry.driveMd5 = updated.md5Checksum || null;
-    entry.driveModifiedTime = updated.modifiedTime || null;
-    const s = await fs.stat(abs);
-    entry.localMtime = s.mtimeMs;
-    entry.localSize = s.size;
-    tick(rel);
-  });
-  await runPool(modJobs, UPLOAD_CONCURRENCY);
-
-  // 4. News — fresh uploads.
-  const newJobs = news.map((rel) => async () => {
-    const entry = m.files[rel];
-    if (!entry) return; // guard — we may have re-routed a renamed entry above
-    const abs = path.join(cacheRoot, manifest.toNative(rel));
-    const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
-    const name = rel.split('/').pop();
-    const parentId = await ensureFolder(auth, m, dir, folderLocks);
-    
-    // Deduplicate: Check if it already exists on Drive
-    const existing = await driveApi.findFileInFolder(auth, parentId, name);
-    let created;
-    if (existing) {
-      created = await driveApi.updateFile(auth, existing.id, {
-        localPath: abs,
-        mimeType: extMime(rel),
-      });
-    } else {
-      created = await driveApi.uploadFile(auth, {
-        parentId,
-        name,
-        localPath: abs,
-        mimeType: extMime(rel),
-      });
-    }
-    
-    entry.driveFileId = created.id;
-    entry.driveMd5 = created.md5Checksum || null;
-    entry.driveModifiedTime = created.modifiedTime || null;
-    entry.state = 'clean';
-    const s = await fs.stat(abs);
-    entry.localMtime = s.mtimeMs;
-    entry.localSize = s.size;
-    tick(rel);
-  });
-  await runPool(newJobs, UPLOAD_CONCURRENCY);
-
-  // Refresh the change cursor so the next push has a clean baseline.
-  m.startPageToken = newStartPageToken || (await driveApi.getStartPageToken(auth));
-  m.pulledAt = new Date().toISOString();
-  await manifest.write(cacheRoot, m);
-  onProgress?.({ phase: 'done', current: total, total });
-  return { ok: true, manifest: m };
+  if (pushSuccess) {
+    onProgress?.({ phase: 'done', current: total, total });
+    return { ok: true, manifest: m };
+  }
+  return { ok: false };
 }
 
 // -----------------------------------------------------------------------------

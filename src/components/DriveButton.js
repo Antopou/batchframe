@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import DriveIcon from './DriveIcon';
+import CloudSyncIcon from './CloudSyncIcon';
 import DriveFolderPicker from './DriveFolderPicker';
 import ContextMenu from './ContextMenu';
 import ConfirmDialog from './ConfirmDialog';
@@ -34,6 +35,8 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
   const longPressTimer = useRef(null);
   const longPressFired = useRef(false);
 
+  const syncDirection = useRef('up');
+
   const refreshStatus = useCallback(async () => {
     if (!window.electronAPI?.drive) return;
     setStatus(await window.electronAPI.drive.status());
@@ -43,7 +46,11 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
 
   useEffect(() => {
     if (!window.electronAPI?.drive) return;
-    window.electronAPI.drive.onProgress((p) => setProgress(p));
+    window.electronAPI.drive.onProgress((p) => {
+      if (p.phase === 'pushing') syncDirection.current = 'up';
+      else if (p.phase === 'pulling' || p.phase === 'downloading' || p.phase === 'listing') syncDirection.current = 'down';
+      setProgress(p);
+    });
     return () => window.electronAPI.drive.removeProgressListeners();
   }, []);
 
@@ -296,6 +303,11 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
   if (!window.electronAPI?.drive) return null;
 
   const dirty = summary?.dirty || 0;
+  let badgeCount = dirty;
+  if (progress && progress.phase === 'pushing' && progress.total > 0) {
+    badgeCount = Math.max(0, progress.total - (progress.current || 0));
+  }
+
   const stateClass = [
     'drive-btn',
     !status?.configured && 'unconfigured',
@@ -372,15 +384,15 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
         onMouseLeave={cancelLongPress}
         title={tooltip}
       >
-        <span className="drive-btn-icon"><DriveIcon size={14} /></span>
+        <span className={progress ? "drive-btn-icon drive-icon-syncing" : "drive-btn-icon"}>
+          {progress ? <CloudSyncIcon size={14} color="#22d3ee" direction={syncDirection.current} /> : <DriveIcon size={14} />}
+        </span>
         {liveActive && status?.signedIn ? (
           <span className="drive-btn-badge drive-btn-badge-live">LIVE</span>
-        ) : dirty > 0 && status?.signedIn ? (
-          <span className="drive-btn-badge">{dirty > 99 ? '99+' : dirty}</span>
+        ) : badgeCount > 0 && status?.signedIn ? (
+          <span className={`drive-btn-badge ${progress ? 'syncing' : ''}`.trim()}>{badgeCount > 99 ? '99+' : badgeCount}</span>
         ) : null}
       </button>
-
-      {progress && <ProgressPill progress={progress} />}
 
       {error && <ErrorPill message={error} onDismiss={() => setError(null)} />}
 
@@ -509,23 +521,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
   );
 }
 
-// Inline chip rendered next to the Drive icon in the toolbar row.
-function ProgressPill({ progress }) {
-  const pct = progress.total ? Math.round((progress.current / progress.total) * 100) : null;
-  return (
-    <div className="drive-pill drive-pill-progress">
-      <span className="drive-pill-label">{labelForPhase(progress.phase)}</span>
-      {progress.total > 0 && (
-        <span className="drive-pill-count">{progress.current}/{progress.total}</span>
-      )}
-      {pct != null && (
-        <span className="drive-pill-bar">
-          <span className="drive-pill-fill" style={{ width: `${pct}%` }} />
-        </span>
-      )}
-    </div>
-  );
-}
+// Removed ProgressPill component
 
 function ErrorPill({ message, onDismiss }) {
   return (

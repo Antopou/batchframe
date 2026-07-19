@@ -494,8 +494,8 @@ ipcMain.handle('move-images', async (event, { filePaths, destFolder }) => {
     } catch (err) {
       if (err.code === 'EXDEV') {
         try {
-          await fs.copyFile(src, dest);
-          await fs.unlink(src);
+          await fs.cp(src, dest, { recursive: true });
+          await fs.rm(src, { recursive: true, force: true });
           results.moved.push(src);
           await markManifestRenamed(src, dest);
         } catch (e2) {
@@ -532,7 +532,7 @@ ipcMain.handle('copy-images', async (event, { filePaths, destFolder }) => {
       dest = path.join(destFolder, `${base} (${n})${ext}`);
     }
     try {
-      await fs.copyFile(src, dest);
+      await fs.cp(src, dest, { recursive: true });
       results.copied.push(dest);
     } catch (err) {
       results.failed.push({ src, error: err.message });

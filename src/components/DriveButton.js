@@ -390,7 +390,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
         {liveActive && status?.signedIn ? (
           <span className="drive-btn-badge drive-btn-badge-live">LIVE</span>
         ) : badgeCount > 0 && status?.signedIn ? (
-          <span className={`drive-btn-badge ${progress ? 'syncing' : ''}`.trim()}>{badgeCount > 99 ? '99+' : badgeCount}</span>
+          <span className={`drive-btn-badge ${progress ? 'syncing' : ''}`.trim()}>{badgeCount}</span>
         ) : null}
       </button>
 

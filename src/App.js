@@ -1016,19 +1016,23 @@ function App() {
   const performMoveToDest = useCallback(async (dest) => {
     if (!dest || dest === folderPath) return;
     lastTargetRef.current = { base: folderPath, target: dest };
-    const movable = images.filter(img => selectedImages.has(img.path) && !lockedImages.has(img.path));
+    const movableImages = images.filter(img => selectedImages.has(img.path) && !lockedImages.has(img.path)).map(i => i.path);
+    const movableFolders = Array.from(selectedFolders);
+    const movable = [...movableImages, ...movableFolders];
     if (movable.length === 0) return;
     const proceed = confirmRequired
-      ? await showConfirm('Move', `Move ${movable.length} image${movable.length > 1 ? 's' : ''} to:\n${dest}`, 'Move', false)
+      ? await showConfirm('Move', `Move ${movable.length} item${movable.length > 1 ? 's' : ''} to:\n${dest}`, 'Move', false)
       : true;
     if (!proceed) return;
     setIsMoving(true);
     setMoveProgress({ current: 0, total: movable.length });
     try {
-      const result = await window.electronAPI.moveImages(movable.map(i => i.path), dest);
+      const result = await window.electronAPI.moveImages(movable, dest);
       const movedSet = new Set(result.moved);
       setImages(prev => prev.filter(img => !movedSet.has(img.path)));
+      setSubfolders(prev => prev.filter(f => !movedSet.has(f.path)));
       setSelectedImages(new Set());
+      setSelectedFolders(new Set());
       if (result.failed && result.failed.length > 0) {
         console.error('Some moves failed:', result.failed);
       }
@@ -1038,17 +1042,17 @@ function App() {
       setIsMoving(false);
       setMoveProgress({ current: 0, total: 0 });
     }
-  }, [selectedImages, images, lockedImages, folderPath, confirmRequired, showConfirm]);
+  }, [selectedImages, selectedFolders, images, lockedImages, folderPath, confirmRequired, showConfirm]);
 
   const handleMoveSelected = useCallback(async () => {
-    if (!window.electronAPI || selectedImages.size === 0) return;
+    if (!window.electronAPI || (selectedImages.size === 0 && selectedFolders.size === 0)) return;
     setDrivePickAction('move');
-  }, [selectedImages]);
+  }, [selectedImages, selectedFolders]);
 
   // ── Copy selected to folder ────────────────────────────────────
   const performCopyToDest = useCallback(async (dest) => {
     lastTargetRef.current = { base: folderPath, target: dest };
-    const filePaths = [...selectedImages].filter(p => !lockedImages.has(p));
+    const filePaths = [...selectedImages, ...selectedFolders].filter(p => !lockedImages.has(p));
     if (filePaths.length === 0) return;
     setIsCopying(true);
     setCopyProgress({ current: 0, total: filePaths.length });
@@ -1062,12 +1066,12 @@ function App() {
       setIsCopying(false);
       setCopyProgress({ current: 0, total: 0 });
     }
-  }, [selectedImages, lockedImages, folderPath]);
+  }, [selectedImages, selectedFolders, lockedImages, folderPath]);
 
   const handleCopySelected = useCallback(async () => {
-    if (!window.electronAPI || selectedImages.size === 0) return;
+    if (!window.electronAPI || (selectedImages.size === 0 && selectedFolders.size === 0)) return;
     setDrivePickAction('copy');
-  }, [selectedImages]);
+  }, [selectedImages, selectedFolders]);
 
   const handleDrivePickCreateFolder = useCallback(async ({ parentId, name }) => {
     try {
@@ -1670,7 +1674,10 @@ function App() {
       if (isDriveLive && ['open-photoshop', 'use-as-ref'].includes(a.id)) {
         return false; // these need real local files
       }
-      if (['copy-selected', 'move-selected', 'delete-selected', 'keep-selected', 'lock-selected', 'unlock-selected', 'bulk-rename', 'open-photoshop', 'use-as-ref'].includes(a.id)) {
+      if (['copy-selected', 'move-selected'].includes(a.id)) {
+        return selectedImages.size > 0 || selectedFolders.size > 0;
+      }
+      if (['delete-selected', 'keep-selected', 'lock-selected', 'unlock-selected', 'bulk-rename', 'open-photoshop', 'use-as-ref'].includes(a.id)) {
         return selectedImages.size > 0;
       }
       return true;
@@ -1679,7 +1686,7 @@ function App() {
     setViewMode, setListDetail, setImageFitMode, handleSelectAll, handleDeselectAll, handleInvertSelection,
     handleCopySelected, handleMoveSelected, handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected,
     handleOpenBulkRename, handleOpenInPhotoshop, handleUseSelectedAsRefs, setDragSelectEnabled, setOrderSelectMode,
-    setSortBy, setSortDir, handleSelectFolder, selectedImages.size, isDriveLive
+    setSortBy, setSortDir, handleSelectFolder, selectedImages.size, selectedFolders.size, isDriveLive
   ]);
 
   // ── Keyboard shortcuts ──────────────────────────────────────────
@@ -1865,10 +1872,10 @@ function App() {
         handleSelectAll();
       } else if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        if (selectedImages.size > 0) handleCopySelected();
+        if (selectedImages.size > 0 || selectedFolders.size > 0) handleCopySelected();
       } else if (e.key.toLowerCase() === 'm' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        if (selectedImages.size > 0) handleMoveSelected();
+        if (selectedImages.size > 0 || selectedFolders.size > 0) handleMoveSelected();
       } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         if (selectedImages.size > 0) handleOpenBulkRename();

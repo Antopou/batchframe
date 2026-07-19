@@ -234,9 +234,10 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
     }
 
     const loadImage = async () => {
+      const cacheKey = image.mtime != null ? `${image.path}::${image.mtime}` : image.path;
       // 1. Check cache first
-      if (preloadCache.has(image.path)) {
-        setImageSrc(preloadCache.get(image.path));
+      if (preloadCache.has(cacheKey)) {
+        setImageSrc(preloadCache.get(cacheKey));
         setIsLoading(false);
       } else {
         setImageSrc('');
@@ -260,7 +261,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                     : ext === 'svg' ? 'image/svg+xml'
                       : 'image/jpeg';
             const dataUri = `data:${mime};base64,${base64}`;
-            preloadCache.set(image.path, dataUri);
+            preloadCache.set(cacheKey, dataUri);
             if (preloadCache.size > 50) {
               const firstKey = preloadCache.keys().next().value;
               preloadCache.delete(firstKey);
@@ -285,7 +286,9 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         }
 
         for (const pImage of preloadPaths) {
-          if (!pImage || !pImage.path || preloadCache.has(pImage.path) || pImage.previewSrc) continue;
+          if (!pImage || !pImage.path || pImage.previewSrc) continue;
+          const pCacheKey = pImage.mtime != null ? `${pImage.path}::${pImage.mtime}` : pImage.path;
+          if (preloadCache.has(pCacheKey)) continue;
           window.electronAPI.getImageData(pImage.path).then(base64 => {
             if (base64) {
               const ext = (pImage.name || '').toLowerCase().split('.').pop();
@@ -296,7 +299,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                       : ext === 'svg' ? 'image/svg+xml'
                         : 'image/jpeg';
               const dataUri = `data:${mime};base64,${base64}`;
-              preloadCache.set(pImage.path, dataUri);
+              preloadCache.set(pCacheKey, dataUri);
               if (preloadCache.size > 50) {
                 const firstKey = preloadCache.keys().next().value;
                 preloadCache.delete(firstKey);

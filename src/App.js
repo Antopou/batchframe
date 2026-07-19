@@ -1794,6 +1794,7 @@ function App() {
           const nextFolders = new Set(keyboardSnapshotRef.current.folders);
           for (let i = min; i <= max; i++) {
             const item = allItems[i];
+            if (!item) continue;
             if (item.type === 'folder') nextFolders.add(item.path);
             else nextImages.add(item.path);
           }

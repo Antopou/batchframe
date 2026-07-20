@@ -2412,9 +2412,9 @@ function App() {
           <LocalDestinationPicker
             action={drivePickAction}
             startPath={
-              lastTargetRef.current.base === folderPath && lastTargetRef.current.target
+              (lastTargetRef.current.base === folderPath && lastTargetRef.current.target
                 ? lastTargetRef.current.target
-                : folderPath
+                : folderPath) || (lastFolderPath && !lastFolderPath.startsWith('drive://') ? lastFolderPath : '')
             }
             sourcePath={folderPath}
             onSelect={handleLocalPickSelected}

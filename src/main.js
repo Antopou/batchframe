@@ -271,7 +271,9 @@ ipcMain.handle('get-subfolders', async (event, folderPath) => {
       .filter(e => e.isDirectory())
       .map(e => ({ name: e.name, path: path.join(folderPath, e.name) }));
     const parentPath = path.dirname(folderPath);
-    const hasParent = parentPath !== folderPath;
+    const homeDir = app.getPath('home');
+    const isAtHome = folderPath === homeDir;
+    const hasParent = parentPath !== folderPath && !isAtHome;
     return { subfolders, parentPath: hasParent ? parentPath : null, resolvedPath: folderPath };
   } catch {
     return { subfolders: [], parentPath: null, resolvedPath: folderPath };

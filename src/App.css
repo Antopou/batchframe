@@ -6,7 +6,7 @@
   background: var(--bg-base);
   overflow: hidden;
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   font-size: 12px;
   line-height: 1.4;
 }
@@ -255,7 +255,7 @@
 }
 
 .path-text {
-  font-family: 'Inter', sans-serif;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
@@ -623,7 +623,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   border-radius: 5px;
   color: var(--text-primary);
   font-size: 12px;
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   outline: none;
   transition: border-color var(--transition);
 }
@@ -634,7 +634,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .rename-preview {
   font-size: 11px;
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   color: var(--text-muted);
   white-space: nowrap;
   max-width: 200px;

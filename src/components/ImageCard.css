@@ -194,7 +194,7 @@
   color: rgba(255, 255, 255, 0.9);
   padding: 16px 7px 5px;
   font-size: 10.5px;
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -263,7 +263,7 @@
 }
 
 .error-text {
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   font-size: 10px;
   opacity: 0.6;
   text-align: center;
@@ -312,7 +312,7 @@
   color: rgba(255, 255, 255, 0.75);
   font-size: 10px;
   font-weight: 700;
-  font-family: 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   padding: 2px 5px;
   border-radius: 4px;
   pointer-events: none;
@@ -340,7 +340,7 @@
   background: rgba(0, 0, 0, 0.6);
   color: rgba(255, 255, 255, 0.82);
   font-size: 9px;
-  font-family: 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   padding: 2px 5px;
   border-radius: 3px;
   pointer-events: none;

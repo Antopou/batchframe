@@ -32,7 +32,7 @@
 .metadata-filename {
   font-size: 11px;
   color: var(--text-muted);
-  font-family: 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -67,7 +67,7 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
-  font-family: 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   background: var(--bg-surface);
   border-right: 1px solid var(--border-subtle);
   word-break: break-all;
@@ -90,7 +90,7 @@
   padding: 9px 36px 9px 13px;
   font-size: 11px;
   color: var(--text-secondary);
-  font-family: 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.6;

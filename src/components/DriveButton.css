@@ -272,7 +272,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   font-size: 11px;
 }
 

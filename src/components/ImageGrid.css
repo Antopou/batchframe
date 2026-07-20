@@ -73,7 +73,7 @@
 }
 
 .delete-text {
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   font-size: 12px;
   color: var(--text-primary);
   font-weight: 500;

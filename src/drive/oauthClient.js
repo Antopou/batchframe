@@ -29,7 +29,7 @@ const SUCCESS_PAGE = `<!DOCTYPE html>
     margin: 0; padding: 0; height: 100%;
     background: #0f1013;
     color: #e6e6e8;
-    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
   }
   body {
     display: flex; align-items: center; justify-content: center;

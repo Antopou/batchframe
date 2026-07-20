@@ -50,7 +50,7 @@
 .ai-chip-count {
   font-size: 10px;
   color: var(--text-muted, #777);
-  font-family: monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
 }
 
 .ai-chip-actions {
@@ -190,7 +190,7 @@
 .ai-settings-gear { font-size: 12px; line-height: 1; color: var(--text-muted,#9aa); }
 .ai-settings-btn:hover .ai-settings-gear,
 .ai-settings-btn.active .ai-settings-gear { color: #4f8ef7; }
-.ai-settings-read { font-size: 11px; font-weight: 700; font-family: monospace; letter-spacing: 0.2px; }
+.ai-settings-read { font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace; letter-spacing: 0.2px; }
 .ai-settings-sep { opacity: 0.5; margin: 0 1px; }
 
 .ai-settings-pop {

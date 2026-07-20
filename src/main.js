@@ -259,6 +259,9 @@ ipcMain.handle('get-folder-preview', async (event, { folderPath, limit = 4 }) =>
 });
 
 ipcMain.handle('get-subfolders', async (event, folderPath) => {
+  if (!folderPath) {
+    folderPath = app.getPath('home');
+  }
   if (driveFs.isDrivePath(folderPath)) {
     return driveFs.getSubfolders(await liveAuth(), folderPath);
   }
@@ -269,9 +272,9 @@ ipcMain.handle('get-subfolders', async (event, folderPath) => {
       .map(e => ({ name: e.name, path: path.join(folderPath, e.name) }));
     const parentPath = path.dirname(folderPath);
     const hasParent = parentPath !== folderPath;
-    return { subfolders, parentPath: hasParent ? parentPath : null };
+    return { subfolders, parentPath: hasParent ? parentPath : null, resolvedPath: folderPath };
   } catch {
-    return { subfolders: [], parentPath: null };
+    return { subfolders: [], parentPath: null, resolvedPath: folderPath };
   }
 });
 

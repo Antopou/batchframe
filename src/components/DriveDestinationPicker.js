@@ -60,7 +60,7 @@ function DriveDestinationPicker({ action, sourceFolderId, onSelect, onCreateFold
   }, [filteredFolders.length, focusIndex]);
 
   const isSameAsSource = sourceFolderId && current.id === sourceFolderId;
-  const canChoose = current.id !== 'root' && !isSameAsSource;
+  const canChoose = current.id !== 'root' && (action === 'open' || !isSameAsSource);
   const folderToCreate = query.trim();
   const exactMatchExists = folders.some((f) => f.name.toLowerCase() === folderToCreate.toLowerCase());
   const showCreateOption = !!onCreateFolder && folderToCreate.length > 0 && !exactMatchExists && current.id !== 'root';
@@ -255,14 +255,14 @@ function DriveDestinationPicker({ action, sourceFolderId, onSelect, onCreateFold
               disabled={!canChoose}
               onClick={chooseCurrent}
               title={
-                isSameAsSource
+                (isSameAsSource && action !== 'open')
                   ? 'Destination equals source'
                   : !canChoose
                     ? 'Pick a subfolder'
-                    : `${action === 'move' ? 'Move' : 'Copy'} into ${current.name} (Cmd/Ctrl + Enter)`
+                    : `${action === 'move' ? 'Move' : action === 'copy' ? 'Copy' : 'Open'} ${action === 'open' ? 'from' : 'into'} ${current.name} (Cmd/Ctrl + Enter)`
               }
             >
-              {action === 'move' ? '[ move here ]' : '[ copy here ]'}
+              {action === 'move' ? '[ move here ]' : action === 'copy' ? '[ copy here ]' : '[ open folder ]'}
             </button>
           </div>
         </div>

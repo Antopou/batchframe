@@ -26,9 +26,15 @@ function LocalDestinationPicker({ action, startPath, sourcePath, onSelect, onClo
     setError(null);
     try {
       const r = await window.electronAPI.getSubfolders(folderPath);
-      const list = (r?.subfolders || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+      let list = (r?.subfolders || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+      if (action === 'open') {
+        list = list.filter(f => !f.name.startsWith('.'));
+      }
       setFolders(list);
       setParentPath(r?.parentPath || null);
+      if (!folderPath && r?.resolvedPath) {
+        setCrumbs([{ name: basename(r.resolvedPath), path: r.resolvedPath }]);
+      }
     } catch (e) {
       setError(e.message);
       setFolders([]);
@@ -36,7 +42,7 @@ function LocalDestinationPicker({ action, startPath, sourcePath, onSelect, onClo
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [action]);
 
   useEffect(() => { load(currentPath); }, [currentPath, load]);
 
@@ -64,7 +70,7 @@ function LocalDestinationPicker({ action, startPath, sourcePath, onSelect, onClo
   }, [filteredFolders.length, focusIndex]);
 
   const isSameAsSource = sourcePath && currentPath === sourcePath;
-  const canChoose = !isSameAsSource;
+  const canChoose = action === 'open' || !isSameAsSource;
   const folderToCreate = query.trim();
   const exactMatchExists = folders.some((f) => f.name.toLowerCase() === folderToCreate.toLowerCase());
   const showCreateOption = folderToCreate.length > 0 && !exactMatchExists && !hasBadNameChars(folderToCreate);
@@ -272,12 +278,12 @@ function LocalDestinationPicker({ action, startPath, sourcePath, onSelect, onClo
               disabled={!canChoose}
               onClick={chooseCurrent}
               title={
-                isSameAsSource
+                (isSameAsSource && action !== 'open')
                   ? 'Destination equals source'
-                  : `${action === 'move' ? 'Move' : 'Copy'} into ${current.name} (Cmd/Ctrl + Enter)`
+                  : `${action === 'move' ? 'Move' : action === 'copy' ? 'Copy' : 'Open'} ${action === 'open' ? 'from' : 'into'} ${current.name} (Cmd/Ctrl + Enter)`
               }
             >
-              {action === 'move' ? '[ move here ]' : '[ copy here ]'}
+              {action === 'move' ? '[ move here ]' : action === 'copy' ? '[ copy here ]' : '[ open folder ]'}
             </button>
           </div>
         </div>

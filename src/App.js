@@ -1092,7 +1092,10 @@ function App() {
     driveLabelsRef.current.set(dest, name);
     if (action === 'move') await performMoveToDest(dest);
     else if (action === 'copy') await performCopyToDest(dest);
-  }, [drivePickAction, performMoveToDest, performCopyToDest]);
+    else if (action === 'open') {
+      await loadElectronFolder(dest, true, true);
+    }
+  }, [drivePickAction, performMoveToDest, performCopyToDest, loadElectronFolder]);
 
   const handleLocalPickSelected = useCallback(async (destPath) => {
     const action = drivePickAction;
@@ -1101,7 +1104,10 @@ function App() {
     lastTargetRef.current = { base: folderPath, target: destPath };
     if (action === 'move') await performMoveToDest(destPath);
     else if (action === 'copy') await performCopyToDest(destPath);
-  }, [drivePickAction, folderPath, performMoveToDest, performCopyToDest]);
+    else if (action === 'open') {
+      await loadElectronFolder(destPath, true, true);
+    }
+  }, [drivePickAction, folderPath, performMoveToDest, performCopyToDest, loadElectronFolder]);
 
   // ── Export selected paths to .txt ─────────────────────────────
   const handleExportPaths = useCallback(async () => {
@@ -1696,6 +1702,13 @@ function App() {
       if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         setShowCommandPalette(p => !p);
+        return;
+      }
+
+      // Terminal-style folder open picker
+      if ((e.key === 'o' || e.key === 'O') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setDrivePickAction('open');
         return;
       }
 

@@ -72,6 +72,37 @@ function createWindow() {
       try {
         mainWindow.webContents.send('initial-folder', path.resolve(cliArg));
       } catch (e) { console.error('initial-folder send failed:', e); }
+      
+      setTimeout(async () => {
+        try {
+          const fs = require('fs');
+          const p = require('path');
+          
+          mainWindow.webContents.sendInputEvent({type: 'keyDown', keyCode: 'v'});
+          await new Promise(r => setTimeout(r, 1000));
+          const listImg = await mainWindow.webContents.capturePage();
+          fs.writeFileSync(p.join(__dirname, '../public/screenshot_list.png'), listImg.toPNG());
+          
+          mainWindow.webContents.sendInputEvent({type: 'keyDown', keyCode: 'k', modifiers: ['meta']});
+          await new Promise(r => setTimeout(r, 1000));
+          const cmdImg = await mainWindow.webContents.capturePage();
+          fs.writeFileSync(p.join(__dirname, '../public/screenshot_cmd.png'), cmdImg.toPNG());
+          
+          mainWindow.webContents.sendInputEvent({type: 'keyDown', keyCode: 'k', modifiers: ['meta']});
+          await new Promise(r => setTimeout(r, 500));
+          
+          mainWindow.webContents.sendInputEvent({type: 'keyDown', keyCode: 'a'});
+          await new Promise(r => setTimeout(r, 1000));
+          const aiImg = await mainWindow.webContents.capturePage();
+          fs.writeFileSync(p.join(__dirname, '../public/screenshot_ai.png'), aiImg.toPNG());
+          
+          console.log('Captures successful');
+          app.quit();
+        } catch (e) {
+          console.error(e);
+          app.quit();
+        }
+      }, 5000);
     });
   }
 

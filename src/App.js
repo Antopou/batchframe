@@ -345,12 +345,44 @@ function App() {
     if (sortBy === 'none') return images;
     return [...images].sort((a, b) => {
       let v = 0;
-      if (sortBy === 'name') v = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-      else if (sortBy === 'date') v = (a.mtime || 0) - (b.mtime || 0);
-      else if (sortBy === 'size') v = (a.size  || 0) - (b.size  || 0);
+      if (sortBy === 'name') {
+        v = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortBy === 'date') {
+        v = (a.mtime || 0) - (b.mtime || 0);
+        if (v === 0) v = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortBy === 'size') {
+        v = (a.size  || 0) - (b.size  || 0);
+        if (v === 0) v = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      }
       return sortDir === 'asc' ? v : -v;
     });
   }, [images, sortBy, sortDir]);
+
+  const sortedSubfolders = useMemo(() => {
+    if (sortBy === 'none') return subfolders;
+    return [...subfolders].sort((a, b) => {
+      let v = 0;
+      if (sortBy === 'name') {
+        v = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortBy === 'date') {
+        v = (a.mtime || 0) - (b.mtime || 0);
+        if (v === 0) v = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortBy === 'size') {
+        v = (a.size  || 0) - (b.size  || 0);
+        if (v === 0) v = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return sortDir === 'asc' ? v : -v;
+    });
+  }, [subfolders, sortBy, sortDir]);
+
+  const filteredSubfolders = useMemo(() => {
+    let result = sortedSubfolders;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(sf => sf.name.toLowerCase().includes(q));
+    }
+    return result;
+  }, [sortedSubfolders, searchQuery]);
 
   // ── Search + aspect filter ──────────────────────────────────────
   const filteredImages = useMemo(() => {
@@ -2233,7 +2265,7 @@ function App() {
         onOpenInPhotoshop={handleOpenInPhotoshop}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
-        filteredCount={filteredImages.length}
+        filteredCount={filteredImages.length + filteredSubfolders.length}
         onMoveSelected={handleMoveSelected}
         isMoving={isMoving}
         onCopySelected={handleCopySelected}
@@ -2273,7 +2305,7 @@ function App() {
       />
 
       <SubfolderBar
-        subfolders={subfolders}
+        subfolders={filteredSubfolders}
         parentFolderPath={parentFolderPath}
         currentFolder={folderPath}
         onNavigate={handleNavigateToFolder}
@@ -2317,7 +2349,7 @@ function App() {
         driveStatesByPath={driveStatesByPath}
         viewMode={viewMode}
         listDetail={listDetail}
-        subfolders={subfolders}
+        subfolders={filteredSubfolders}
         folderPreviews={folderPreviews}
         onFolderClick={handleFolderClick}
         editingFolderPath={editingFolderPath}
@@ -2430,7 +2462,7 @@ function App() {
         actions={globalActions}
         currentPath={folderPath}
         lastFolderPath={lastFolderPath}
-        subfolders={subfolders}
+        subfolders={filteredSubfolders}
         parentFolderPath={parentFolderPath}
         recentFolders={recentFolders}
         onNavigateToFolder={handleNavigateToFolder}

@@ -267,9 +267,19 @@ ipcMain.handle('get-subfolders', async (event, folderPath) => {
   }
   try {
     const entries = await fs.readdir(folderPath, { withFileTypes: true });
-    const subfolders = entries
-      .filter(e => e.isDirectory())
-      .map(e => ({ name: e.name, path: path.join(folderPath, e.name) }));
+    const subfolders = await Promise.all(
+      entries
+        .filter(e => e.isDirectory())
+        .map(async e => {
+          const folderAbsPath = path.join(folderPath, e.name);
+          let mtime = 0;
+          try {
+            const stat = await fs.stat(folderAbsPath);
+            mtime = stat.mtimeMs;
+          } catch {}
+          return { name: e.name, path: folderAbsPath, mtime };
+        })
+    );
     const parentPath = path.dirname(folderPath);
     const homeDir = app.getPath('home');
     const isAtHome = folderPath === homeDir;

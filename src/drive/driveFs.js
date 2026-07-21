@@ -284,7 +284,11 @@ async function getSubfolders(auth, folderPath) {
     const items = await listCached(auth, driveId(folderPath));
     const subfolders = items
       .filter((f) => f.mimeType === driveApi.FOLDER_MIME)
-      .map((f) => ({ name: f.name, path: joinDrive(folderPath, f.id) }));
+      .map((f) => ({ 
+        name: f.name, 
+        path: joinDrive(folderPath, f.id),
+        mtime: f.modifiedTime ? Date.parse(f.modifiedTime) : Date.now(),
+      }));
     const name = await metaFor(auth, driveId(folderPath)).then((m) => m.name).catch(() => null);
     return { subfolders, parentPath: parentDrivePath(folderPath), name };
   } catch (err) {

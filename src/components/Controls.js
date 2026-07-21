@@ -283,7 +283,7 @@ function Controls({
               <div className="path-display" onClick={handlePathFocus} title="Click to edit path">
                 <span className="path-text">
                   {folderLabel
-                    ? `☁ ${folderLabel}`
+                    ? folderLabel
                     : folderPath.length > 40 ? '…' + folderPath.slice(-37) : folderPath}
                 </span>
               </div>

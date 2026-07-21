@@ -1,22 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import './RenameModal.css';
 
-function RenameModal({ images, onConfirm, onClose }) {
+function RenameModal({ images, allImages, onConfirm, onClose }) {
   const [prefix, setPrefix] = useState('img_');
-  const [startN, setStartN] = useState(1);
-  const [digits, setDigits] = useState(3);
+  const [digits, setDigits] = useState(1);
+  const prefixInputRef = useRef(null);
 
-  const preview = images.slice(0, 3).map((img, i) => {
-    const ext = img.name.slice(img.name.lastIndexOf('.'));
-    return `${prefix}${String(startN + i).padStart(digits, '0')}${ext}`;
-  });
-  const lastIdx = images.length - 1;
-  const lastExt = images[lastIdx]?.name.slice(images[lastIdx].name.lastIndexOf('.')) || '';
-  const lastName = `${prefix}${String(startN + lastIdx).padStart(digits, '0')}${lastExt}`;
+  useEffect(() => {
+    setTimeout(() => {
+      if (prefixInputRef.current) {
+        prefixInputRef.current.focus();
+        prefixInputRef.current.select();
+      }
+    }, 10);
+  }, []);
+
+  const previewRenames = useMemo(() => {
+    let actualPrefix = prefix;
+    let computedSuffix = '';
+    const trimmed = prefix.trimEnd();
+
+    if (trimmed.length > 0 && /[a-zA-Z0-9]$/.test(trimmed) && prefix === trimmed) {
+      actualPrefix = prefix + ' (';
+      computedSuffix = ')';
+    } else if (trimmed.endsWith('(')) {
+      computedSuffix = ')';
+    } else if (trimmed.endsWith('[')) {
+      computedSuffix = ']';
+    } else if (trimmed.endsWith('{')) {
+      computedSuffix = '}';
+    }
+
+    let maxN = -1;
+    (allImages || []).forEach(img => {
+      const ext = img.name.slice(img.name.lastIndexOf('.'));
+      const base = img.name.slice(0, img.name.length - ext.length);
+      if (base.toLowerCase().startsWith(actualPrefix.toLowerCase()) && 
+          base.toLowerCase().endsWith(computedSuffix.toLowerCase()) && 
+          base.length >= actualPrefix.length + computedSuffix.length) {
+        const numStr = base.slice(actualPrefix.length, base.length - computedSuffix.length);
+        if (/^\d+$/.test(numStr)) {
+          maxN = Math.max(maxN, parseInt(numStr, 10));
+        }
+      }
+    });
+
+    const startN = maxN >= 0 ? maxN + 1 : 1;
+
+    return images.map((img, i) => {
+      const ext = img.name.slice(img.name.lastIndexOf('.'));
+      const newName = `${actualPrefix}${String(startN + i).padStart(digits, '0')}${computedSuffix}${ext}`;
+      return { oldPath: img.path, newName };
+    });
+  }, [prefix, digits, images, allImages]);
 
   return (
     <div className="rename-modal-overlay" onClick={onClose}>
-      <div className="rename-modal" onClick={e => e.stopPropagation()}>
+      <div 
+        className="rename-modal" 
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && prefix) {
+            e.preventDefault();
+            e.nativeEvent.stopImmediatePropagation();
+            onConfirm(previewRenames);
+          }
+        }}
+      >
         <div className="rename-modal-header">
           <span>Bulk Rename · {images.length} image{images.length !== 1 ? 's' : ''}</span>
           <button className="rename-modal-close" onClick={onClose}>×</button>
@@ -25,21 +75,11 @@ function RenameModal({ images, onConfirm, onClose }) {
           <div className="rename-field-row">
             <label>Prefix</label>
             <input
+              ref={prefixInputRef}
               value={prefix}
               onChange={e => setPrefix(e.target.value)}
               className="rename-input"
               placeholder="img_"
-            />
-          </div>
-          <div className="rename-field-row">
-            <label>Start</label>
-            <input
-              type="number"
-              value={startN}
-              min="0"
-              onChange={e => setStartN(Math.max(0, Number(e.target.value)))}
-              className="rename-input"
-              style={{ width: '70px' }}
             />
           </div>
           <div className="rename-field-row">
@@ -54,20 +94,13 @@ function RenameModal({ images, onConfirm, onClose }) {
               style={{ width: '55px' }}
             />
           </div>
-          <div className="rename-preview-block">
-            {preview.map((name, i) => (
-              <div key={i} className="rename-preview-line">{name}</div>
-            ))}
-            {images.length > 3 && <div className="rename-preview-ellipsis">…</div>}
-            {images.length > 3 && <div className="rename-preview-line">{lastName}</div>}
-          </div>
         </div>
         <div className="rename-modal-footer">
           <button className="btn-modern ghost sm" onClick={onClose}>Cancel</button>
           <button
             className="btn-modern success sm"
             disabled={!prefix}
-            onClick={() => onConfirm(prefix, startN, digits)}
+            onClick={() => onConfirm(previewRenames)}
           >
             Rename {images.length} file{images.length !== 1 ? 's' : ''}
           </button>

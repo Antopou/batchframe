@@ -300,7 +300,7 @@ ipcMain.handle('get-subfolders', async (event, folderPath) => {
     const entries = await fs.readdir(folderPath, { withFileTypes: true });
     const subfolders = await Promise.all(
       entries
-        .filter(e => e.isDirectory())
+        .filter(e => e.isDirectory() && !e.name.startsWith('.'))
         .map(async e => {
           const folderAbsPath = path.join(folderPath, e.name);
           let mtime = 0;
@@ -409,7 +409,69 @@ ipcMain.handle('delete-images', async (event, filePaths) => {
     }
   }
 });
+ipcMain.handle('soft-delete-images', async (event, filePaths) => {
+  if (filePaths.length && driveFs.isDrivePath(filePaths[0])) {
+    return driveFs.deleteImages(await liveAuth(), filePaths,
+      (p) => event.sender.send('delete-progress', p));
+  }
+  const total = filePaths.length;
+  try {
+    const trashInfos = [];
+    for (let i = 0; i < total; i++) {
+      const originalPath = filePaths[i];
+      const folderPath = path.dirname(originalPath);
+      const trashFolder = path.join(folderPath, '.batchframe_trash');
+      await fs.mkdir(trashFolder, { recursive: true });
+      
+      const fileName = path.basename(originalPath);
+      let finalTrashPath = path.join(trashFolder, fileName);
+      
+      const exists = await fs.access(finalTrashPath).then(() => true).catch(() => false);
+      if (exists) {
+        finalTrashPath = path.join(trashFolder, `${Date.now()}_${fileName}`);
+      }
+      
+      await fs.rename(originalPath, finalTrashPath);
+      await markManifestDeleted(originalPath);
+      
+      trashInfos.push({ originalPath, trashPath: finalTrashPath });
+      event.sender.send('delete-progress', { current: i + 1, total });
+    }
+    return { success: true, trashInfos };
+  } catch (error) {
+    console.error('Soft delete error:', error);
+    return { success: false, error: error.message };
+  }
+});
 
+ipcMain.handle('restore-images', async (event, trashInfos) => {
+  try {
+    for (const info of trashInfos) {
+      if (driveFs.isDrivePath(info.originalPath)) continue;
+      await fs.rename(info.trashPath, info.originalPath);
+      await markManifestModified(info.originalPath);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Restore error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('empty-trash', async (event, folderPath) => {
+  if (!folderPath || driveFs.isDrivePath(folderPath)) return { success: true };
+  try {
+    const trashFolder = path.join(folderPath, '.batchframe_trash');
+    const exists = await fs.access(trashFolder).then(() => true).catch(() => false);
+    if (exists) {
+      await fs.rm(trashFolder, { recursive: true, force: true });
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Empty trash error:', error);
+    return { success: false, error: error.message };
+  }
+});
 ipcMain.handle('get-image-data', async (event, imagePath, variant) => {
   if (driveFs.isDrivePath(imagePath)) {
     return driveFs.getImageData(await liveAuth(), imagePath, variant || 'full');

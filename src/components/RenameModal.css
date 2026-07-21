@@ -31,18 +31,31 @@
   width: 44px; font-size: 11px; color: var(--text-muted); flex-shrink: 0;
 }
 
-.rename-preview-block {
-  margin-top: 6px; background: var(--bg-base);
-  border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;
-  display: flex; flex-direction: column; gap: 3px;
+.rename-example-box {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
 }
 
-.rename-preview-line {
-  font-size: 11px; font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
-  color: var(--text-secondary);
+.rename-example-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
 }
 
-.rename-preview-ellipsis { font-size: 11px; color: var(--text-muted); padding-left: 2px; }
+.rename-example-value {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+  font-size: 11px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
 
 .rename-modal-footer {
   display: flex; justify-content: flex-end; gap: 8px;

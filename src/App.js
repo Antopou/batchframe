@@ -91,6 +91,7 @@ function App() {
   // Help state
   const [showShortcuts, setShowShortcuts] = useState(false);
 
+  const undoStack           = useRef([]);
   const autoScrollBottom    = useRef(false);
   const folderPathRef       = useRef(null);
   const [initialRoot] = useState(() => localStorage.getItem('batchframe-root-folder') || '');
@@ -527,6 +528,13 @@ function App() {
   const loadElectronFolder = useCallback(async (pathToLoad, persist = true, isExplicitOpen = false) => {
     if (!pathToLoad) return;
 
+    if (pathToLoad !== folderPathRef.current) {
+      if (folderPathRef.current && window.electronAPI.emptyTrash) {
+        window.electronAPI.emptyTrash(folderPathRef.current);
+      }
+      undoStack.current = [];
+    }
+
     if (isExplicitOpen) {
       rootFolderPathRef.current = pathToLoad;
       if (persist) {
@@ -860,8 +868,22 @@ function App() {
       showConfirm, browserMode, handleClosePreview]);
 
   useEffect(() => {
-    const handleGlobalKeyDown = (e) => {
+    const handleGlobalKeyDown = async (e) => {
       if (e.key === 'Shift') setIsShiftDown(true);
+      
+      if (e.key.toLowerCase() === 'z' && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        e.preventDefault();
+        if (undoStack.current.length > 0) {
+          const lastOp = undoStack.current.pop();
+          try {
+            await lastOp.reverse();
+          } catch (err) {
+            console.error('Undo failed', err);
+            alert('Undo failed: ' + err.message);
+          }
+        }
+      }
     };
     const handleGlobalKeyUp = (e) => {
       if (e.key === 'Shift') setIsShiftDown(false);
@@ -1061,6 +1083,21 @@ function App() {
     try {
       const result = await window.electronAPI.moveImages(movable, dest);
       const movedSet = new Set(result.moved);
+      
+      undoStack.current.push({
+        name: 'Move',
+        reverse: async () => {
+          const reversePaths = result.moved.map(p => {
+             const slashIdx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+             const basename = p.substring(slashIdx + 1);
+             const separator = dest.endsWith('/') || dest.endsWith('\\') ? '' : '/';
+             return dest + separator + basename;
+          });
+          await window.electronAPI.moveImages(reversePaths, folderPath);
+          await loadElectronFolder(folderPath, false);
+        }
+      });
+
       setImages(prev => prev.filter(img => !movedSet.has(img.path)));
       setSubfolders(prev => prev.filter(f => !movedSet.has(f.path)));
       setSelectedImages(new Set());
@@ -1274,15 +1311,30 @@ function App() {
     setRenameModal({ images: orderedSelected });
   }, [selectedImages, filteredImages]);
 
-  const handleConfirmBulkRename = useCallback(async (prefix, startN, digits) => {
+  const handleConfirmBulkRename = useCallback(async (renames) => {
     if (!renameModal) return;
-    const renames = renameModal.images.map((img, i) => {
-      const ext = img.name.slice(img.name.lastIndexOf('.'));
-      return { oldPath: img.path, newName: `${prefix}${String(startN + i).padStart(digits, '0')}${ext}` };
-    });
     setRenameModal(null);
     try {
       await window.electronAPI.renameImages(renames);
+      
+      undoStack.current.push({
+        name: 'Rename',
+        reverse: async () => {
+          const reverseRenames = renames.map(r => {
+             const slashIdx = Math.max(r.oldPath.lastIndexOf('/'), r.oldPath.lastIndexOf('\\'));
+             const dir = r.oldPath.substring(0, slashIdx);
+             const oldBaseName = r.oldPath.substring(slashIdx + 1);
+             const separator = dir ? '/' : '';
+             return {
+               oldPath: dir + separator + r.newName,
+               newName: oldBaseName
+             };
+          });
+          await window.electronAPI.renameImages(reverseRenames);
+          await loadElectronFolder(folderPath, false);
+        }
+      });
+
       setSelectedImages(new Set());
       await loadElectronFolder(folderPath, false);
     } catch (err) {
@@ -1541,7 +1593,16 @@ function App() {
       } else {
         // Electron mode - delete files and folders
         if (safeImages.length > 0) {
-          await window.electronAPI.deleteImages(safeImages.map(img => img.path));
+          const deleteResult = await window.electronAPI.softDeleteImages(safeImages.map(img => img.path));
+          if (deleteResult && deleteResult.success) {
+            undoStack.current.push({
+              name: 'Delete',
+              reverse: async () => {
+                await window.electronAPI.restoreImages(deleteResult.trashInfos);
+                await loadElectronFolder(folderPath, false);
+              }
+            });
+          }
           setImages(prev => prev.filter(img => !selectedImages.has(img.path)));
         }
         if (folderList.length > 0) {
@@ -1768,12 +1829,12 @@ function App() {
       // everything so shortcuts can't act on the selection behind the modal.
       if (previewImage) return;
 
+      // Other modals also own the keyboard
+      if (confirmDialog || renameModal || autoCropModal || metadataModal || drivePickAction) return;
+
       if (e.key === 'Escape') {
         if (showCommandPalette) {
           setShowCommandPalette(false);
-          return;
-        }
-        if (confirmDialog || renameModal || autoCropModal || metadataModal) {
           return;
         }
         handleDeselectAll();
@@ -2416,6 +2477,7 @@ function App() {
       {renameModal && (
         <RenameModal
           images={renameModal.images}
+          allImages={images}
           onConfirm={handleConfirmBulkRename}
           onClose={() => setRenameModal(null)}
         />

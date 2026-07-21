@@ -427,7 +427,48 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
 
   const chooseAspect = useCallback((ratio) => {
     setCropAspect(ratio);
-    setCropRect(fitCropToAspect(ratio));
+    setCropRect((prevRect) => {
+      const img = imageRef.current;
+      if (!ratio || !img || !img.naturalWidth) return fitCropToAspect(ratio);
+
+      const natW = img.naturalWidth;
+      const natH = img.naturalHeight;
+      const targetRatio = ratio === 'original' ? (natW / natH) : ratio;
+      const fracRatio = targetRatio * natH / natW;
+
+      const cx = prevRect.x + prevRect.w / 2;
+      const cy = prevRect.y + prevRect.h / 2;
+
+      // Fit to the "long part": try to encompass the previous crop box
+      let newW = prevRect.h * fracRatio;
+      let newH = prevRect.h;
+
+      if (newW < prevRect.w) {
+        newW = prevRect.w;
+        newH = prevRect.w / fracRatio;
+      }
+
+      // Clamp to image bounds
+      if (newW > 1) {
+        newW = 1;
+        newH = newW / fracRatio;
+      }
+      if (newH > 1) {
+        newH = 1;
+        newW = newH * fracRatio;
+      }
+
+      let newX = cx - newW / 2;
+      let newY = cy - newH / 2;
+
+      // Clamp position to image bounds
+      if (newX < 0) newX = 0;
+      if (newY < 0) newY = 0;
+      if (newX + newW > 1) newX = 1 - newW;
+      if (newY + newH > 1) newY = 1 - newH;
+
+      return { x: newX, y: newY, w: newW, h: newH };
+    });
     setNoFace(false);
   }, [fitCropToAspect]);
 

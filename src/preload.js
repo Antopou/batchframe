@@ -31,6 +31,7 @@ try {
     onFolderChange: (callback) => ipcRenderer.on('folder-change', (event, data) => callback(data)),
     removeFolderChangeListeners: () => ipcRenderer.removeAllListeners('folder-change'),
     openPath:            (filePath) => ipcRenderer.invoke('open-path', filePath),
+    openExternal:        (url) => ipcRenderer.invoke('open-external', url),
     showInFolder:        (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
     getImageMetadata:    (filePath) => ipcRenderer.invoke('get-image-metadata', filePath),
     copyImages:          (filePaths, destFolder) => ipcRenderer.invoke('copy-images', { filePaths, destFolder }),

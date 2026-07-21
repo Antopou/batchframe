@@ -658,6 +658,11 @@ ipcMain.handle('open-path', async (event, filePath) => {
   return { success: !err, error: err || null };
 });
 
+ipcMain.handle('open-external', async (event, url) => {
+  await shell.openExternal(url);
+  return { success: true };
+});
+
 ipcMain.handle('show-in-folder', async (event, filePath) => {
   if (driveFs.isDrivePath(filePath)) return openInDriveWeb(filePath);
   shell.showItemInFolder(filePath);

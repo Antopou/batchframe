@@ -394,6 +394,10 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
         ) : null}
       </button>
 
+      {progress && progress.phase !== 'done' && (
+        <ProgressPill progress={progress} />
+      )}
+
       {error && <ErrorPill message={error} onDismiss={() => setError(null)} />}
 
       {showPicker && (
@@ -521,7 +525,27 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
   );
 }
 
-// Removed ProgressPill component
+function ProgressPill({ progress }) {
+  const percent = progress.total ? Math.round(((progress.current || 0) / progress.total) * 100) : 0;
+  const label = labelForPhase(progress.phase);
+
+  return (
+    <div className="drive-pill">
+      <div className="drive-pill-ring" />
+      <span className="drive-pill-label">{label}</span>
+      {progress.total > 0 && (
+        <span className="drive-pill-count">
+          {progress.current || 0}/{progress.total}
+        </span>
+      )}
+      {progress.total > 0 && (
+        <div className="drive-pill-bar">
+          <div className="drive-pill-fill" style={{ width: `${percent}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ErrorPill({ message, onDismiss }) {
   return (

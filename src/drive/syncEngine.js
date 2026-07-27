@@ -46,7 +46,7 @@ function extMime(name) {
 // PULL
 // -----------------------------------------------------------------------------
 
-async function pullDataset(auth, { driveFolderId, datasetName, cacheBaseDir, onProgress }) {
+async function pullDataset(auth, { driveFolderId, datasetName, cacheBaseDir, onProgress, strategy = 'merge' }) {
   const cacheRoot = cachePathFor(cacheBaseDir, datasetName, driveFolderId);
   await fs.mkdir(cacheRoot, { recursive: true });
 
@@ -79,10 +79,12 @@ async function pullDataset(auth, { driveFolderId, datasetName, cacheBaseDir, onP
   // local edits, and turns unpushed renames into duplicates.
   const carryOver = {};       // relPath -> entry, every non-clean entry
   const dirtyIds = new Set(); // driveFileIds owned by those entries
-  for (const [rel, entry] of Object.entries(existing.files)) {
-    if (entry.state && entry.state !== 'clean') {
-      carryOver[rel] = entry;
-      if (entry.driveFileId) dirtyIds.add(entry.driveFileId);
+  if (strategy !== 'overwrite-local') {
+    for (const [rel, entry] of Object.entries(existing.files)) {
+      if (entry.state && entry.state !== 'clean') {
+        carryOver[rel] = entry;
+        if (entry.driveFileId) dirtyIds.add(entry.driveFileId);
+      }
     }
   }
 
@@ -140,6 +142,31 @@ async function pullDataset(auth, { driveFolderId, datasetName, cacheBaseDir, onP
     onProgress?.({ phase: 'downloading', current: done, total, relPath: f.relPath });
   });
   await runPool(jobs, DOWNLOAD_CONCURRENCY);
+
+  if (strategy === 'overwrite-local') {
+    onProgress?.({ phase: 'cleaning', message: 'Removing unpushed local files…' });
+    async function purge(dir, prefix) {
+      let entries;
+      try { entries = await fs.readdir(dir, { withFileTypes: true }); }
+      catch { return; }
+      for (const e of entries) {
+        if (dir === cacheRoot && e.name === manifest.MANIFEST_NAME) continue;
+        const abs = path.join(dir, e.name);
+        const rel = prefix ? `${prefix}/${e.name}` : e.name;
+        if (e.isDirectory()) {
+          await purge(abs, rel);
+          if (!nextFolders[rel]) {
+            try { await fs.rmdir(abs); } catch { /* ignore */ }
+          }
+        } else if (e.isFile()) {
+          if (!nextFiles[rel]) {
+            try { await fs.unlink(abs); } catch { /* ignore */ }
+          }
+        }
+      }
+    }
+    await purge(cacheRoot, '');
+  }
 
   const nextManifest = {
     driveFolderId,

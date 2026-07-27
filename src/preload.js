@@ -60,7 +60,7 @@ try {
       signIn:            (options) => ipcRenderer.invoke('drive-signin', options),
       signOut:           () => ipcRenderer.invoke('drive-signout'),
       listFolder:        (folderId) => ipcRenderer.invoke('drive-list-folder', { folderId }),
-      pull:              ({ driveFolderId, datasetName }) => ipcRenderer.invoke('drive-pull', { driveFolderId, datasetName }),
+      pull:              ({ driveFolderId, datasetName, strategy }) => ipcRenderer.invoke('drive-pull', { driveFolderId, datasetName, strategy }),
       push:              ({ cacheRoot, force }) => ipcRenderer.invoke('drive-push', { cacheRoot, force }),
       createFolder:      ({ parentId, name }) => ipcRenderer.invoke('drive-create-folder', { parentId, name }),
       linkDataset:       ({ localPath, driveFolderId, datasetName }) => ipcRenderer.invoke('drive-link-dataset', { localPath, driveFolderId, datasetName }),

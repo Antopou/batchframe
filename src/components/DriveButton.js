@@ -35,7 +35,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
   const btnRef = useRef(null);
   const longPressTimer = useRef(null);
   const longPressFired = useRef(false);
-  const escTimer = useRef(null);
+
 
   const syncDirection = useRef('up');
 
@@ -63,32 +63,20 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
     }
   }, [progress]);
 
-  // Hold Esc to sign out
+  // Cmd+Shift+O to sign out
   useEffect(() => {
     if (!status?.signedIn) return;
 
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && !e.repeat) {
-        escTimer.current = setTimeout(() => {
-          setConfirmSignOut(true);
-        }, 800); // 800ms hold
-      }
-    };
-    const handleKeyUp = (e) => {
-      if (e.key === 'Escape') {
-        if (escTimer.current) {
-          clearTimeout(escTimer.current);
-          escTimer.current = null;
-        }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        setConfirmSignOut(true);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      if (escTimer.current) clearTimeout(escTimer.current);
     };
   }, [status?.signedIn]);
 
@@ -180,7 +168,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
     }
   }, [cacheRoot, manifest]);
 
-  const doPullFirst = useCallback(async () => {
+  const doPullFirst = useCallback(async (strategy = 'merge') => {
     if (!manifest) return;
     setConflictDialog(null);
     setBusy(true);
@@ -190,6 +178,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
       const r = await window.electronAPI.drive.pull({
         driveFolderId: manifest.driveFolderId,
         datasetName: manifest.datasetName,
+        strategy: typeof strategy === 'string' ? strategy : 'merge',
       });
       if (!r.success) throw new Error(r.error || 'Pull failed');
     } catch (e) {
@@ -380,9 +369,20 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
       },
     });
     menuItems.push({
-      label: 'Pull from Drive',
+      label: 'Pull from Drive (Merge)',
       disabled: !cacheRoot || busy,
-      onClick: doPullFirst,
+      onClick: () => doPullFirst('merge'),
+    });
+    menuItems.push({
+      label: 'Pull from Drive (Overwrite Local)',
+      disabled: !cacheRoot || busy,
+      onClick: () => doPullFirst('overwrite-local'),
+    });
+    menuItems.push({
+      label: 'Push to Drive (Overwrite Drive)',
+      danger: true,
+      disabled: !cacheRoot || busy,
+      onClick: () => doPush({ force: true }),
     });
     menuItems.push({
       label: 'Clear Data',

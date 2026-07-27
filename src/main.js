@@ -1007,7 +1007,7 @@ function relayProgress(phase) {
   };
 }
 
-ipcMain.handle('drive-pull', async (_e, { driveFolderId, datasetName }) => {
+ipcMain.handle('drive-pull', async (_e, { driveFolderId, datasetName, strategy }) => {
   try {
     const auth = await driveOauth.getAuthClient();
     const result = await driveSync.pullDataset(auth, {
@@ -1015,6 +1015,7 @@ ipcMain.handle('drive-pull', async (_e, { driveFolderId, datasetName }) => {
       datasetName,
       cacheBaseDir: driveCacheBaseDir(),
       onProgress: relayProgress('pull'),
+      strategy,
     });
     return { success: true, cacheRoot: result.cacheRoot };
   } catch (err) {

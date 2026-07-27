@@ -46,6 +46,7 @@ const ImageGrid = forwardRef(function ImageGrid({
   onFolderLongPress,
   cursorIndex,
   onDropOnFolder,
+  onEmptyContextMenu,
 }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(0);
@@ -313,6 +314,11 @@ const ImageGrid = forwardRef(function ImageGrid({
         ref={viewportRef}
         className="image-grid-viewport"
         onScroll={handleScroll}
+        onContextMenu={(e) => {
+          if (e.target === e.currentTarget || e.target.classList.contains('image-grid')) {
+            onEmptyContextMenu?.(e);
+          }
+        }}
       >
         <div
           className="image-grid"
@@ -356,6 +362,11 @@ const ImageGrid = forwardRef(function ImageGrid({
       ref={viewportRef}
       className={`image-grid-viewport${isDragging ? ' selecting' : ''}`}
       onScroll={handleScroll}
+      onContextMenu={(e) => {
+        if (e.target === e.currentTarget || e.target.classList.contains('image-grid')) {
+          onEmptyContextMenu?.(e);
+        }
+      }}
     >
       {isDeleting && (
         <div className="delete-overlay">

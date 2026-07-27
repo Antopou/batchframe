@@ -156,6 +156,9 @@ function App() {
   // Aspect ratio filter state
   const [aspectFilter, setAspectFilter] = useState('all');
 
+  // File type filter state
+  const [showNonImages, setShowNonImages] = useState(() => localStorage.getItem('showNonImages') === 'true');
+
   // AI scan state
   const [aiScores, setAiScores]           = useState({});
   const [aiThreshold, setAiThreshold]     = useState(0.80);
@@ -388,6 +391,12 @@ function App() {
   // ── Search + aspect filter ──────────────────────────────────────
   const filteredImages = useMemo(() => {
     let result = sortedImages;
+    if (!showNonImages) {
+      result = result.filter(img => {
+        const ext = img.name.split('.').pop().toLowerCase();
+        return !['txt', 'zip', 'torrent'].includes(ext);
+      });
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(img => img.name.toLowerCase().includes(q));
@@ -402,7 +411,7 @@ function App() {
       });
     }
     return result;
-  }, [sortedImages, searchQuery, aspectFilter]);
+  }, [sortedImages, searchQuery, aspectFilter, showNonImages]);
 
   const filteredImagesRef = useRef(filteredImages);
   const subfoldersRef = useRef(filteredSubfolders);
@@ -1006,6 +1015,11 @@ function App() {
   const handleContextMenu = useCallback((e, image) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, image });
+  }, []);
+
+  const handleEmptyContextMenu = useCallback((e) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, empty: true });
   }, []);
 
   const handleCloseContextMenu = useCallback(() => setContextMenu(null), []);
@@ -2100,7 +2114,37 @@ function App() {
   }, [images, subfolderBarPinned]);
 
   // ── Context menu item builder ────────────────────────────────────
-  const buildContextItems = (image) => {
+  const buildContextItems = (image, empty = false) => {
+    if (empty) {
+      return [
+        {
+          label: (dragSelectEnabled ? '✓ ' : '\u00A0\u00A0') + 'Drag Select',
+          onClick: () => handleDragSelectEnabledChange(!dragSelectEnabled)
+        },
+        { separator: true },
+        {
+          label: (autoReloadEnabled ? '✓ ' : '\u00A0\u00A0') + 'Auto-Reload Folder',
+          onClick: () => {
+            const next = !autoReloadEnabled;
+            setAutoReloadEnabled(next);
+            localStorage.setItem('autoReloadEnabled', next ? 'true' : 'false');
+          }
+        },
+        {
+          label: (!confirmRequired ? '✓ ' : '\u00A0\u00A0') + 'Disable Notifications',
+          onClick: () => handleConfirmRequiredChange(!confirmRequired)
+        },
+        { separator: true },
+        {
+          label: (showNonImages ? '✓ ' : '\u00A0\u00A0') + 'Show non-image files',
+          onClick: () => {
+            const val = !showNonImages;
+            setShowNonImages(val);
+            localStorage.setItem('showNonImages', val);
+          }
+        }
+      ];
+    }
     const isSelected = selectedImages.has(image.path);
     const isLocked   = lockedImages.has(image.path);
     const isPng      = image.name?.toLowerCase().endsWith('.png');
@@ -2349,6 +2393,7 @@ function App() {
         orderedSelection={orderedSelection}
         orderSelectMode={orderSelectMode}
         onContextMenu={handleContextMenu}
+        onEmptyContextMenu={handleEmptyContextMenu}
         onFolderContextMenu={handleFolderContextMenu}
         aiScores={aiScores}
         aiThreshold={aiThreshold}
@@ -2398,7 +2443,7 @@ function App() {
 
       {contextMenu && !browserMode && (
         <ContextMenu
-          items={buildContextItems(contextMenu.image)}
+          items={buildContextItems(contextMenu.image, contextMenu.empty)}
           position={{ x: contextMenu.x, y: contextMenu.y }}
           onClose={handleCloseContextMenu}
         />

@@ -31,7 +31,7 @@ function mediaBody({ localPath, buffer, mimeType }) {
 
 // Detects an image by mimeType prefix OR by extension (some uploads land as
 // application/octet-stream).
-const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.txt', '.zip', '.torrent']);
+const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.txt', '.zip', '.torrent', '.safetensors']);
 function isImage(file) {
   if (file.mimeType && file.mimeType.startsWith('image/')) return true;
   const ext = path.extname(file.name || '').toLowerCase();

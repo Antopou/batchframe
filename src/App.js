@@ -1994,10 +1994,24 @@ function App() {
         e.preventDefault();
         setViewMode(prev => {
           const order = ['grid', 'list', 'explorer'];
-          const next = order[(order.indexOf(prev) + 1) % order.length];
+          const idx = order.indexOf(prev);
+          const next = e.shiftKey
+            ? order[(idx - 1 + order.length) % order.length]
+            : order[(idx + 1) % order.length];
           localStorage.setItem('viewMode', next);
           return next;
         });
+      } else if (e.key.toLowerCase() === 's' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+          setSortBy(prev => {
+            const order = ['none', 'name', 'date', 'size', 'ai_score'];
+            const idx = order.indexOf(prev);
+            return order[(idx + 1) % order.length];
+          });
+        }
       } else if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         if (viewMode === 'list') {

@@ -202,8 +202,29 @@
   transition: opacity 0.15s ease;
 }
 
-.image-card:hover .image-card-name {
+.image-card:hover .image-card-name,
+.image-card.is-non-image .image-card-name {
   opacity: 1;
+}
+
+/* ── Non-image Placeholder ── */
+.non-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+
+.non-image-ext {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.15);
 }
 
 /* ── Drag-select cursor ── */

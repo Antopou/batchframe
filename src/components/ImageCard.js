@@ -130,17 +130,24 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
   const displayWidth = image.width || naturalSize?.width;
   const displayHeight = image.height || naturalSize?.height;
 
+  const ext = (image.name || '').toLowerCase().split('.').pop();
+  const isNonImage = ['safetensors', 'zip', 'txt', 'torrent', 'ckpt', 'pt'].includes(ext);
+
   return (
     <div
       data-path={image.path}
-      className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${isAnchor ? 'cursor' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'} ${isUpdating ? 'updating' : ''} ${isScanning ? 'scanning' : ''}`}
+      className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${isAnchor ? 'cursor' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'} ${isUpdating ? 'updating' : ''} ${isScanning ? 'scanning' : ''} ${isNonImage ? 'is-non-image' : ''}`}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onMouseEnter={handleMouseEnter}
       onContextMenu={handleContextMenu}
       title={`${image.name}${isLocked ? ' (locked)' : ''}`}
     >
-      {!src ? (
+      {isNonImage ? (
+        <div className="non-image-placeholder">
+          <div className="non-image-ext">{ext}</div>
+        </div>
+      ) : !src ? (
         <div className="image-loading-placeholder">
         </div>
       ) : imageError ? (

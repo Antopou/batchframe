@@ -27,6 +27,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
   const [conflictDialog, setConflictDialog] = useState(null);
   const [reviewPush, setReviewPush] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [confirmLive, setConfirmLive] = useState(null); // { id, name } | null
   const [error, setError] = useState(null);
   const [autoOpenSync, setAutoOpenSync] = useState(false);
@@ -34,6 +35,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
   const btnRef = useRef(null);
   const longPressTimer = useRef(null);
   const longPressFired = useRef(false);
+  const escTimer = useRef(null);
 
   const syncDirection = useRef('up');
 
@@ -60,6 +62,35 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
       return () => clearTimeout(t);
     }
   }, [progress]);
+
+  // Hold Esc to sign out
+  useEffect(() => {
+    if (!status?.signedIn) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !e.repeat) {
+        escTimer.current = setTimeout(() => {
+          setConfirmSignOut(true);
+        }, 800); // 800ms hold
+      }
+    };
+    const handleKeyUp = (e) => {
+      if (e.key === 'Escape') {
+        if (escTimer.current) {
+          clearTimeout(escTimer.current);
+          escTimer.current = null;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      if (escTimer.current) clearTimeout(escTimer.current);
+    };
+  }, [status?.signedIn]);
 
   // Auto-clear transient error messages.
   useEffect(() => {
@@ -112,11 +143,11 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
   }, [liveRequest]);
 
   // ── Handlers ───────────────────────────────────────────────
-  const doSignIn = useCallback(async () => {
+  const doSignIn = useCallback(async (options = {}) => {
     setSigningIn(true);
     setError(null);
     try {
-      const r = await window.electronAPI.drive.signIn();
+      const r = await window.electronAPI.drive.signIn(options);
       if (!r.success) throw new Error(r.error || 'Sign-in failed');
       await refreshStatus();
     } catch (e) {
@@ -218,14 +249,14 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
 
   const handleContextMenu = useCallback((e) => {
     e.preventDefault();
-    if (!status?.signedIn) return;
+    if (!status?.configured) return;
     const rect = btnRef.current?.getBoundingClientRect();
     if (rect) openMenuAtRect(rect);
   }, [openMenuAtRect, status]);
 
   const handleMouseDown = useCallback((e) => {
     if (e.button !== 0) return;
-    if (!status?.signedIn) return;
+    if (!status?.configured) return;
     longPressFired.current = false;
     const rect = e.currentTarget.getBoundingClientRect();
     longPressTimer.current = setTimeout(() => {
@@ -370,6 +401,12 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
     });
     menuItems.push({ separator: true });
     menuItems.push({ label: 'Sign out', danger: true, onClick: doSignOut });
+  } else if (status?.configured) {
+    menuItems.push({
+      label: 'Copy Login Link',
+      disabled: signingIn || busy,
+      onClick: () => doSignIn({ copyLink: true }),
+    });
   }
 
   return (
@@ -503,6 +540,20 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
           danger
           onConfirm={doClear}
           onCancel={() => setConfirmClear(false)}
+        />
+      )}
+
+      {confirmSignOut && (
+        <ConfirmDialog
+          title="Sign out of Google Drive?"
+          message="Are you sure you want to sign out?"
+          confirmLabel="Sign out"
+          danger
+          onConfirm={() => {
+            setConfirmSignOut(false);
+            doSignOut();
+          }}
+          onCancel={() => setConfirmSignOut(false)}
         />
       )}
 

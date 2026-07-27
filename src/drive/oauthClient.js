@@ -4,7 +4,7 @@
 // user install). Only the refresh token + profile are persisted on disk,
 // encrypted with electron.safeStorage.
 
-const { app, safeStorage, shell } = require('electron');
+const { app, safeStorage, shell, clipboard } = require('electron');
 const fs = require('fs').promises;
 const path = require('path');
 const http = require('http');
@@ -132,7 +132,24 @@ async function clearToken() {
 async function isSignedIn() {
   if (!hasConfiguredClient()) return false;
   const t = await readToken();
-  return !!(t && t.refreshToken);
+  if (!t || !t.refreshToken) return false;
+
+  try {
+    const oauth2 = buildOAuth2('http://127.0.0.1');
+    oauth2.setCredentials({ refresh_token: t.refreshToken });
+    // This will throw if the refresh token is expired or revoked.
+    await oauth2.getAccessToken();
+    return true;
+  } catch (err) {
+    if (err.message && (err.message.includes('invalid_grant') || err.message.includes('expired'))) {
+      await clearToken();
+      cachedClient = null;
+      cachedProfile = null;
+      return false;
+    }
+    // If it's a network error, assume signed in for offline operations
+    return true;
+  }
 }
 
 async function getProfile() {
@@ -148,7 +165,8 @@ function buildOAuth2(redirectUri) {
 // Runs the OAuth 2.0 loopback flow. Opens the Google consent URL in the
 // user's default browser, spins up a one-shot local HTTP server to catch the
 // redirect, exchanges the code for tokens, and persists the refresh token.
-async function signIn() {
+// If options.copyLink is true, the auth URL is copied to the clipboard instead of opening the browser.
+async function signIn(options = {}) {
   if (!hasConfiguredClient()) {
     throw new Error('OAuth client not configured. Set CLIENT_ID and CLIENT_SECRET in src/drive/config.js.');
   }
@@ -212,7 +230,12 @@ async function signIn() {
     }, 5 * 60 * 1000).unref();
   });
 
-  await shell.openExternal(authUrl);
+  if (options.copyLink) {
+    clipboard.writeText(authUrl);
+  } else {
+    await shell.openExternal(authUrl);
+  }
+  
   const code = await codePromise;
   const { tokens } = await oauth2.getToken(code);
   if (!tokens.refresh_token) {

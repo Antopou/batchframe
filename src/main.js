@@ -958,9 +958,9 @@ ipcMain.handle('drive-status', async () => {
   }
 });
 
-ipcMain.handle('drive-signin', async () => {
+ipcMain.handle('drive-signin', async (event, options) => {
   try {
-    const r = await driveOauth.signIn();
+    const r = await driveOauth.signIn(options);
     return { success: true, profile: r.profile };
   } catch (err) {
     return { success: false, error: err.message };

@@ -56,7 +56,7 @@ try {
 
     drive: {
       status:            () => ipcRenderer.invoke('drive-status'),
-      signIn:            () => ipcRenderer.invoke('drive-signin'),
+      signIn:            (options) => ipcRenderer.invoke('drive-signin', options),
       signOut:           () => ipcRenderer.invoke('drive-signout'),
       listFolder:        (folderId) => ipcRenderer.invoke('drive-list-folder', { folderId }),
       pull:              ({ driveFolderId, datasetName }) => ipcRenderer.invoke('drive-pull', { driveFolderId, datasetName }),

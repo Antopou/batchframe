@@ -31,6 +31,7 @@ function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger = true
     }
 
     const handler = (e) => {
+      if (e.repeat) return;
       if (e.key === 'Enter') {
         e.preventDefault();
         onConfirm();

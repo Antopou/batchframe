@@ -1,6 +1,6 @@
 # BatchFrame
 
-A fast, keyboard-driven desktop application to cull, organize, and manage large collections of images. Designed for speed, it works well for digital asset management, photography culling, and organizing visual references. Built with Electron and React.
+A fast, keyboard-driven desktop application to cull, organize, and manage large collections of images and select non-image files. Designed for speed, it works well for digital asset management, photography culling, and organizing visual references. Built with Electron and React.
 
 ## Key Features
 
@@ -18,14 +18,19 @@ A fast, keyboard-driven desktop application to cull, organize, and manage large 
 - **Order Selection**: Keep track of the exact sequential order in which you clicked images.
 - **Invert Selection**: Instantly flip your selection state.
 
+### 📄 Text & Non-Image Support
+- **Text File Previews**: Quickly preview text files alongside images with interactive tag filtering and selection.
+- **Visual Placeholders**: Instantly identify non-image files like `ZIP`, `TXT`, `TORRENT`, and `SAFETENSORS` in the grid.
+
 ### 🤖 AI Integration & Similarity Scoring
 - **Local AI Scanning**: Connects to a local image recognition backend to scan your folders for specific characters or concepts.
 - **Similarity Badges**: Images receive a percentage match score badge, making it easy to weed out false positives.
 
 ### ☁️ Google Drive Sync
-- **Cloud Sync**: Directly pull and push folders from/to a Google Drive account.
+- **Cloud Sync**: Directly pull and push folders from/to a Google Drive account with advanced sync strategies.
 - **Conflict Resolution**: Safely detects unsynced changes and prompts you if there are remote conflicts before overwriting.
 - **Local Caching**: Images are cached locally for instantaneous loading, with a tiny visual indicator showing sync status.
+- **Operation Cancellation**: Easily cancel long-running Google Drive API requests.
 - **Live Drive Mode** (`Cmd/Ctrl+Shift+D`): Open a Drive folder directly as your workspace — no pull, no push. Renames, moves, deletes, and crops apply straight to Drive as you make them (deletes go to Drive's trash). The grid loads from Drive thumbnails; nothing is bulk-downloaded. Photoshop and AI scanning are unavailable in this mode since they need real local files.
 
 ### 🎨 Deep Integrations
@@ -56,7 +61,10 @@ Power users can navigate entirely via the keyboard (when not focused on a text i
 - **Ctrl+D / Cmd+D** - Open the Google Drive panel (pull/push sync)
 - **Ctrl+Shift+D / Cmd+Shift+D** - Open a Drive folder live (edits apply directly to Drive)
 - **Ctrl+A / Cmd+A** - Select all images
+- **S** - Cycle sorting method (Name, Date, Size, AI Score)
+- **Shift + S** - Toggle sorting direction (Ascending / Descending)
 - **Escape** - Deselect all images
+- **Ctrl+Shift+O / Cmd+Shift+O** - Sign out of Google Drive
 - **Space / Shift+Space** - Scroll page up/down continuously
 
 ## Installation & Setup

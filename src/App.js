@@ -1762,7 +1762,7 @@ function App() {
 
 
       // Terminal-style folder open picker
-      if ((e.key === 'o' || e.key === 'O') && (e.ctrlKey || e.metaKey)) {
+      if ((e.key === 'o' || e.key === 'O') && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
         e.preventDefault();
         setDrivePickAction('open');
         return;

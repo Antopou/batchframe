@@ -181,7 +181,12 @@ function App() {
   // Drive. driveLiveRequest is bumped by Cmd+Shift+D to open the live picker;
   // driveLabelsRef maps drive:// paths to display names for the breadcrumb.
   const [driveLiveRequest, setDriveLiveRequest] = useState(0);
-  const driveLabelsRef = useRef(new Map());
+  const driveLabelsRef = useRef(new Map(JSON.parse(localStorage.getItem('batchframe-drive-labels') || '[]')));
+  const setDriveLabel = useCallback((path, name) => {
+    driveLabelsRef.current.set(path, name);
+    localStorage.setItem('batchframe-drive-labels', JSON.stringify([...driveLabelsRef.current.entries()]));
+  }, []);
+
   const isDriveLive = !!folderPath && folderPath.startsWith('drive://');
   const folderLabel = isDriveLive
     ? (driveLabelsRef.current.get(folderPath) || 'Drive folder')
@@ -393,12 +398,18 @@ function App() {
   // ── Search + aspect filter ──────────────────────────────────────
   const filteredImages = useMemo(() => {
     let result = sortedImages;
-    if (!showNonImages) {
+    
+    // Only allow showing non-images in 'explorer' view. 
+    // In 'grid' or 'list' views, force hide txt/zip/torrent files.
+    const actuallyShowNonImages = viewMode === 'explorer' ? showNonImages : false;
+    
+    if (!actuallyShowNonImages) {
       result = result.filter(img => {
         const ext = img.name.split('.').pop().toLowerCase();
         return !['txt', 'zip', 'torrent'].includes(ext);
       });
     }
+    
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(img => img.name.toLowerCase().includes(q));
@@ -413,7 +424,7 @@ function App() {
       });
     }
     return result;
-  }, [sortedImages, searchQuery, aspectFilter, showNonImages]);
+  }, [sortedImages, searchQuery, aspectFilter, showNonImages, viewMode]);
 
   const filteredImagesRef = useRef(filteredImages);
   const subfoldersRef = useRef(filteredSubfolders);
@@ -567,9 +578,9 @@ function App() {
 
       // Remember display names for drive:// paths (ids aren't readable).
       if (pathToLoad.startsWith('drive://')) {
-        if (folderInfo.name) driveLabelsRef.current.set(pathToLoad, folderInfo.name);
+        if (folderInfo.name) setDriveLabel(pathToLoad, folderInfo.name);
         for (const sf of folderInfo.subfolders || []) {
-          driveLabelsRef.current.set(sf.path, sf.name);
+          setDriveLabel(sf.path, sf.name);
         }
       }
 
@@ -768,7 +779,7 @@ function App() {
   // Live Drive open: no pull — the drive:// URI itself becomes the workspace.
   const handleOpenLive = useCallback(({ id, name }) => {
     const livePath = `drive://${id}`;
-    driveLabelsRef.current.set(livePath, name);
+    setDriveLabel(livePath, name);
     loadElectronFolder(livePath, true, true);
   }, [loadElectronFolder]);
 
@@ -1184,7 +1195,7 @@ function App() {
     setDrivePickAction(null);
     if (!action || !id) return;
     const dest = `drive://${id}`;
-    driveLabelsRef.current.set(dest, name);
+    setDriveLabel(dest, name);
     if (action === 'move') await performMoveToDest(dest);
     else if (action === 'copy') await performCopyToDest(dest);
     else if (action === 'open') {
@@ -1805,7 +1816,7 @@ function App() {
       if (previewImage) return;
 
       // Other modals also own the keyboard
-      if (confirmDialog || renameModal || autoCropModal || metadataModal || drivePickAction) return;
+      if (confirmDialog || renameModal || autoCropModal || metadataModal || drivePickAction || textModal) return;
 
       if (e.key === 'Escape') {
 
@@ -2333,6 +2344,7 @@ function App() {
         isMoving={isMoving}
         onCopySelected={handleCopySelected}
         isCopying={isCopying}
+        driveLabels={driveLabelsRef.current}
         onExportPaths={handleExportPaths}
         onInvertSelection={handleInvertSelection}
         onSelectAllFiltered={handleSelectAllFiltered}

@@ -146,6 +146,7 @@ function Controls({
   onViewModeChange,
   listDetail,
   onListDetailChange,
+  driveLabels,
 }) {
   const [editPath, setEditPath] = useState(folderPath || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -179,9 +180,31 @@ function Controls({
     if (p && onSetPhotoshopPath) onSetPhotoshopPath(p);
   }, [onSetPhotoshopPath]);
 
+  const getReadableDrivePath = useCallback((path) => {
+    if (!path || !path.startsWith('drive://') || !driveLabels) return path;
+    const withoutPrefix = path.replace('drive://', '');
+    const parts = withoutPrefix.split('/');
+    let readablePath = '';
+    let currentPath = 'drive:/';
+    
+    for (const part of parts) {
+      if (!part) continue;
+      currentPath += '/' + part;
+      const label = driveLabels.get(currentPath);
+      readablePath += (readablePath ? '/' : '') + (label || part);
+    }
+    return readablePath || path;
+  }, [driveLabels]);
+
   useEffect(() => {
-    setEditPath(folderPath || '');
-  }, [folderPath]);
+    if (!isEditing) {
+      if (folderPath && folderPath.startsWith('drive://')) {
+        setEditPath(getReadableDrivePath(folderPath));
+      } else {
+        setEditPath(folderPath || '');
+      }
+    }
+  }, [folderPath, isEditing, getReadableDrivePath]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -201,18 +224,36 @@ function Controls({
     return () => window.removeEventListener('keydown', handler);
   }, [driveLive]);
 
+
   const handlePathSubmit = () => {
-    if (editPath.trim() && editPath !== folderPath) {
-      onFolderPathEdit(editPath.trim());
+    const trimmed = editPath.trim();
+    if (trimmed) {
+      if (trimmed === getReadableDrivePath(folderPath) || trimmed === driveLabels?.get(folderPath) || trimmed === folderPath) {
+        setIsEditing(false);
+        return;
+      }
+
+      let resolvedPath = trimmed;
+      if (!trimmed.startsWith('drive://') && !trimmed.match(/^[a-zA-Z]:\\/)) {
+        for (const id of (driveLabels?.keys() || [])) {
+          if (driveLabels.get(id) === trimmed || getReadableDrivePath(id) === trimmed) {
+            resolvedPath = id;
+            break;
+          }
+        }
+      }
+
+      onFolderPathEdit(resolvedPath);
     }
     setIsEditing(false);
   };
 
   const handlePathKeyDown = (e) => {
     if (e.key === 'Enter') {
+      e.stopPropagation();
       handlePathSubmit();
     } else if (e.key === 'Escape') {
-      setEditPath(folderPath || '');
+      e.stopPropagation();
       setIsEditing(false);
     }
   };
@@ -294,9 +335,11 @@ function Controls({
             ) : (
               <div className="path-display" onClick={handlePathFocus} title="Click to edit path">
                 <span className="path-text">
-                  {folderLabel
-                    ? folderLabel
-                    : folderPath.length > 40 ? '…' + folderPath.slice(-37) : folderPath}
+                  {folderPath.startsWith('drive://')
+                    ? getReadableDrivePath(folderPath)
+                    : folderLabel
+                      ? folderLabel
+                      : folderPath.length > 40 ? '…' + folderPath.slice(-37) : folderPath}
                 </span>
               </div>
             )}
@@ -304,21 +347,25 @@ function Controls({
               <div className="recent-folders-popover">
                 <div className="popover-header">Recent Folders</div>
                 <div className="popover-content">
-                  {recentFolders.slice(0, 8).map((folder, index) => (
-                    <div
-                      key={index}
-                      className="recent-item"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setEditPath(folder);
-                        onFolderPathEdit(folder);
-                        setIsEditing(false);
-                      }}
-                      title={folder}
-                    >
-                      {folder.length > 50 ? '…' + folder.slice(-47) : folder}
-                    </div>
-                  ))}
+                  {recentFolders.slice(0, 8).map((folder, index) => {
+                    const readable = folder.startsWith('drive://') ? getReadableDrivePath(folder) : null;
+                    const displayText = readable ? `📁 ${readable}` : (folder.length > 50 ? '…' + folder.slice(-47) : folder);
+                    return (
+                      <div
+                        key={index}
+                        className="recent-item"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setEditPath(readable || folder);
+                          onFolderPathEdit(folder);
+                          setIsEditing(false);
+                        }}
+                        title={folder}
+                      >
+                        {displayText}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -336,7 +383,10 @@ function Controls({
             onChange={(e) => onSearchQueryChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
+                e.stopPropagation();
                 e.target.blur();
+              } else if (e.key === 'Enter') {
+                e.stopPropagation();
               }
             }}
             placeholder="Search by name…"

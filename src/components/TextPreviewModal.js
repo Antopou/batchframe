@@ -1,7 +1,7 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react';
 import './MetadataModal.css';
 
-function CopyBtn({ value, onCopy }) {
+function CopyBtn({ value, onCopy, isFlashing }) {
   const [pressed, setPressed] = useState(false);
   
   const handleCopy = (e) => {
@@ -12,7 +12,7 @@ function CopyBtn({ value, onCopy }) {
   
   return (
     <button 
-      className={`metadata-copy-btn${pressed ? ' pressed' : ''}`} 
+      className={`metadata-copy-btn${(pressed || isFlashing) ? ' pressed' : ''}`} 
       onClick={handleCopy}
       onMouseDown={() => setPressed(true)}
       onMouseUp={() => setPressed(false)}
@@ -29,35 +29,136 @@ function CopyBtn({ value, onCopy }) {
 function TextPreviewModal({ fileName, text, onClose }) {
   const [excludedTags, setExcludedTags] = useState([]);
   const [showSelected, setShowSelected] = useState(false);
-
-  const handleKey = useCallback(e => {
-    if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-  }, [onClose]);
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [handleKey]);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [isKeyboardNavigating, setIsKeyboardNavigating] = useState(false);
+  const [autoAdvanceDir, setAutoAdvanceDir] = useState(1);
+  const [flashTop, setFlashTop] = useState(false);
+  const [flashBottom, setFlashBottom] = useState(false);
+  const tagRefs = useRef([]);
 
   // Parse text into tags (split by comma or newline)
-  const tags = text ? text.split(/,\s*|\n+/).map(t => t.trim()).filter(t => t) : [];
+  const tags = useMemo(() => text ? text.split(/,\s*|\n+/).map(t => t.trim()).filter(t => t) : [], [text]);
 
-  const handleTagClick = (tag) => {
+  const handleTagClick = useCallback((tag) => {
     setShowSelected(true);
     setExcludedTags(prev => 
       prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
     );
-  };
+  }, []);
 
-  const handleTopCopy = () => {
+  const handleTopCopy = useCallback(() => {
     if (!showSelected) {
       setShowSelected(true);
       setExcludedTags([]);
     } else {
       setShowSelected(false);
       setExcludedTags([]);
+      setAutoAdvanceDir(1);
     }
-  };
+  }, [showSelected]);
+
+  const handleKey = useCallback(e => {
+    const isLetter = /^[a-zA-Z]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey;
+
+    if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End', 'Tab', 'Escape', ' ', 'Enter'].includes(e.key) || 
+        ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') ||
+        isLetter) {
+      e.stopPropagation();
+    }
+
+    if (!isKeyboardNavigating && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Tab', 'Home', 'End'].includes(e.key)) {
+      setIsKeyboardNavigating(true);
+      
+      // For basic navigation keys, the first press just activates the cursor at index 0.
+      // But if they are holding Cmd (metaKey) or pressing Home/End, we let it fall through 
+      // so it can instantly rocket them to the beginning or end!
+      if (!e.metaKey && !e.ctrlKey && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Tab'].includes(e.key)) {
+        e.preventDefault();
+        setFocusedIndex(0);
+        return;
+      }
+    }
+
+    if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End', 'Tab'].includes(e.key)) {
+      setIsKeyboardNavigating(true);
+    }
+    
+    if (e.key === 'Escape') { 
+      e.preventDefault(); 
+      onClose(); 
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        setFocusedIndex(i => Math.max(i - 1, 0));
+      } else {
+        setFocusedIndex(i => Math.min(i + 1, tags.length - 1));
+      }
+    } else if (e.key === 'End' || (e.metaKey && (e.key === 'ArrowDown' || e.key === 'ArrowRight'))) {
+      e.preventDefault();
+      setFocusedIndex(tags.length - 1);
+      setAutoAdvanceDir(-1);
+    } else if (e.key === 'Home' || (e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowLeft'))) {
+      e.preventDefault();
+      setFocusedIndex(0);
+      setAutoAdvanceDir(1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      setFocusedIndex(i => Math.min(i + 1, tags.length - 1));
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setFocusedIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setFocusedIndex(i => Math.min(i + 6, tags.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setFocusedIndex(i => Math.max(i - 6, 0));
+    } else if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      if (tags[focusedIndex]) {
+        handleTagClick(tags[focusedIndex]);
+        setFocusedIndex(i => Math.max(0, Math.min(i + autoAdvanceDir, tags.length - 1)));
+      }
+    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      if (showSelected) {
+        const included = tags.filter(t => !excludedTags.includes(t));
+        navigator.clipboard.writeText(included.join(', ')).catch(()=>{});
+        setFlashBottom(true);
+        setTimeout(() => setFlashBottom(false), 150);
+      } else {
+        navigator.clipboard.writeText(text).catch(()=>{});
+        setFlashTop(true);
+        setTimeout(() => setFlashTop(false), 150);
+      }
+    } else if (isLetter) {
+      e.preventDefault();
+      setIsKeyboardNavigating(true);
+      setAutoAdvanceDir(1);
+      const targetChar = e.key.toLowerCase();
+      const matchIndices = tags.map((t, i) => t.toLowerCase().startsWith(targetChar) ? i : -1).filter(i => i !== -1);
+      
+      if (matchIndices.length > 0) {
+        const nextIndex = matchIndices.find(i => i > focusedIndex);
+        if (nextIndex !== undefined) {
+          setFocusedIndex(nextIndex);
+        } else {
+          setFocusedIndex(matchIndices[0]);
+        }
+      }
+    }
+  }, [onClose, tags, focusedIndex, excludedTags, handleTagClick, isKeyboardNavigating, autoAdvanceDir]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKey, { capture: true });
+    return () => window.removeEventListener('keydown', handleKey, { capture: true });
+  }, [handleKey]);
+
+  useEffect(() => {
+    if (tagRefs.current[focusedIndex]) {
+      tagRefs.current[focusedIndex].scrollIntoView({ behavior: 'auto', block: 'nearest' });
+    }
+  }, [focusedIndex]);
 
   const includedTags = tags.filter(t => !excludedTags.includes(t));
   const textToCopy = includedTags.join(', ');
@@ -77,6 +178,13 @@ function TextPreviewModal({ fileName, text, onClose }) {
           color: var(--text-muted);
           text-decoration: line-through;
           opacity: 0.5;
+        }
+        .txt-tag.focused {
+          color: var(--accent);
+          text-decoration: underline;
+          text-decoration-color: var(--accent);
+          text-underline-offset: 4px;
+          transition: none; /* instant snap */
         }
         .tag-separator {
           color: var(--text-muted);
@@ -117,8 +225,14 @@ function TextPreviewModal({ fileName, text, onClose }) {
                       return (
                         <React.Fragment key={i}>
                           <span 
-                            className={`txt-tag ${isExcluded ? 'excluded' : ''}`}
-                            onClick={() => handleTagClick(tag)}
+                            ref={el => tagRefs.current[i] = el}
+                            className={`txt-tag ${isExcluded ? 'excluded' : ''} ${isKeyboardNavigating && focusedIndex === i ? 'focused' : ''}`}
+                            onClick={() => {
+                              setIsKeyboardNavigating(false);
+                              setAutoAdvanceDir(1);
+                              setFocusedIndex(i);
+                              handleTagClick(tag);
+                            }}
                             title="Click to toggle exclusion"
                           >
                             {tag}
@@ -128,7 +242,7 @@ function TextPreviewModal({ fileName, text, onClose }) {
                       );
                     })}
                   </div>
-                  <CopyBtn value={text} onCopy={handleTopCopy} />
+                  <CopyBtn value={text} onCopy={handleTopCopy} isFlashing={flashTop} />
                 </div>
               </div>
               
@@ -150,7 +264,7 @@ function TextPreviewModal({ fileName, text, onClose }) {
                         </React.Fragment>
                       ))}
                     </div>
-                    <CopyBtn value={textToCopy} />
+                    <CopyBtn value={textToCopy} isFlashing={flashBottom} />
                   </div>
                 </div>
               )}

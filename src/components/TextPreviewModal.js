@@ -1,12 +1,13 @@
 import React, { useEffect, useCallback, useState } from 'react';
 import './MetadataModal.css';
 
-function CopyBtn({ value }) {
+function CopyBtn({ value, onCopy }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = (e) => {
     e.stopPropagation();
     navigator.clipboard.writeText(value).then(() => {
       setCopied(true);
+      if (onCopy) onCopy();
       setTimeout(() => setCopied(false), 1500);
     });
   };
@@ -26,6 +27,8 @@ function CopyBtn({ value }) {
 }
 
 function TextPreviewModal({ fileName, text, onClose }) {
+  const [excludedTags, setExcludedTags] = useState([]);
+
   const handleKey = useCallback(e => {
     if (e.key === 'Escape') { e.preventDefault(); onClose(); }
   }, [onClose]);
@@ -35,8 +38,41 @@ function TextPreviewModal({ fileName, text, onClose }) {
     return () => window.removeEventListener('keydown', handleKey);
   }, [handleKey]);
 
+  // Parse text into tags (split by comma or newline)
+  const tags = text ? text.split(/,\s*|\n+/).map(t => t.trim()).filter(t => t) : [];
+
+  const handleTagClick = (tag) => {
+    setExcludedTags(prev => 
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const includedTags = tags.filter(t => !excludedTags.includes(t));
+  const textToCopy = includedTags.join(', ');
+
   return (
     <div className="dialog-backdrop" onClick={onClose}>
+      <style>{`
+        .txt-tag {
+          cursor: pointer;
+          color: var(--text-primary);
+          transition: all 0.15s;
+        }
+        .txt-tag:hover {
+          color: var(--accent);
+        }
+        .txt-tag.excluded {
+          color: var(--text-muted);
+          text-decoration: line-through;
+          opacity: 0.5;
+        }
+        .tag-separator {
+          color: var(--text-muted);
+        }
+        .tag-separator.excluded {
+          opacity: 0.3;
+        }
+      `}</style>
       <div className="metadata-modal" onClick={e => e.stopPropagation()} style={{ width: 'min(900px, 94vw)', minHeight: '50vh' }}>
         <div className="metadata-header">
           <div className="metadata-title">
@@ -52,13 +88,54 @@ function TextPreviewModal({ fileName, text, onClose }) {
           {!text ? (
             <div className="metadata-empty">File is empty.</div>
           ) : (
-            <div className="metadata-row" style={{ flex: 1 }}>
-              <div className="metadata-key" style={{ borderBottom: 'none' }}>Contents</div>
-              <div className="metadata-value-wrap" style={{ flex: 1 }}>
-                <pre className="metadata-value" style={{ maxHeight: '70vh', height: '100%', borderBottom: 'none' }}>{text}</pre>
-                <CopyBtn value={text} />
+            <>
+              <div className="metadata-row" style={{ flex: 1, borderBottom: includedTags.length > 0 ? '1px solid var(--border-subtle)' : 'none' }}>
+                <div className="metadata-key" style={{ borderBottom: 'none' }}>Contents</div>
+                <div className="metadata-value-wrap" style={{ flex: 1 }}>
+                  <div className="metadata-value" style={{ maxHeight: '50vh', height: '100%', borderBottom: 'none', display: 'block' }}>
+                    {tags.map((tag, i) => {
+                      const isExcluded = excludedTags.includes(tag);
+                      return (
+                        <React.Fragment key={i}>
+                          <span 
+                            className={`txt-tag ${isExcluded ? 'excluded' : ''}`}
+                            onClick={() => handleTagClick(tag)}
+                            title="Click to toggle exclusion"
+                          >
+                            {tag}
+                          </span>
+                          {i < tags.length - 1 && <span className={`tag-separator ${isExcluded ? 'excluded' : ''}`}>, </span>}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                  <CopyBtn value={text} onCopy={() => setExcludedTags([])} />
+                </div>
               </div>
-            </div>
+              
+              {includedTags.length > 0 && (
+                <div className="metadata-row" style={{ borderBottom: 'none' }}>
+                  <div className="metadata-key" style={{ borderBottom: 'none' }}>Selected</div>
+                  <div className="metadata-value-wrap">
+                    <div className="metadata-value" style={{ minHeight: '80px', maxHeight: '30vh', borderBottom: 'none', display: 'block' }}>
+                      {includedTags.map((tag, i) => (
+                        <React.Fragment key={i}>
+                          <span 
+                            className="txt-tag"
+                            onClick={() => handleTagClick(tag)}
+                            title="Click to remove from selection"
+                          >
+                            {tag}
+                          </span>
+                          {i < includedTags.length - 1 && <span className="tag-separator">, </span>}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                    <CopyBtn value={textToCopy} />
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

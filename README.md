@@ -61,7 +61,7 @@ Power users can navigate entirely via the keyboard (when not focused on a text i
 - **Ctrl+D / Cmd+D** - Open the Google Drive panel (pull/push sync)
 - **Ctrl+Shift+D / Cmd+Shift+D** - Open a Drive folder live (edits apply directly to Drive)
 - **Ctrl+A / Cmd+A** - Select all images
-- **S** - Cycle sorting method (Name, Date, Size, AI Score)
+- **S** - Cycle sorting method (Name, Date, Size)
 - **Shift + S** - Toggle sorting direction (Ascending / Descending)
 - **Escape** - Deselect all images
 - **Ctrl+Shift+O / Cmd+Shift+O** - Sign out of Google Drive

@@ -405,8 +405,8 @@ function App() {
     
     if (!actuallyShowNonImages) {
       result = result.filter(img => {
-        const ext = img.name.split('.').pop().toLowerCase();
-        return !['txt', 'zip', 'torrent'].includes(ext);
+        const ext = (img.name || '').split('.').pop().toLowerCase();
+        return !['safetensors', 'zip', 'txt', 'torrent', 'ckpt', 'pt'].includes(ext);
       });
     }
     
@@ -2007,7 +2007,7 @@ function App() {
           setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
         } else {
           setSortBy(prev => {
-            const order = ['none', 'name', 'date', 'size', 'ai_score'];
+            const order = ['none', 'name', 'date', 'size'];
             const idx = order.indexOf(prev);
             return order[(idx + 1) % order.length];
           });
@@ -2307,7 +2307,7 @@ function App() {
         onSelectFolder={handleSelectFolder}
         onFolderPathEdit={handleFolderPathEdit}
         selectedCount={selectedImages.size + selectedFolders.size}
-        totalCount={images.length + subfolders.length}
+        totalCount={filteredImages.length + filteredSubfolders.length}
         lockedCount={lockedImages.size}
         onSelectAll={handleSelectAll}
         onDeselectAll={handleDeselectAll}

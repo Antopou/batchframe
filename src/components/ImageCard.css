@@ -216,6 +216,7 @@
   justify-content: center;
   background: var(--bg-surface);
   color: var(--text-muted);
+  container-type: inline-size;
 }
 
 .non-image-ext {
@@ -225,6 +226,13 @@
   text-transform: uppercase;
   letter-spacing: 1.5px;
   color: rgba(255, 255, 255, 0.15);
+}
+
+@container (max-width: 140px) {
+  .non-image-ext {
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
 }
 
 /* ── Drag-select cursor ── */

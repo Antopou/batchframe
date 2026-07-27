@@ -48,6 +48,34 @@ function CopyBtn({ value }) {
   );
 }
 
+function RenderValue({ value }) {
+  if (typeof value === 'string') {
+    if (/1\.\s/.test(value) && /2\.\s/.test(value)) {
+      const parts = value.split(/(?:^|\s+|,\s*)(?=\d+\.\s)/).filter(Boolean);
+      
+      if (parts.length > 1 && parts.some(p => /^1\.\s/.test(p))) {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+            {parts.map((part, i) => (
+              <div key={i} className="metadata-value-wrap" style={i > 0 ? { borderTop: '1px solid var(--border-subtle)' } : {}}>
+                <pre className="metadata-value">{part.trim()}</pre>
+                <CopyBtn value={part.trim()} />
+              </div>
+            ))}
+          </div>
+        );
+      }
+    }
+  }
+
+  return (
+    <div className="metadata-value-wrap">
+      <pre className="metadata-value">{value}</pre>
+      <CopyBtn value={value} />
+    </div>
+  );
+}
+
 function MetadataModal({ imageName, metadata, onClose }) {
   const handleKey = useCallback(e => {
     if (e.key === 'Escape') { e.preventDefault(); onClose(); }
@@ -89,10 +117,7 @@ function MetadataModal({ imageName, metadata, onClose }) {
           ) : sorted.map(([key, value]) => (
             <div key={key} className="metadata-row">
               <div className="metadata-key">{key}</div>
-              <div className="metadata-value-wrap">
-                <pre className="metadata-value">{value}</pre>
-                <CopyBtn value={value} />
-              </div>
+              <RenderValue value={value} />
             </div>
           ))}
         </div>

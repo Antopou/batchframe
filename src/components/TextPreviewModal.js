@@ -26,7 +26,25 @@ function CopyBtn({ value, onCopy, isFlashing }) {
   );
 }
 
-function TextPreviewModal({ fileName, text, onClose }) {
+function TextPreviewModal({ fileName, text: initialText, filePath, onClose }) {
+  const [currentText, setCurrentText] = useState(initialText);
+
+  // Poll for file changes
+  useEffect(() => {
+    if (!filePath) return;
+    const intervalId = setInterval(async () => {
+      try {
+        const result = await window.electronAPI.getTextFile(filePath);
+        if (result.success && result.text !== currentText) {
+          setCurrentText(result.text);
+        }
+      } catch (e) {
+        console.error('Failed to poll text file:', e);
+      }
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [filePath, currentText]);
+
   const [excludedTags, setExcludedTags] = useState([]);
   const [showSelected, setShowSelected] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -37,7 +55,18 @@ function TextPreviewModal({ fileName, text, onClose }) {
   const tagRefs = useRef([]);
 
   // Parse text into tags (split by comma or newline)
-  const tags = useMemo(() => text ? text.split(/,\s*|\n+/).map(t => t.trim()).filter(t => t) : [], [text]);
+  const tags = useMemo(() => currentText ? currentText.split(/,\s*|\n+/).map(t => t.trim()).filter(t => t) : [], [currentText]);
+
+  const numberedParts = useMemo(() => {
+    if (!currentText) return null;
+    if (/1\.\s/.test(currentText) && /2\.\s/.test(currentText)) {
+      const parts = currentText.split(/(?=(?:\b|^)\d+\.\s)/).map(s => s.trim().replace(/^,\s*/, '').replace(/,\s*$/, '')).filter(Boolean);
+      if (parts.length > 1 && parts.some(p => /^1\.\s/.test(p))) {
+        return parts;
+      }
+    }
+    return null;
+  }, [currentText]);
 
   const handleTagClick = useCallback((tag) => {
     setShowSelected(true);
@@ -127,7 +156,7 @@ function TextPreviewModal({ fileName, text, onClose }) {
         setFlashBottom(true);
         setTimeout(() => setFlashBottom(false), 150);
       } else {
-        navigator.clipboard.writeText(text).catch(()=>{});
+        navigator.clipboard.writeText(currentText).catch(()=>{});
         setFlashTop(true);
         setTimeout(() => setFlashTop(false), 150);
       }
@@ -197,7 +226,14 @@ function TextPreviewModal({ fileName, text, onClose }) {
           color: var(--accent);
           background: rgba(92, 124, 255, 0.15);
           border-color: var(--accent);
-          opacity: 1;
+          opacity: 1 !important;
+        }
+        /* Override global hover behavior to only show copy button on direct hover */
+        .metadata-value-wrap:hover .metadata-copy-btn {
+          opacity: 0;
+        }
+        .metadata-copy-btn:hover {
+          opacity: 1 !important;
         }
       `}</style>
       <div className="metadata-modal" onClick={e => e.stopPropagation()} style={{ width: 'min(900px, 94vw)', minHeight: '50vh' }}>
@@ -212,8 +248,44 @@ function TextPreviewModal({ fileName, text, onClose }) {
           <button className="preview-close" onClick={onClose}>×</button>
         </div>
         <div className="metadata-body" style={{ display: 'flex', flexDirection: 'column' }}>
-          {!text ? (
+          {!currentText ? (
             <div className="metadata-empty">File is empty.</div>
+          ) : numberedParts ? (
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
+              <div className="metadata-row" style={{ flex: 1, borderBottom: 'none' }}>
+                <div className="metadata-key" style={{ borderBottom: 'none' }}>Contents</div>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                  {numberedParts.map((part, i) => {
+                    const cleanPart = part.replace(/^\d+\.\s*/, '');
+                    return (
+                      <div key={i} className="metadata-value-wrap" style={i > 0 ? { borderTop: '1px solid var(--border-subtle)' } : {}}>
+                        <div style={{ padding: '9px 0 9px 13px', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', 'Fira Code', 'Menlo', monospace", fontSize: '11px', userSelect: 'none', flexShrink: 0 }}>
+                          {i + 1}.
+                        </div>
+                        <pre 
+                          className="metadata-value" 
+                          style={{ borderBottom: 'none', display: 'block', maxHeight: 'none', height: 'auto', paddingLeft: '8px', flex: 1, cursor: 'pointer' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(cleanPart).catch(()=>{});
+                            // Optional: provide some visual feedback by finding the copy button and adding the pressed class temporarily
+                            const btn = e.currentTarget.nextElementSibling;
+                            if (btn) {
+                              btn.classList.add('pressed');
+                              setTimeout(() => btn.classList.remove('pressed'), 150);
+                            }
+                          }}
+                          title="Click to copy"
+                        >
+                          {cleanPart}
+                        </pre>
+                        <CopyBtn value={cleanPart} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           ) : (
             <>
               <div className="metadata-row" style={{ flex: 1, borderBottom: showSelected ? '1px solid var(--border-subtle)' : 'none' }}>
@@ -242,7 +314,7 @@ function TextPreviewModal({ fileName, text, onClose }) {
                       );
                     })}
                   </div>
-                  <CopyBtn value={text} onCopy={handleTopCopy} isFlashing={flashTop} />
+                  <CopyBtn value={currentText} onCopy={handleTopCopy} isFlashing={flashTop} />
                 </div>
               </div>
               

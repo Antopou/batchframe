@@ -369,20 +369,9 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
       },
     });
     menuItems.push({
-      label: 'Pull from Drive (Merge)',
+      label: 'Pull from Drive',
       disabled: !cacheRoot || busy,
       onClick: () => doPullFirst('merge'),
-    });
-    menuItems.push({
-      label: 'Pull from Drive (Overwrite Local)',
-      disabled: !cacheRoot || busy,
-      onClick: () => doPullFirst('overwrite-local'),
-    });
-    menuItems.push({
-      label: 'Push to Drive (Overwrite Drive)',
-      danger: true,
-      disabled: !cacheRoot || busy,
-      onClick: () => doPush({ force: true }),
     });
     menuItems.push({
       label: 'Clear Data',

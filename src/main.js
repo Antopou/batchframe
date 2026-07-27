@@ -929,6 +929,18 @@ ipcMain.handle('get-image-metadata', async (event, filePath) => {
   }
 });
 
+ipcMain.handle('get-text-file', async (event, filePath) => {
+  try {
+    if (driveFs.isDrivePath(filePath)) {
+      filePath = await driveFs.materialize(await liveAuth(), filePath);
+    }
+    const text = await fs.readFile(filePath, 'utf8');
+    return { success: true, text };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // ── Google Drive IPC handlers ─────────────────────────────────────
 
 // Drive cache lives next to the project / installed app so it's easy to find

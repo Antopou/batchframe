@@ -211,8 +211,8 @@ async function detectConflicts(auth, cacheRoot) {
     if (rel) {
       const entry = m.files[rel];
       const remoteMoved = !!c.file.trashed || (c.file.md5Checksum && c.file.md5Checksum !== entry.driveMd5);
-      const remoteTimeChanged = c.file.modifiedTime && c.file.modifiedTime !== entry.driveModifiedTime;
-      if (remoteMoved || remoteTimeChanged) {
+      
+      if (remoteMoved) {
         conflicts.push({
           fileId: c.fileId,
           relPath: rel,
@@ -412,7 +412,8 @@ async function pushDataset(auth, cacheRoot, { onProgress, force = false } = {}) 
     await runPool(newJobs, UPLOAD_CONCURRENCY);
 
     // Refresh the change cursor so the next push has a clean baseline.
-    m.startPageToken = newStartPageToken || (await driveApi.getStartPageToken(auth));
+    // We fetch a brand new token here so our own uploads aren't seen as external changes next time.
+    m.startPageToken = await driveApi.getStartPageToken(auth);
     m.pulledAt = new Date().toISOString();
     pushSuccess = true;
   } finally {

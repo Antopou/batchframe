@@ -7,6 +7,7 @@ import ImagePreviewModal from './components/ImagePreviewModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import ContextMenu from './components/ContextMenu';
 import MetadataModal from './components/MetadataModal';
+import TextPreviewModal from './components/TextPreviewModal';
 import RenameModal from './components/RenameModal';
 import AutoCropModal from './components/AutoCropModal';
 
@@ -141,6 +142,7 @@ function App() {
   // Context menu state
   const [contextMenu, setContextMenu]     = useState(null); // { x, y, image } | null
   const [metadataModal, setMetadataModal] = useState(null); // { imageName, metadata } | null
+  const [textModal, setTextModal]         = useState(null); // { fileName, text } | null
   const [renameModal, setRenameModal]     = useState(null); // { images: [...] } | null
 
   // ── Batch auto-crop-to-face state ──────────────────────────────
@@ -802,7 +804,17 @@ function App() {
   }, [loadElectronFolder]);
 
   // ── Preview modal functions ─────────────────────────────
-  const handleOpenPreview = useCallback((image, index) => {
+  const handleOpenPreview = useCallback(async (image, index) => {
+    if (image.name?.toLowerCase().endsWith('.txt')) {
+      const result = await window.electronAPI.getTextFile(image.path);
+      if (result.success) {
+        setTextModal({ fileName: image.name, text: result.text });
+      } else {
+        console.error(`Failed to read text file: ${result.error}`);
+      }
+      return;
+    }
+
     setPreviewImage(image);
     setPreviewIndex(index);
     setKeyboardCursorIndex(null); // Hide cursor outline
@@ -2462,6 +2474,14 @@ function App() {
           imageName={metadataModal.imageName}
           metadata={metadataModal.metadata}
           onClose={() => setMetadataModal(null)}
+        />
+      )}
+
+      {textModal && (
+        <TextPreviewModal
+          fileName={textModal.fileName}
+          text={textModal.text}
+          onClose={() => setTextModal(null)}
         />
       )}
 

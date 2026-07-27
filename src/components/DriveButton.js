@@ -404,7 +404,7 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
   } else if (status?.configured) {
     menuItems.push({
       label: 'Copy Login Link',
-      disabled: signingIn || busy,
+      disabled: busy,
       onClick: () => doSignIn({ copyLink: true }),
     });
   }

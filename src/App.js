@@ -9,7 +9,7 @@ import ContextMenu from './components/ContextMenu';
 import MetadataModal from './components/MetadataModal';
 import RenameModal from './components/RenameModal';
 import AutoCropModal from './components/AutoCropModal';
-import CommandPalette from './components/CommandPalette';
+
 import DriveButton from './components/DriveButton';
 import DriveDestinationPicker from './components/DriveDestinationPicker';
 import LocalDestinationPicker from './components/LocalDestinationPicker';
@@ -125,7 +125,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Command Palette
-  const [showCommandPalette, setShowCommandPalette] = useState(false);
+
 
   // Drive folder picker for move/copy destinations (replaces native folder dialog when in Drive live mode)
   const [drivePickAction, setDrivePickAction] = useState(null);
@@ -405,9 +405,9 @@ function App() {
   }, [sortedImages, searchQuery, aspectFilter]);
 
   const filteredImagesRef = useRef(filteredImages);
-  const subfoldersRef = useRef(subfolders);
+  const subfoldersRef = useRef(filteredSubfolders);
   useEffect(() => { filteredImagesRef.current = filteredImages; }, [filteredImages]);
-  useEffect(() => { subfoldersRef.current = subfolders; }, [subfolders]);
+  useEffect(() => { subfoldersRef.current = filteredSubfolders; }, [filteredSubfolders]);
   useEffect(() => { folderPathRef.current = folderPath; }, [folderPath]);
 
   // Redundant useEffect removed. Anchor/snapshot logic is managed synchronously in click/keyboard handlers.
@@ -1740,63 +1740,12 @@ function App() {
     localStorage.setItem(CONFIRM_REQUIRED_KEY, String(val));
   }, []);
 
-  const globalActions = useMemo(() => {
-    const actions = [
-      { id: 'view-grid', name: 'ls -l', subtitle: 'Switch to thumbnail grid layout', shortcut: ['V'], onExecute: () => { setViewMode('grid'); localStorage.setItem('viewMode', 'grid'); } },
-      { id: 'view-list', name: 'ls', subtitle: 'Switch to compact list layout', shortcut: ['V'], onExecute: () => { setViewMode('list'); localStorage.setItem('viewMode', 'list'); } },
-      { id: 'view-explorer', name: 'explorer', subtitle: 'Mixed folders + images thumbnail view', shortcut: ['V'], onExecute: () => { setViewMode('explorer'); localStorage.setItem('viewMode', 'explorer'); }, keywords: ['tree', 'mixed'] },
-      { id: 'view-thumb', name: 'ls --thumbs', subtitle: 'Show/hide thumbnails in list view', shortcut: ['T'], onExecute: () => setListDetail(prev => prev === 'thumb' ? 'plain' : 'thumb') },
-      { id: 'view-fit', name: 'fit --toggle', subtitle: 'Switch between Contain and Cover', shortcut: ['T'], onExecute: () => setImageFitMode(prev => prev === 'contain' ? 'cover' : 'contain') },
-      { id: 'select-all', name: 'select *', subtitle: 'Select all images currently visible', shortcut: ['⌘', 'A'], onExecute: handleSelectAll },
-      { id: 'deselect-all', name: 'clear', subtitle: 'Clear your current selection', shortcut: ['Esc'], onExecute: handleDeselectAll },
-      { id: 'invert-selection', name: 'select --invert', subtitle: 'Select unselected, deselect selected', shortcut: ['I'], onExecute: handleInvertSelection },
-      { id: 'copy-selected', name: 'cp', subtitle: 'Copy selected images to another folder', shortcut: ['C'], onExecute: handleCopySelected },
-      { id: 'move-selected', name: 'mv', subtitle: 'Move selected images to another folder', shortcut: ['M'], onExecute: handleMoveSelected },
-      { id: 'delete-selected', name: 'rm', subtitle: 'Move selected images to trash', shortcut: ['Del'], onExecute: handleDeleteSelected },
-      { id: 'keep-selected', name: 'rm --inverse', subtitle: 'Delete all unselected images', shortcut: ['⇧', 'Del'], onExecute: handleKeepSelected },
-      { id: 'lock-selected', name: 'chmod +r', subtitle: 'Prevent selected images from being deleted', shortcut: ['L'], onExecute: handleLockSelected },
-      { id: 'unlock-selected', name: 'chmod -r', subtitle: 'Allow selected images to be deleted', shortcut: ['⇧', 'L'], onExecute: handleUnlockSelected },
-      { id: 'bulk-rename', name: 'rename', subtitle: 'Sequentially rename selected images', shortcut: ['R'], onExecute: handleOpenBulkRename },
-      { id: 'open-photoshop', name: 'open -a Photoshop', subtitle: 'Send selected images to Photoshop', shortcut: ['P'], onExecute: handleOpenInPhotoshop },
-      { id: 'use-as-ref', name: 'export --ref', subtitle: 'Add selected to AI references', shortcut: ['F'], onExecute: handleUseSelectedAsRefs },
-      { id: 'toggle-ai', name: 'ai --toggle', subtitle: 'Open or close the AI character scanner', shortcut: ['A'], onExecute: () => setShowAIScan(p => !p) },
-      { id: 'toggle-drag-select', name: 'set drag_select toggle', subtitle: 'Enable/disable click-and-drag selection', shortcut: ['D'], onExecute: () => setDragSelectEnabled(p => !p) },
-      { id: 'toggle-order-select', name: 'set order_select toggle', subtitle: 'Click images in sequence to rename', shortcut: ['O'], onExecute: () => setOrderSelectMode(p => !p) },
-      { id: 'sort-name', name: 'sort -n', subtitle: 'Order images alphabetically', onExecute: () => { setSortBy('name'); setSortDir('asc'); } },
-      { id: 'sort-date', name: 'sort -t', subtitle: 'Order images by modified time', onExecute: () => { setSortBy('date'); setSortDir('desc'); } },
-      { id: 'sort-size', name: 'sort -s', subtitle: 'Order images by file size', onExecute: () => { setSortBy('size'); setSortDir('desc'); } },
-      { id: 'open-drive', name: 'mount gdrive', subtitle: 'Pick a dataset from your Drive', onExecute: () => document.querySelector('.drive-btn')?.click() },
-      { id: 'open-folder', name: 'cd', subtitle: 'Browse your computer for a folder', onExecute: handleSelectFolder },
-    ];
-    // Filter out actions requiring selection if none selected
-    return actions.filter(a => {
-      if (isDriveLive && ['open-photoshop', 'use-as-ref'].includes(a.id)) {
-        return false; // these need real local files
-      }
-      if (['copy-selected', 'move-selected'].includes(a.id)) {
-        return selectedImages.size > 0 || selectedFolders.size > 0;
-      }
-      if (['delete-selected', 'keep-selected', 'lock-selected', 'unlock-selected', 'bulk-rename', 'open-photoshop', 'use-as-ref'].includes(a.id)) {
-        return selectedImages.size > 0;
-      }
-      return true;
-    });
-  }, [
-    setViewMode, setListDetail, setImageFitMode, handleSelectAll, handleDeselectAll, handleInvertSelection,
-    handleCopySelected, handleMoveSelected, handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected,
-    handleOpenBulkRename, handleOpenInPhotoshop, handleUseSelectedAsRefs, setDragSelectEnabled, setOrderSelectMode,
-    setSortBy, setSortDir, handleSelectFolder, selectedImages.size, selectedFolders.size, isDriveLive
-  ]);
+
 
   // ── Keyboard shortcuts ──────────────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
-      // Command Palette
-      if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        setShowCommandPalette(p => !p);
-        return;
-      }
+
 
       // Terminal-style folder open picker
       if ((e.key === 'o' || e.key === 'O') && (e.ctrlKey || e.metaKey)) {
@@ -1833,10 +1782,7 @@ function App() {
       if (confirmDialog || renameModal || autoCropModal || metadataModal || drivePickAction) return;
 
       if (e.key === 'Escape') {
-        if (showCommandPalette) {
-          setShowCommandPalette(false);
-          return;
-        }
+
         handleDeselectAll();
         return;
       }
@@ -2101,7 +2047,7 @@ function App() {
       window.removeEventListener('wheel', cancelAnim);
       cancelAnim();
     };
-  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode, selectedFolders, handleOpenLastFolder, handleNavigateToFolder, handleNavigateUp, handleNavigateForward, handleOpenPreview, confirmDialog, renameModal, autoCropModal, metadataModal, showCommandPalette]);
+  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode, selectedFolders, handleOpenLastFolder, handleNavigateToFolder, handleNavigateUp, handleNavigateForward, handleOpenPreview, confirmDialog, renameModal, autoCropModal, metadataModal]);
 
   // ── Ctrl+Wheel zoom ─────────────────────────────────────────────
   useEffect(() => {
@@ -2516,21 +2462,7 @@ function App() {
           />
         )
       )}
-      <CommandPalette
-        isOpen={showCommandPalette}
-        onClose={() => setShowCommandPalette(false)}
-        query={searchQuery}
-        setQuery={setSearchQuery}
-        actions={globalActions}
-        currentPath={folderPath}
-        lastFolderPath={lastFolderPath}
-        subfolders={filteredSubfolders}
-        parentFolderPath={parentFolderPath}
-        recentFolders={recentFolders}
-        onNavigateToFolder={handleNavigateToFolder}
-        onNavigateUp={handleNavigateUp}
-        onBrowseFolder={handleSelectFolder}
-      />
+
     </div>
   );
 }

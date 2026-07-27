@@ -154,6 +154,18 @@ function Controls({
   const [showAIScan, setShowAIScan] = useState(false);
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.key === 'f' || e.key === 'F') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleBrowsePsPath = useCallback(async () => {
     if (!window.electronAPI?.selectFile) return;
@@ -318,9 +330,15 @@ function Controls({
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
           </svg>
           <input
+            ref={searchInputRef}
             type="text"
             value={searchQuery || ''}
             onChange={(e) => onSearchQueryChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.target.blur();
+              }
+            }}
             placeholder="Search by name…"
             className="search-input"
             disabled={loading || totalCount === 0}

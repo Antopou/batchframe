@@ -83,14 +83,7 @@ function createWindow() {
           const listImg = await mainWindow.webContents.capturePage();
           fs.writeFileSync(p.join(__dirname, '../public/screenshot_list.png'), listImg.toPNG());
           
-          mainWindow.webContents.sendInputEvent({type: 'keyDown', keyCode: 'k', modifiers: ['meta']});
-          await new Promise(r => setTimeout(r, 1000));
-          const cmdImg = await mainWindow.webContents.capturePage();
-          fs.writeFileSync(p.join(__dirname, '../public/screenshot_cmd.png'), cmdImg.toPNG());
-          
-          mainWindow.webContents.sendInputEvent({type: 'keyDown', keyCode: 'k', modifiers: ['meta']});
-          await new Promise(r => setTimeout(r, 500));
-          
+
           mainWindow.webContents.sendInputEvent({type: 'keyDown', keyCode: 'a'});
           await new Promise(r => setTimeout(r, 1000));
           const aiImg = await mainWindow.webContents.capturePage();

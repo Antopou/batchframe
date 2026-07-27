@@ -2,32 +2,33 @@ import React, { useEffect, useCallback, useState } from 'react';
 import './MetadataModal.css';
 
 function CopyBtn({ value, onCopy }) {
-  const [copied, setCopied] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  
   const handleCopy = (e) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      if (onCopy) onCopy();
-      setTimeout(() => setCopied(false), 1500);
-    });
+    navigator.clipboard.writeText(value).catch(()=>{});
+    if (onCopy) onCopy();
   };
+  
   return (
-    <button className={`metadata-copy-btn${copied ? ' copied' : ''}`} onClick={handleCopy} title="Copy">
-      {copied ? (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-      ) : (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
-        </svg>
-      )}
+    <button 
+      className={`metadata-copy-btn${pressed ? ' pressed' : ''}`} 
+      onClick={handleCopy}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
+      title="Copy"
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      </svg>
     </button>
   );
 }
 
 function TextPreviewModal({ fileName, text, onClose }) {
   const [excludedTags, setExcludedTags] = useState([]);
+  const [showSelected, setShowSelected] = useState(false);
 
   const handleKey = useCallback(e => {
     if (e.key === 'Escape') { e.preventDefault(); onClose(); }
@@ -42,9 +43,20 @@ function TextPreviewModal({ fileName, text, onClose }) {
   const tags = text ? text.split(/,\s*|\n+/).map(t => t.trim()).filter(t => t) : [];
 
   const handleTagClick = (tag) => {
+    setShowSelected(true);
     setExcludedTags(prev => 
       prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
     );
+  };
+
+  const handleTopCopy = () => {
+    if (!showSelected) {
+      setShowSelected(true);
+      setExcludedTags([]);
+    } else {
+      setShowSelected(false);
+      setExcludedTags([]);
+    }
   };
 
   const includedTags = tags.filter(t => !excludedTags.includes(t));
@@ -72,6 +84,13 @@ function TextPreviewModal({ fileName, text, onClose }) {
         .tag-separator.excluded {
           opacity: 0.3;
         }
+        .metadata-copy-btn.pressed {
+          transform: scale(0.85);
+          color: var(--accent);
+          background: rgba(92, 124, 255, 0.15);
+          border-color: var(--accent);
+          opacity: 1;
+        }
       `}</style>
       <div className="metadata-modal" onClick={e => e.stopPropagation()} style={{ width: 'min(900px, 94vw)', minHeight: '50vh' }}>
         <div className="metadata-header">
@@ -89,7 +108,7 @@ function TextPreviewModal({ fileName, text, onClose }) {
             <div className="metadata-empty">File is empty.</div>
           ) : (
             <>
-              <div className="metadata-row" style={{ flex: 1, borderBottom: includedTags.length > 0 ? '1px solid var(--border-subtle)' : 'none' }}>
+              <div className="metadata-row" style={{ flex: 1, borderBottom: showSelected ? '1px solid var(--border-subtle)' : 'none' }}>
                 <div className="metadata-key" style={{ borderBottom: 'none' }}>Contents</div>
                 <div className="metadata-value-wrap" style={{ flex: 1 }}>
                   <div className="metadata-value" style={{ maxHeight: '50vh', height: '100%', borderBottom: 'none', display: 'block' }}>
@@ -109,11 +128,11 @@ function TextPreviewModal({ fileName, text, onClose }) {
                       );
                     })}
                   </div>
-                  <CopyBtn value={text} onCopy={() => setExcludedTags([])} />
+                  <CopyBtn value={text} onCopy={handleTopCopy} />
                 </div>
               </div>
               
-              {includedTags.length > 0 && (
+              {showSelected && (
                 <div className="metadata-row" style={{ borderBottom: 'none' }}>
                   <div className="metadata-key" style={{ borderBottom: 'none' }}>Selected</div>
                   <div className="metadata-value-wrap">

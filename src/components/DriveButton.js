@@ -409,6 +409,15 @@ function DriveButton({ localPath, cacheRoot, manifest, summary, onDatasetOpened,
     });
   }
 
+  if (busy) {
+    menuItems.push({ separator: true });
+    menuItems.push({
+      label: 'Cancel Operation',
+      danger: true,
+      onClick: () => window.electronAPI.drive.cancel(),
+    });
+  }
+
   return (
     <>
       <button

@@ -228,7 +228,7 @@ ipcMain.handle('get-images', async (event, folderPath) => {
   }
   try {
     const files = await fs.readdir(folderPath);
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.txt', '.zip', '.torrent'];
     const imageFiles = files.filter(file => imageExtensions.includes(path.extname(file).toLowerCase()));
     return await Promise.all(imageFiles.map(async name => {
       const filePath = path.join(folderPath, name);
@@ -256,7 +256,7 @@ ipcMain.handle('get-folder-preview', async (event, { folderPath, limit = 4 }) =>
   }
   try {
     const files = await fs.readdir(folderPath);
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.txt', '.zip', '.torrent'];
     const imageFiles = files
       .filter(f => imageExtensions.includes(path.extname(f).toLowerCase()))
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
@@ -1120,6 +1120,12 @@ ipcMain.handle('drive-clear-all-cache', async (_e) => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
+});
+
+ipcMain.handle('drive-cancel', () => {
+  const { cancel } = require('./drive/driveCancel');
+  cancel();
+  return { success: true };
 });
 
 ipcMain.handle('drive-refresh-manifest', async (_e, { cacheRoot }) => {

@@ -6,6 +6,11 @@ const fsp = require('fs').promises;
 const path = require('path');
 const { Readable } = require('stream');
 const { google } = require('googleapis');
+const { getSignal } = require('./driveCancel');
+
+function opts(overrides = {}) {
+  return { signal: getSignal(), ...overrides };
+}
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
@@ -26,7 +31,7 @@ function mediaBody({ localPath, buffer, mimeType }) {
 
 // Detects an image by mimeType prefix OR by extension (some uploads land as
 // application/octet-stream).
-const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg']);
+const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.txt', '.zip', '.torrent']);
 function isImage(file) {
   if (file.mimeType && file.mimeType.startsWith('image/')) return true;
   const ext = path.extname(file.name || '').toLowerCase();
@@ -35,7 +40,7 @@ function isImage(file) {
 
 async function getAbout(auth) {
   const drive = driveFor(auth);
-  const { data } = await drive.about.get({ fields: 'user(displayName,emailAddress),storageQuota' });
+  const { data } = await drive.about.get(opts({ fields: 'user(displayName,emailAddress),storageQuota' }));
   return data;
 }
 
@@ -46,13 +51,13 @@ async function listFolder(auth, folderId, { includeAll = false } = {}) {
   const items = [];
   let pageToken;
   do {
-    const { data } = await drive.files.list({
+    const { data } = await drive.files.list(opts({
       q: `'${folderId}' in parents and trashed = false`,
       fields: 'nextPageToken, files(id, name, mimeType, md5Checksum, size, modifiedTime, parents, thumbnailLink, hasThumbnail, webViewLink, imageMediaMetadata(width, height))',
       pageSize: 1000,
       pageToken,
       spaces: 'drive',
-    });
+    }));
     for (const f of data.files || []) {
       if (f.mimeType === FOLDER_MIME || includeAll || isImage(f)) {
         items.push(f);
@@ -96,10 +101,10 @@ async function walkFolder(auth, rootId) {
 
 async function getFileMetadata(auth, fileId) {
   const drive = driveFor(auth);
-  const { data } = await drive.files.get({
+  const { data } = await drive.files.get(opts({
     fileId,
     fields: 'id, name, mimeType, md5Checksum, size, modifiedTime, parents, trashed, thumbnailLink, hasThumbnail, webViewLink, imageMediaMetadata(width, height)',
-  });
+  }));
   return data;
 }
 
@@ -109,7 +114,7 @@ async function downloadFile(auth, fileId, destPath, { onBytes } = {}) {
   await fsp.mkdir(path.dirname(destPath), { recursive: true });
   const res = await drive.files.get(
     { fileId, alt: 'media' },
-    { responseType: 'stream' }
+    opts({ responseType: 'stream' })
   );
   await new Promise((resolve, reject) => {
     const out = fs.createWriteStream(destPath);
@@ -124,14 +129,14 @@ async function downloadFile(auth, fileId, destPath, { onBytes } = {}) {
 // Creates a new file in the given parent folder. Returns the new fileId.
 async function uploadFile(auth, { parentId, name, localPath, buffer, mimeType }) {
   const drive = driveFor(auth);
-  const { data } = await drive.files.create({
+  const { data } = await drive.files.create(opts({
     requestBody: {
       name,
       parents: [parentId],
     },
     media: mediaBody({ localPath, buffer, mimeType }),
     fields: 'id, name, md5Checksum, size, modifiedTime, parents',
-  });
+  }));
   return data;
 }
 
@@ -150,13 +155,13 @@ async function updateFile(auth, fileId, { localPath, buffer, mimeType, name, add
   }
   const media = mediaBody({ localPath, buffer, mimeType });
   if (media) params.media = media;
-  const { data } = await drive.files.update(params);
+  const { data } = await drive.files.update(params, opts());
   return data;
 }
 
 async function trashFile(auth, fileId) {
   const drive = driveFor(auth);
-  await drive.files.update({ fileId, requestBody: { trashed: true } });
+  await drive.files.update(opts({ fileId, requestBody: { trashed: true } }));
 }
 
 // Server-side copy — Drive duplicates the bytes on its own storage, so nothing
@@ -166,35 +171,35 @@ async function copyFile(auth, fileId, { parentId, name } = {}) {
   const requestBody = {};
   if (parentId) requestBody.parents = [parentId];
   if (name) requestBody.name = name;
-  const { data } = await drive.files.copy({
+  const { data } = await drive.files.copy(opts({
     fileId,
     requestBody,
     fields: 'id, name, md5Checksum, size, modifiedTime, parents',
-  });
+  }));
   return data;
 }
 
 async function createFolder(auth, { parentId, name }) {
   const drive = driveFor(auth);
-  const { data } = await drive.files.create({
+  const { data } = await drive.files.create(opts({
     requestBody: {
       name,
       mimeType: FOLDER_MIME,
       parents: [parentId],
     },
     fields: 'id, name, parents',
-  });
+  }));
   return data;
 }
 
 async function findFolder(auth, parentId, name) {
   const drive = driveFor(auth);
   const escapedName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  const { data } = await drive.files.list({
+  const { data } = await drive.files.list(opts({
     q: `'${parentId}' in parents and name = '${escapedName}' and mimeType = '${FOLDER_MIME}' and trashed = false`,
     fields: 'files(id, name)',
     spaces: 'drive',
-  });
+  }));
   if (!data.files || data.files.length === 0) return null;
   // Try to find exact match first
   const exact = data.files.find(f => f.name === name);
@@ -204,11 +209,11 @@ async function findFolder(auth, parentId, name) {
 async function findFileInFolder(auth, parentId, name) {
   const drive = driveFor(auth);
   const escapedName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  const { data } = await drive.files.list({
+  const { data } = await drive.files.list(opts({
     q: `'${parentId}' in parents and name = '${escapedName}' and mimeType != '${FOLDER_MIME}' and trashed = false`,
     fields: 'files(id, name, md5Checksum, size, modifiedTime)',
     spaces: 'drive',
-  });
+  }));
   if (!data.files || data.files.length === 0) return null;
   // Try to find exact match first
   const exact = data.files.find(f => f.name === name);
@@ -217,7 +222,7 @@ async function findFileInFolder(auth, parentId, name) {
 
 async function getStartPageToken(auth) {
   const drive = driveFor(auth);
-  const { data } = await drive.changes.getStartPageToken();
+  const { data } = await drive.changes.getStartPageToken(opts());
   return data.startPageToken;
 }
 
@@ -228,12 +233,12 @@ async function listChanges(auth, pageToken) {
   let token = pageToken;
   let newStartPageToken = null;
   while (token) {
-    const { data } = await drive.changes.list({
+    const { data } = await drive.changes.list(opts({
       pageToken: token,
       fields: 'nextPageToken, newStartPageToken, changes(fileId, removed, time, file(id, name, parents, md5Checksum, modifiedTime, trashed))',
       pageSize: 1000,
       spaces: 'drive',
-    });
+    }));
     for (const c of data.changes || []) changes.push(c);
     if (data.newStartPageToken) newStartPageToken = data.newStartPageToken;
     token = data.nextPageToken || null;

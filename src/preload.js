@@ -38,6 +38,7 @@ try {
     showInFolder:        (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
     getImageMetadata:    (filePath) => ipcRenderer.invoke('get-image-metadata', filePath),
     getTextFile:         (filePath) => ipcRenderer.invoke('get-text-file', filePath),
+    saveTextFile:        (filePath, text) => ipcRenderer.invoke('save-text-file', filePath, text),
     copyImages:          (filePaths, destFolder) => ipcRenderer.invoke('copy-images', { filePaths, destFolder }),
     onCopyProgress:      (cb) => ipcRenderer.on('copy-progress', (event, data) => cb(data)),
     removeCopyListeners: () => ipcRenderer.removeAllListeners('copy-progress'),

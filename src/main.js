@@ -945,6 +945,18 @@ ipcMain.handle('get-text-file', async (event, filePath) => {
   }
 });
 
+ipcMain.handle('save-text-file', async (event, filePath, text) => {
+  try {
+    if (driveFs.isDrivePath(filePath)) {
+      filePath = await driveFs.materialize(await liveAuth(), filePath);
+    }
+    await fs.writeFile(filePath, text, 'utf8');
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // ── Google Drive IPC handlers ─────────────────────────────────────
 
 // Drive cache lives next to the project / installed app so it's easy to find

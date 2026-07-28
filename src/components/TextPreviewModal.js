@@ -28,10 +28,18 @@ function CopyBtn({ value, onCopy, isFlashing }) {
 
 function TextPreviewModal({ fileName, text: initialText, filePath, onClose }) {
   const [currentText, setCurrentText] = useState(initialText);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [replaceQuery, setReplaceQuery] = useState('');
+  const searchIndexRef = useRef(0);
+  const textAreaRef = useRef(null);
 
   // Poll for file changes
   useEffect(() => {
-    if (!filePath) return;
+    if (!filePath || isEditing) return;
     const intervalId = setInterval(async () => {
       try {
         const result = await window.electronAPI.getTextFile(filePath);
@@ -43,7 +51,7 @@ function TextPreviewModal({ fileName, text: initialText, filePath, onClose }) {
       }
     }, 1000);
     return () => clearInterval(intervalId);
-  }, [filePath, currentText]);
+  }, [filePath, currentText, isEditing]);
 
   const [excludedTags, setExcludedTags] = useState([]);
   const [showSelected, setShowSelected] = useState(false);
@@ -62,7 +70,30 @@ function TextPreviewModal({ fileName, text: initialText, filePath, onClose }) {
     if (/1\.\s/.test(currentText) && /2\.\s/.test(currentText)) {
       const parts = currentText.split(/(?=(?:\b|^)\d+\.\s)/).map(s => s.trim().replace(/^,\s*/, '').replace(/,\s*$/, '')).filter(Boolean);
       if (parts.length > 1 && parts.some(p => /^1\.\s/.test(p))) {
-        return parts;
+        return parts.map(p => {
+          let num = '';
+          let title = null;
+          let content = p;
+          
+          const numMatch = p.match(/^(\d+\.)\s*/);
+          if (numMatch) {
+            num = numMatch[1];
+            content = p.substring(numMatch[0].length);
+          }
+          
+          if (content.startsWith('--')) {
+            const nlIndex = content.indexOf('\n');
+            if (nlIndex !== -1) {
+              title = content.substring(2, nlIndex).trim();
+              content = content.substring(nlIndex + 1).trim();
+            } else {
+              title = content.substring(2).trim();
+              content = '';
+            }
+          }
+          
+          return { num, title, content };
+        });
       }
     }
     return null;
@@ -87,6 +118,7 @@ function TextPreviewModal({ fileName, text: initialText, filePath, onClose }) {
   }, [showSelected]);
 
   const handleKey = useCallback(e => {
+    if (isEditing) return;
     const isLetter = /^[a-zA-Z]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey;
 
     if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End', 'Tab', 'Escape', ' ', 'Enter'].includes(e.key) || 
@@ -176,7 +208,106 @@ function TextPreviewModal({ fileName, text: initialText, filePath, onClose }) {
         }
       }
     }
-  }, [onClose, tags, focusedIndex, excludedTags, handleTagClick, isKeyboardNavigating, autoAdvanceDir]);
+  }, [onClose, tags, focusedIndex, excludedTags, handleTagClick, isKeyboardNavigating, autoAdvanceDir, isEditing]);
+
+  const handleExitEdit = () => {
+    if (textAreaRef.current && textAreaRef.current.value !== currentText) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to discard them?')) return;
+    }
+    setIsEditing(false);
+    setShowSearch(false);
+  };
+
+  const handleFindNext = useCallback(() => {
+    if (!searchQuery || !textAreaRef.current) return;
+    const text = textAreaRef.current.value;
+    const lowerText = text.toLowerCase();
+    const lowerQuery = searchQuery.toLowerCase();
+    let idx = lowerText.indexOf(lowerQuery, searchIndexRef.current);
+    
+    if (idx === -1) { // wrap around
+      idx = lowerText.indexOf(lowerQuery, 0);
+    }
+    
+    if (idx !== -1) {
+      const textarea = textAreaRef.current;
+      textarea.focus();
+      textarea.setSelectionRange(idx, idx + searchQuery.length);
+      searchIndexRef.current = idx + searchQuery.length;
+      
+      // Calculate scroll position using a mirror div
+      const mirror = document.createElement('div');
+      const computed = window.getComputedStyle(textarea);
+      
+      const properties = [
+        'direction', 'boxSizing', 'width', 'height', 'overflowX', 'overflowY', 
+        'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderStyle', 
+        'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 
+        'fontStyle', 'fontVariant', 'fontWeight', 'fontStretch', 'fontSize', 'fontSizeAdjust', 'lineHeight', 'fontFamily', 
+        'textAlign', 'textTransform', 'textIndent', 'textDecoration', 'letterSpacing', 'wordSpacing', 
+        'tabSize', 'MozTabSize'
+      ];
+      properties.forEach(prop => {
+        mirror.style[prop] = computed[prop];
+      });
+      
+      mirror.style.position = 'absolute';
+      mirror.style.top = '0';
+      mirror.style.left = '-9999px';
+      mirror.style.visibility = 'hidden';
+      mirror.style.whiteSpace = 'pre-wrap';
+      mirror.style.wordWrap = 'break-word';
+      
+      mirror.textContent = text.substring(0, idx);
+      const span = document.createElement('span');
+      span.textContent = text.substring(idx, idx + searchQuery.length);
+      mirror.appendChild(span);
+      
+      document.body.appendChild(mirror);
+      const spanTop = span.offsetTop;
+      document.body.removeChild(mirror);
+      
+      textarea.scrollTop = Math.max(0, spanTop - textarea.clientHeight / 2);
+    }
+  }, [searchQuery]);
+
+  const handleReplace = useCallback(() => {
+    if (!searchQuery || !textAreaRef.current) return;
+    const start = textAreaRef.current.selectionStart;
+    const end = textAreaRef.current.selectionEnd;
+    const selectedText = textAreaRef.current.value.substring(start, end);
+    
+    if (selectedText.toLowerCase() === searchQuery.toLowerCase()) {
+      textAreaRef.current.setRangeText(replaceQuery, start, end, 'end');
+    }
+    handleFindNext();
+  }, [searchQuery, replaceQuery, handleFindNext]);
+
+  const handleReplaceAll = useCallback(() => {
+    if (!searchQuery || !textAreaRef.current) return;
+    const text = textAreaRef.current.value;
+    const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    textAreaRef.current.value = text.replace(regex, replaceQuery);
+  }, [searchQuery, replaceQuery]);
+
+  const handleSave = async () => {
+    if (!filePath || isSaving) return;
+    const textToSave = textAreaRef.current ? textAreaRef.current.value : currentText;
+    setIsSaving(true);
+    try {
+      const res = await window.electronAPI.saveTextFile(filePath, textToSave);
+      if (res.success) {
+        setCurrentText(textToSave);
+        setHasUnsavedChanges(false);
+        // Do not close edit mode on save
+      } else {
+        console.error('Failed to save file:', res.error);
+      }
+    } catch (e) {
+      console.error('Error saving text file:', e);
+    }
+    setIsSaving(false);
+  };
 
   useEffect(() => {
     window.addEventListener('keydown', handleKey, { capture: true });
@@ -245,46 +376,206 @@ function TextPreviewModal({ fileName, text: initialText, filePath, onClose }) {
             Metadata
           </div>
           <span className="metadata-filename">{fileName}</span>
-          <button className="preview-close" onClick={onClose}>×</button>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {!isEditing && (
+              <button 
+                title="Edit text"
+                onClick={() => setIsEditing(true)}
+                style={{ 
+                  background: 'transparent', color: 'var(--text-muted)', border: 'none', borderRadius: '4px', 
+                  width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9"></path>
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                </svg>
+              </button>
+            )}
+            {isEditing && (
+              <>
+                <button 
+                  onClick={handleExitEdit}
+                  style={{ 
+                    background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', 
+                    borderRadius: '4px', padding: '3px 11px', fontSize: '12px', cursor: 'pointer' 
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  style={{ 
+                    background: hasUnsavedChanges ? 'var(--accent)' : 'transparent', 
+                    color: hasUnsavedChanges ? '#fff' : 'var(--text-muted)', 
+                    border: hasUnsavedChanges ? 'none' : '1px solid var(--border)', 
+                    borderRadius: '4px', 
+                    padding: '4px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: '500',
+                    opacity: isSaving ? 0.6 : 1
+                  }}
+                >
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
+              </>
+            )}
+            <button className="preview-close" onClick={() => {
+              if (isEditing && textAreaRef.current && textAreaRef.current.value !== currentText) {
+                if (!window.confirm('You have unsaved changes. Are you sure you want to close?')) return;
+              }
+              onClose();
+            }} style={{ marginLeft: '8px' }}>×</button>
+          </div>
         </div>
         <div className="metadata-body" style={{ display: 'flex', flexDirection: 'column' }}>
-          {!currentText ? (
+          {isEditing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%' }}>
+              {showSearch && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px 16px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      id="search-input-field"
+                      autoFocus
+                      placeholder="Find in text..."
+                      value={searchQuery}
+                      onChange={e => {
+                        setSearchQuery(e.target.value);
+                        searchIndexRef.current = 0;
+                      }}
+                      onKeyDown={e => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleFindNext();
+                        }
+                        if (e.key === 'Escape') {
+                          setShowSearch(false);
+                          textAreaRef.current?.focus();
+                        }
+                        if (e.key === 'f' && (e.metaKey || e.ctrlKey)) {
+                           e.preventDefault();
+                           e.target.select();
+                        }
+                      }}
+                      style={{
+                        flex: 1, padding: '4px 8px', background: 'var(--bg-inset)', border: '1px solid var(--border)',
+                        color: 'var(--text-primary)', borderRadius: '4px', fontSize: '13px', outline: 'none'
+                      }}
+                    />
+                    <button onClick={handleFindNext} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: '500' }}>Next</button>
+                    <button onClick={() => { setShowSearch(false); textAreaRef.current?.focus(); }} style={{ background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 11px', fontSize: '12px', cursor: 'pointer' }}>Close</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      placeholder="Replace with..."
+                      value={replaceQuery}
+                      onChange={e => setReplaceQuery(e.target.value)}
+                      onKeyDown={e => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleReplace();
+                        }
+                        if (e.key === 'Escape') {
+                          setShowSearch(false);
+                          textAreaRef.current?.focus();
+                        }
+                      }}
+                      style={{
+                        flex: 1, padding: '4px 8px', background: 'var(--bg-inset)', border: '1px solid var(--border)',
+                        color: 'var(--text-primary)', borderRadius: '4px', fontSize: '13px', outline: 'none'
+                      }}
+                    />
+                    <button onClick={handleReplace} style={{ background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 11px', fontSize: '12px', cursor: 'pointer' }}>Replace</button>
+                    <button onClick={handleReplaceAll} style={{ background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 11px', fontSize: '12px', cursor: 'pointer' }}>All</button>
+                  </div>
+                </div>
+              )}
+              <textarea
+                ref={textAreaRef}
+                defaultValue={currentText || ''}
+                onChange={e => {
+                  setHasUnsavedChanges(e.target.value !== currentText);
+                }}
+              onKeyDown={e => {
+                // Let the textarea handle all its own key events so the modal doesn't intercept
+                e.stopPropagation();
+                if (e.key === 'Escape') {
+                  if (showSearch) {
+                    setShowSearch(false);
+                  } else {
+                    handleExitEdit();
+                  }
+                }
+                if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleSave();
+                }
+                if (e.key === 'f' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  setShowSearch(true);
+                  searchIndexRef.current = 0;
+                }
+                if (e.key === 'Enter' && showSearch) {
+                  e.preventDefault();
+                  handleFindNext();
+                }
+              }}
+              autoFocus
+              style={{
+                flex: 1,
+                width: '100%',
+                padding: '16px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-primary)',
+                fontFamily: "'JetBrains Mono', 'Fira Code', 'Menlo', monospace",
+                fontSize: '13px',
+                resize: 'none',
+                outline: 'none',
+                lineHeight: '1.6'
+              }}
+            />
+            </div>
+          ) : !currentText ? (
             <div className="metadata-empty">File is empty.</div>
           ) : numberedParts ? (
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
-              <div className="metadata-row" style={{ flex: 1, borderBottom: 'none' }}>
-                <div className="metadata-key" style={{ borderBottom: 'none' }}>Contents</div>
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                  {numberedParts.map((part, i) => {
-                    const cleanPart = part.replace(/^\d+\.\s*/, '');
-                    return (
-                      <div key={i} className="metadata-value-wrap" style={i > 0 ? { borderTop: '1px solid var(--border-subtle)' } : {}}>
-                        <div style={{ padding: '9px 0 9px 13px', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', 'Fira Code', 'Menlo', monospace", fontSize: '11px', userSelect: 'none', flexShrink: 0 }}>
-                          {i + 1}.
-                        </div>
-                        <pre 
-                          className="metadata-value" 
-                          style={{ borderBottom: 'none', display: 'block', maxHeight: 'none', height: 'auto', paddingLeft: '8px', flex: 1, cursor: 'pointer' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(cleanPart).catch(()=>{});
-                            // Optional: provide some visual feedback by finding the copy button and adding the pressed class temporarily
-                            const btn = e.currentTarget.nextElementSibling;
-                            if (btn) {
-                              btn.classList.add('pressed');
-                              setTimeout(() => btn.classList.remove('pressed'), 150);
-                            }
-                          }}
-                          title="Click to copy"
-                        >
-                          {cleanPart}
-                        </pre>
-                        <CopyBtn value={cleanPart} />
+              {numberedParts.map((part, i) => {
+                const { num, title, content } = part;
+                return (
+                  <div key={i} className="metadata-row" style={{ flexShrink: 0, borderBottom: i === numberedParts.length - 1 ? 'none' : '1px solid var(--border-subtle)' }}>
+                    <div className="metadata-key" style={{ borderBottom: 'none' }}>
+                      {title ? title : (i === 0 ? 'Contents' : '')}
+                    </div>
+                    <div className="metadata-value-wrap" style={{ flex: 1, borderTop: 'none' }}>
+                      <div style={{ padding: '9px 0 9px 13px', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', 'Fira Code', 'Menlo', monospace", fontSize: '11px', userSelect: 'none', flexShrink: 0 }}>
+                        {num}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+                      <pre 
+                        className="metadata-value" 
+                        style={{ borderBottom: 'none', display: 'block', maxHeight: 'none', height: 'auto', paddingLeft: '8px', flex: 1, cursor: 'pointer' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(content).catch(()=>{});
+                          const btn = e.currentTarget.nextElementSibling;
+                          if (btn) {
+                            btn.classList.add('pressed');
+                            setTimeout(() => btn.classList.remove('pressed'), 150);
+                          }
+                        }}
+                        title="Click to copy"
+                      >
+                        {content}
+                      </pre>
+                      <CopyBtn value={content} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <>

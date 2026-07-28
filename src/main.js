@@ -9,6 +9,15 @@ const path = require('path');
 const isDev = require('electron-is-dev');
 const { spawn } = require('child_process');
 
+// Files shipped alongside the bundle rather than inside it. In dev they sit at
+// the repo root; once packaged they land in resources/ (spawn cannot execute a
+// script from inside app.asar, so the Python helpers must stay unpacked).
+function resourcePath(name) {
+  return isDev
+    ? path.join(__dirname, '..', name)
+    : path.join(process.resourcesPath, name);
+}
+
 const driveOauth = require('./drive/oauthClient');
 const driveApi = require('./drive/driveApi');
 const driveManifest = require('./drive/manifest');
@@ -832,7 +841,7 @@ ipcMain.handle('clear-refs', async (_, character) => {
 
 ipcMain.handle('scan-character', async (event, { imagePaths, characters, clipGate }) => {
   const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = path.join(__dirname, '..', 'ai_scan.py');
+  const scriptPath = resourcePath('ai_scan.py');
 
   return new Promise((resolve, reject) => {
     const py = spawn(pyCmd, [scriptPath]);
@@ -863,7 +872,7 @@ ipcMain.handle('scan-character', async (event, { imagePaths, characters, clipGat
 
 ipcMain.handle('detect-faces', async (event, { imagePaths }) => {
   const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = path.join(__dirname, '..', 'ai_detect.py');
+  const scriptPath = resourcePath('ai_detect.py');
 
   return new Promise((resolve, reject) => {
     const py = spawn(pyCmd, [scriptPath]);

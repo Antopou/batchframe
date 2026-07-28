@@ -12,6 +12,8 @@
     "electron-start": "electron .",
     "start": "concurrently \"npm run react-start\" \"wait-on http://localhost:3000 && npm run electron-start\"",
     "build": "npm run react-build && electron-builder",
+    "build:win": "npm run react-build && electron-builder --win --x64",
+    "build:mac": "npm run react-build && electron-builder --mac",
     "dev": "concurrently \"npm run react-start\" \"wait-on http://localhost:3000 && npm run electron-start\"",
     "browser": "react-scripts start"
   },
@@ -48,21 +50,63 @@
     "extends": null,
     "appId": "com.user.batchframe",
     "productName": "BatchFrame",
+    "asar": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
     "files": [
       "src/**/*",
       "build/**/*",
-      "node_modules/**/*",
-      "package.json"
+      "package.json",
+      "!**/__pycache__/**",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      "ai_scan.py",
+      "ai_detect.py",
+      "requirements.txt",
+      {
+        "from": ".env",
+        "to": ".env"
+      }
     ],
     "mac": {
-      "icon": "build/icon.png"
+      "icon": "assets/icon.png",
+      "category": "public.app-category.photography",
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
-      "icon": "build/icon.png",
-      "target": "portable"
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
-    "directories": {
-      "output": "dist"
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "BatchFrame",
+      "artifactName": "${productName}-${version}-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Portable.${ext}"
     }
   },
   "allowScripts": {

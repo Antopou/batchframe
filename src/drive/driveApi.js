@@ -8,6 +8,24 @@ const { Readable } = require('stream');
 const { google } = require('googleapis');
 const { getSignal } = require('./driveCancel');
 
+async function withRetry(fn) {
+  let retries = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (err.code === 403 || err.code === 429 || (err.response && (err.response.status === 403 || err.response.status === 429))) {
+        if (retries > 6) throw err; // max ~1.2 minutes total wait
+        const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
+        await new Promise(r => setTimeout(r, delay));
+        retries++;
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 function opts(overrides = {}) {
   return { signal: getSignal(), ...overrides };
 }
@@ -155,13 +173,13 @@ async function updateFile(auth, fileId, { localPath, buffer, mimeType, name, add
   }
   const media = mediaBody({ localPath, buffer, mimeType });
   if (media) params.media = media;
-  const { data } = await drive.files.update(params, opts());
+  const { data } = await withRetry(() => drive.files.update(params, opts()));
   return data;
 }
 
 async function trashFile(auth, fileId) {
   const drive = driveFor(auth);
-  await drive.files.update(opts({ fileId, requestBody: { trashed: true } }));
+  await withRetry(() => drive.files.update(opts({ fileId, requestBody: { trashed: true } })));
 }
 
 // Server-side copy — Drive duplicates the bytes on its own storage, so nothing

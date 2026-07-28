@@ -10,7 +10,17 @@
 // client is not a real secret — Google treats it as public — so shipping it in
 // source is expected practice.
 
-require('dotenv').config();
+// dotenv defaults to cwd, which is unpredictable for a packaged app (it is the
+// folder the .exe was launched from). Look in the repo root for dev and in
+// resources/ for a packaged build, and let a real environment variable win.
+const path = require('path');
+const { app } = require('electron');
+
+const envPath = app.isPackaged
+  ? path.join(process.resourcesPath, '.env')
+  : path.join(__dirname, '..', '..', '.env');
+
+require('dotenv').config({ path: envPath });
 
 module.exports = {
   CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',

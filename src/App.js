@@ -1639,8 +1639,11 @@ function App() {
                 await loadElectronFolder(folderPath, false);
               }
             });
+            setImages(prev => prev.filter(img => !selectedImages.has(img.path)));
+          } else {
+            console.error('Delete failed:', deleteResult?.error);
+            alert(`Failed to delete some images: ${deleteResult?.error}`);
           }
-          setImages(prev => prev.filter(img => !selectedImages.has(img.path)));
         }
         if (folderList.length > 0) {
           for (const path of folderList) {

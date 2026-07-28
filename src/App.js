@@ -819,7 +819,7 @@ function App() {
     if (image.name?.toLowerCase().endsWith('.txt')) {
       const result = await window.electronAPI.getTextFile(image.path);
       if (result.success) {
-        setTextModal({ fileName: image.name, text: result.text });
+        setTextModal({ fileName: image.name, text: result.text, filePath: image.path });
       } else {
         console.error(`Failed to read text file: ${result.error}`);
       }
@@ -2507,6 +2507,7 @@ function App() {
         <TextPreviewModal
           fileName={textModal.fileName}
           text={textModal.text}
+          filePath={textModal.filePath}
           onClose={() => setTextModal(null)}
         />
       )}

@@ -1444,6 +1444,53 @@ function App() {
 
   const handleClearAiScores = useCallback(() => {
     setAiScores({});
+    setAiThreshold(0);
+    setSelectedImages(new Set());
+  }, []);
+
+  // ── AI duplicate check ──────────────────────────────────────────
+  const handleFindDuplicates = useCallback(async () => {
+    const paths = filteredImagesRef.current.map(i => i.path);
+    if (paths.length === 0) return;
+
+    setScanning(true);
+    setScanProgress({ done: 0, total: paths.length });
+    setSelectedImages(new Set());
+
+    window.electronAPI.onScanProgress((data) => {
+      if (data.type === 'status') {
+        setScanStatus(data.text);
+      } else if (data.type === 'scanning') {
+        setScanStatus('');
+        setScanningPath(data.path);
+      }
+    });
+
+    try {
+      const clusters = await window.electronAPI.findDuplicates(paths);
+      if (clusters && clusters.length > 0) {
+        const newSelected = new Set();
+        clusters.forEach(cluster => {
+          // Skip the first image (keep it), select the rest for deletion
+          for (let i = 1; i < cluster.length; i++) {
+            newSelected.add(cluster[i]);
+          }
+        });
+        setSelectedImages(newSelected);
+        alert(`Found ${clusters.length} duplicate groups. ${newSelected.size} duplicate images have been selected for deletion.`);
+      } else {
+        alert('No duplicates found.');
+      }
+    } catch (err) {
+      console.error('Find duplicates failed:', err);
+      alert(`Find duplicates failed: ${err.message}`);
+    } finally {
+      window.electronAPI.removeScanListeners();
+      setScanningPath(null);
+      setScanStatus('');
+      setScanning(false);
+      setScanProgress({ done: 0, total: 0 });
+    }
   }, []);
 
   const handleAddToRefs = useCallback(async (imagePaths) => {
@@ -2376,6 +2423,7 @@ function App() {
         scanProgress={scanProgress}
         scanStatus={scanStatus}
         onAIScan={handleAIScan}
+        onFindDuplicates={handleFindDuplicates}
         onClearAiScores={handleClearAiScores}
         profilesVersion={profilesVersion}
         onClearRefs={handleClearRefs}

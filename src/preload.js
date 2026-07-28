@@ -53,6 +53,7 @@ try {
     onScanProgress:        (cb) => ipcRenderer.on('scan-progress', (_, p) => cb(p)),
     removeScanListeners:   () => ipcRenderer.removeAllListeners('scan-progress'),
     detectFaces:           (imagePaths) => ipcRenderer.invoke('detect-faces', { imagePaths }),
+    findDuplicates:        (imagePaths) => ipcRenderer.invoke('find-duplicates', { imagePaths }),
     onDetectProgress:      (cb) => ipcRenderer.on('detect-progress', (_, p) => cb(p)),
     removeDetectListeners: () => ipcRenderer.removeAllListeners('detect-progress'),
 

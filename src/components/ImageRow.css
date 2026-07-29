@@ -35,7 +35,10 @@
   border-color: #4f8ef7;
   position: relative;
   overflow: hidden;
-  animation: scan-row-pulse 0.7s ease-in-out infinite;
+  /* Persistent inner glow keeps the outline reading as thick even when the
+     pulse is at its low phase. Layer 1 is a strong always-on inset ring,
+     layer 2 is the animated pulse halo defined in the keyframes below. */
+  animation: scan-row-pulse 0.9s ease-in-out infinite;
 }
 .image-row.scanning::after {
   content: '';
@@ -45,13 +48,21 @@
   width: 60%;
   height: 2px;
   background: linear-gradient(90deg, transparent, #4f8ef7, transparent);
-  animation: scan-row-sweep 0.7s linear infinite;
+  animation: scan-row-sweep 0.9s linear infinite;
   z-index: 3;
   pointer-events: none;
 }
 @keyframes scan-row-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 142, 247, 0.5); }
-  50%      { box-shadow: 0 0 0 3px rgba(79, 142, 247, 0);   }
+  0%, 100% {
+    box-shadow:
+      inset 0 0 0 1px rgba(79, 142, 247, 0.9),
+      0 0 0 0 rgba(79, 142, 247, 0.5);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px rgba(79, 142, 247, 0.9),
+      0 0 0 4px rgba(79, 142, 247, 0);
+  }
 }
 @keyframes scan-row-sweep {
   0%   { left: -60%; }

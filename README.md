@@ -61,7 +61,8 @@ Power users can navigate entirely via the keyboard (when not focused on a text i
 - **O** - Toggle Order Selection mode
 - **Q** - Toggle Auto-Reload (watch for file changes)
 - **N** - Toggle Confirmations (delete/move prompts)
-- **A** - Toggle the AI character scan panel
+- **A** - Open the AI menu; press again to cycle focus through Scan → Dupes → Source → Cluster → Shuffle. Press **Enter** to activate the focused item.
+- **Shift + A** - Close the AI menu
 - **C** - Copy selected images
 - **M** - Move selected images
 - **R** - Bulk rename selected images

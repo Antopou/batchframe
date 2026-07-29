@@ -161,6 +161,10 @@ function Controls({
   const [renameDigits, setRenameDigits] = useState(3);
   const [showAIScan, setShowAIScan] = useState(false);
   const [showAIMenu, setShowAIMenu] = useState(false);
+  // Keyboard-driven AI menu navigation. -1 = no keyboard focus.
+  // Order matches the sub-buttons rendered below: 0=Scan, 1=Dupes, 2=Source, 3=Cluster, 4=Shuffle.
+  const [aiKbFocus, setAiKbFocus] = useState(-1);
+  const AI_ITEMS_COUNT = 5;
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -219,18 +223,63 @@ function Controls({
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
-      if (e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey) {
-        if (driveLive) return; // AI scan needs real local files
+      const isA = e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey;
+
+      // Shift+A → close the AI menu (and clear focus).
+      if (isA && e.shiftKey) {
+        if (driveLive) return;
         e.preventDefault();
-        setShowAIScan(v => !v);
-      } else if (e.key.toLowerCase() === 'e' && (e.ctrlKey || e.metaKey)) {
+        setShowAIMenu(false);
+        setAiKbFocus(-1);
+        return;
+      }
+
+      // A (no modifier) → open menu / advance keyboard focus through sub-items.
+      if (isA) {
+        if (driveLive) return;
+        e.preventDefault();
+        setShowAIMenu((wasOpen) => {
+          if (!wasOpen) {
+            setAiKbFocus(0);
+            return true;
+          }
+          setAiKbFocus((i) => (i + 1) % AI_ITEMS_COUNT);
+          return true;
+        });
+        return;
+      }
+
+      // Enter → activate the focused sub-item (only while menu is open and focused).
+      if (e.key === 'Enter' && showAIMenu && aiKbFocus >= 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (loading || totalCount === 0) return;
+        e.preventDefault();
+        switch (aiKbFocus) {
+          case 0: setShowAIScan((v) => !v); break;
+          case 1: onFindDuplicates?.(); break;
+          case 2: onFindSource?.(); break;
+          case 3: onCluster?.(); break;
+          case 4: onShuffle?.(); break;
+          default: break;
+        }
+        return;
+      }
+
+      // Escape closes the AI menu if it's open (and focus is engaged).
+      if (e.key === 'Escape' && showAIMenu && aiKbFocus >= 0) {
+        e.preventDefault();
+        setShowAIMenu(false);
+        setAiKbFocus(-1);
+        return;
+      }
+
+      if (e.key.toLowerCase() === 'e' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         setIsEditing(true);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [driveLive]);
+  }, [driveLive, showAIMenu, aiKbFocus, loading, totalCount, onFindDuplicates, onFindSource, onCluster, onShuffle]);
 
 
   const handlePathSubmit = () => {
@@ -585,7 +634,7 @@ function Controls({
           {!browserMode && !driveLive && showAIMenu && (
             <>
               <button
-                className={`action-btn ai-sub${showAIScan ? ' active' : ''}${activeAiAction === 'scan' ? ' ai-busy' : ''}`}
+                className={`action-btn ai-sub${showAIScan ? ' active' : ''}${activeAiAction === 'scan' ? ' ai-busy' : ''}${aiKbFocus === 0 ? ' kb-focused' : ''}`}
                 onClick={() => setShowAIScan(v => !v)}
                 title="AI character scan (A)"
                 disabled={loading || totalCount === 0}
@@ -594,7 +643,7 @@ function Controls({
                 Scan
               </button>
               <button
-                className={`action-btn ai-sub${activeAiAction === 'dupes' ? ' ai-busy' : ''}`}
+                className={`action-btn ai-sub${activeAiAction === 'dupes' ? ' ai-busy' : ''}${aiKbFocus === 1 ? ' kb-focused' : ''}`}
                 onClick={onFindDuplicates}
                 title="Find duplicate images"
                 disabled={loading || totalCount === 0}
@@ -603,7 +652,7 @@ function Controls({
                 Dupes
               </button>
               <button
-                className={`action-btn ai-sub${activeAiAction === 'source' ? ' ai-busy' : ''}`}
+                className={`action-btn ai-sub${activeAiAction === 'source' ? ' ai-busy' : ''}${aiKbFocus === 2 ? ' kb-focused' : ''}`}
                 onClick={onFindSource}
                 title="Find raws with no matching edit — selects them for deletion"
                 disabled={loading || totalCount === 0}
@@ -612,7 +661,7 @@ function Controls({
                 Source
               </button>
               <button
-                className={`action-btn ai-sub${activeAiAction === 'cluster' ? ' ai-busy' : ''}`}
+                className={`action-btn ai-sub${activeAiAction === 'cluster' ? ' ai-busy' : ''}${aiKbFocus === 3 ? ' kb-focused' : ''}`}
                 onClick={onCluster}
                 title="Group by visual similarity (CLIP + KMeans) — reorders the grid"
                 disabled={loading || totalCount === 0}
@@ -621,7 +670,7 @@ function Controls({
                 Cluster
               </button>
               <button
-                className="action-btn ai-sub"
+                className={`action-btn ai-sub${aiKbFocus === 4 ? ' kb-focused' : ''}`}
                 onClick={onShuffle}
                 title="Randomize order to remove first-image bias"
                 disabled={loading || totalCount === 0}

@@ -139,6 +139,7 @@ function Controls({
   onFindSource,
   onCluster,
   onShuffle,
+  activeAiAction,
   customOrderActive,
   onClearOrder,
   onClearAiScores,
@@ -584,7 +585,7 @@ function Controls({
           {!browserMode && !driveLive && showAIMenu && (
             <>
               <button
-                className={`action-btn ai-sub${showAIScan ? ' active' : ''}`}
+                className={`action-btn ai-sub${showAIScan ? ' active' : ''}${activeAiAction === 'scan' ? ' ai-busy' : ''}`}
                 onClick={() => setShowAIScan(v => !v)}
                 title="AI character scan (A)"
                 disabled={loading || totalCount === 0}
@@ -593,7 +594,7 @@ function Controls({
                 Scan
               </button>
               <button
-                className="action-btn ai-sub"
+                className={`action-btn ai-sub${activeAiAction === 'dupes' ? ' ai-busy' : ''}`}
                 onClick={onFindDuplicates}
                 title="Find duplicate images"
                 disabled={loading || totalCount === 0}
@@ -602,7 +603,7 @@ function Controls({
                 Dupes
               </button>
               <button
-                className="action-btn ai-sub"
+                className={`action-btn ai-sub${activeAiAction === 'source' ? ' ai-busy' : ''}`}
                 onClick={onFindSource}
                 title="Find raws with no matching edit — selects them for deletion"
                 disabled={loading || totalCount === 0}
@@ -611,7 +612,7 @@ function Controls({
                 Source
               </button>
               <button
-                className="action-btn ai-sub"
+                className={`action-btn ai-sub${activeAiAction === 'cluster' ? ' ai-busy' : ''}`}
                 onClick={onCluster}
                 title="Group by visual similarity (CLIP + KMeans) — reorders the grid"
                 disabled={loading || totalCount === 0}

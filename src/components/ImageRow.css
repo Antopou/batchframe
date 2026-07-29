@@ -32,7 +32,30 @@
   border-color: var(--text-muted, #666);
 }
 .image-row.scanning {
-  border-color: var(--accent, #6c8aff);
+  border-color: #4f8ef7;
+  position: relative;
+  overflow: hidden;
+  animation: scan-row-pulse 0.7s ease-in-out infinite;
+}
+.image-row.scanning::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #4f8ef7, transparent);
+  animation: scan-row-sweep 0.7s linear infinite;
+  z-index: 3;
+  pointer-events: none;
+}
+@keyframes scan-row-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 142, 247, 0.5); }
+  50%      { box-shadow: 0 0 0 3px rgba(79, 142, 247, 0);   }
+}
+@keyframes scan-row-sweep {
+  0%   { left: -60%; }
+  100% { left: 160%; }
 }
 
 .image-row-thumb {

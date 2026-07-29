@@ -203,6 +203,9 @@ function App() {
   const [aiScores, setAiScores]           = useState({});
   const [aiThreshold, setAiThreshold]     = useState(0.80);
   const [scanning, setScanning]           = useState(false);
+  // Which AI action is currently running, for per-button spinner outline.
+  // 'source' | 'cluster' | 'dupes' | 'scan' | null
+  const [activeAiAction, setActiveAiAction] = useState(null);
   const [scanProgress, setScanProgress]   = useState({ done: 0, total: 0 });
   const [profilesVersion, setProfilesVersion] = useState(0);
   const [scanningPath, setScanningPath]   = useState(null);
@@ -486,38 +489,35 @@ function App() {
 
   // Redundant useEffect removed. Anchor/snapshot logic is managed synchronously in click/keyboard handlers.
 
+  // O(1) path → index lookup, rebuilt only when the filtered list changes.
+  const pathToIndex = useMemo(() => {
+    const m = new Map();
+    for (let i = 0; i < filteredImages.length; i++) m.set(filteredImages[i].path, i);
+    return m;
+  }, [filteredImages]);
+
   // ── Follow scanning position during AI scan ────────────────────
+  // Uses gridRef.scrollToIndex (handles both list and grid geometry). If the
+  // scanning image is on another page, switch to that page first — otherwise
+  // the visual indicator gets left behind on a page you're not looking at.
   useEffect(() => {
     if (!scanning || !scanningPath) return;
-    const vp = gridRef.current?.getViewport();
-    if (!vp) return;
-    const index = filteredImages.findIndex(img => img.path === scanningPath);
-    if (index < 0) return;
+    const index = pathToIndex.get(scanningPath);
+    if (index === undefined) return;
 
-    // Geometry must match ImageGrid's windowing: cards are square, so row
-    // height is the real column width (>= previewSize because tracks are 1fr).
-    const gap = 10, padV = 16, padH = 40;
-    const gridW = vp.clientWidth - padH;
-    const cols  = Math.max(1, Math.floor((gridW + gap) / (previewSize + gap)));
-    const colW  = (gridW - (cols - 1) * gap) / cols;
-    const rowH  = colW + gap;
-    const row   = Math.floor(index / cols);
-    const rowTop = padV + row * rowH;
-    const rowBot = rowTop + colW;
-    const { scrollTop, clientHeight } = vp;
-
-    // Only follow if scan is within one card-height of the viewport
-    const near = rowTop <= scrollTop + clientHeight + colW + gap &&
-                 rowTop >= scrollTop - colW - gap;
-    if (!near) return;
-
-    // Instant scroll: nudge just enough to keep card visible
-    if (rowBot > scrollTop + clientHeight) {
-      vp.scrollTo({ top: rowBot - clientHeight + gap });
-    } else if (rowTop < scrollTop) {
-      vp.scrollTo({ top: Math.max(0, rowTop - padV) });
+    const targetPage = Math.floor(index / pageSize) + 1;
+    if (targetPage !== currentPage) {
+      setCurrentPage(targetPage);
+      return; // effect re-fires once page state updates, then scrolls below
     }
-  }, [scanningPath, scanning, filteredImages, previewSize]);
+
+    const localIndex = index - (currentPage - 1) * pageSize;
+    // Defer to next frame so ImageGrid finishes rendering the new page slice
+    // before we ask it to scroll to a specific index.
+    requestAnimationFrame(() => {
+      gridRef.current?.scrollToIndex(localIndex);
+    });
+  }, [scanningPath, scanning, pathToIndex, currentPage, pageSize]);
 
   useEffect(() => { setCurrentPage(1); }, [searchQuery]);
 
@@ -1461,6 +1461,7 @@ function App() {
     if (paths.length === 0 || !characters?.length) return;
 
     setScanning(true);
+    setActiveAiAction('scan');
     setAiThreshold(threshold);
     setAiScores({});
     setSelectedImages(new Set());
@@ -1515,6 +1516,7 @@ function App() {
       setScanStatus('');
       setScanning(false);
       setScanProgress({ done: 0, total: 0 });
+      setActiveAiAction(null);
     }
   }, []);
 
@@ -1530,6 +1532,7 @@ function App() {
     if (paths.length === 0) return;
 
     setScanning(true);
+    setActiveAiAction('dupes');
     setScanProgress({ done: 0, total: paths.length });
     setSelectedImages(new Set());
 
@@ -1570,6 +1573,7 @@ function App() {
       setScanStatus('');
       setScanning(false);
       setScanProgress({ done: 0, total: 0 });
+      setActiveAiAction(null);
     }
   }, []);
 
@@ -1598,6 +1602,7 @@ function App() {
     const threshold   = 8;
 
     setScanning(true);
+    setActiveAiAction('source');
     setScanProgress({ done: 0, total: rawPaths.length + editedPaths.length });
     setSelectedImages(new Set());
 
@@ -1635,6 +1640,7 @@ function App() {
       setScanStatus('');
       setScanning(false);
       setScanProgress({ done: 0, total: 0 });
+      setActiveAiAction(null);
     }
   }, [pickSourceFolder]);
 
@@ -1650,6 +1656,7 @@ function App() {
     const paths = current.map(i => i.path);
 
     setScanning(true);
+    setActiveAiAction('cluster');
     setScanProgress({ done: 0, total: paths.length });
 
     window.electronAPI.onScanProgress((data) => {
@@ -1700,6 +1707,7 @@ function App() {
       setScanStatus('');
       setScanning(false);
       setScanProgress({ done: 0, total: 0 });
+      setActiveAiAction(null);
     }
   }, []);
 
@@ -2657,6 +2665,7 @@ function App() {
         onFindSource={handleFindSource}
         onCluster={handleCluster}
         onShuffle={handleShuffle}
+        activeAiAction={activeAiAction}
         customOrderActive={!!customOrder}
         onClearOrder={() => { setCustomOrder(null); setClusterAssignments(null); }}
         onClearAiScores={handleClearAiScores}

@@ -1063,8 +1063,9 @@ function App() {
       images: pagedImages,
       previewIndex,
       previewPath: previewImage?.path || null,
+      selected: Array.from(selectedImages),
     }).catch(() => {});
-  }, [lanRunning, folderPath, subfolders, parentFolderPath, pagedImages, previewIndex, previewImage]);
+  }, [lanRunning, folderPath, subfolders, parentFolderPath, pagedImages, previewIndex, previewImage, selectedImages]);
 
   useEffect(() => {
     if (!window.electronAPI?.lan) return;

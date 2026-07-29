@@ -170,6 +170,19 @@
   .cell.active {
     outline: 2px solid var(--accent); outline-offset: -2px;
   }
+  .cell.selected::after {
+    content: '';
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 0 2px rgba(10,12,16,0.85);
+    pointer-events: none;
+  }
+  .cell.selected {
+    box-shadow: inset 0 0 0 2px rgba(52, 210, 126, 0.35);
+  }
 
   .empty {
     color: var(--text-muted); text-align: center;
@@ -264,20 +277,18 @@
   }
   .scroll-container {
     flex: 1; overflow-y: auto;
-    scroll-snap-type: y mandatory;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     overscroll-behavior: contain;
   }
   .scroll-container::-webkit-scrollbar { display: none; }
   .scroll-item {
-    height: 100%; width: 100%;
-    scroll-snap-align: start;
-    display: flex; align-items: center; justify-content: center;
+    width: 100%;
     background: #000;
+    display: block;
   }
   .scroll-item img {
-    max-width: 100%; max-height: 100%; object-fit: contain;
+    width: 100%; height: auto; display: block;
     user-select: none; -webkit-user-drag: none;
   }
 </style>
@@ -428,9 +439,13 @@
     };
 
     const activeIdx = currentPreviewIdx();
+    const selectedSet = new Set(state.selectedIds || []);
     const buildImageCell = (img, i) => {
       const cell = document.createElement('div');
-      cell.className = 'cell' + (i === activeIdx ? ' active' : '');
+      let cls = 'cell';
+      if (i === activeIdx) cls += ' active';
+      if (selectedSet.has(img.id)) cls += ' selected';
+      cell.className = cls;
       const aspect = (img.w && img.h) ? img.w / img.h : 1;
       cell.dataset.aspect = String(aspect);
       const im = document.createElement('img');
@@ -468,14 +483,25 @@
       return;
     }
     if (!scrollOpen) return;
-    if (sync && desktopIdx === null) { $('scrollOv').style.display = 'none'; scrollOpen = false; return; }
+    if (sync && desktopIdx === null) {
+      $('scrollOv').style.display = 'none'; scrollOpen = false;
+      return;
+    }
     if (sync && desktopIdx !== null) {
       const c = $('scrollContainer');
-      const currentIdx = Math.round(c.scrollTop / c.clientHeight);
+      const currentIdx = currentScrollIdx();
       if (desktopIdx !== currentIdx) {
         scrollSuppressSync = true;
-        c.scrollTo({ top: desktopIdx * c.clientHeight, behavior: 'smooth' });
-        setTimeout(() => { scrollSuppressSync = false; }, 400);
+        const target = c.children[desktopIdx];
+        if (target) {
+          // Position target as "second from top": leave a strip of the previous
+          // image visible above so laptop-driven nav has context, not jarring.
+          const prev = c.children[desktopIdx - 1];
+          const peekPrev = prev ? Math.min(prev.offsetHeight, c.clientHeight * 0.2) : 0;
+          const top = Math.max(0, target.offsetTop - peekPrev);
+          c.scrollTo({ top, behavior: 'smooth' });
+        }
+        setTimeout(() => { scrollSuppressSync = false; }, 500);
         if (items[desktopIdx]) $('scrollIdx').textContent = `[${desktopIdx + 1}/${items.length}] ${items[desktopIdx].name}`;
       }
     }
@@ -708,6 +734,8 @@
       const im = document.createElement('img');
       im.decoding = 'async';
       im.loading = (Math.abs(i - startIdx) <= 2) ? 'eager' : 'lazy';
+      // reserve height with real aspect so lazy items don't collapse to 0
+      if (img.w && img.h) im.style.aspectRatio = `${img.w} / ${img.h}`;
       im.src = fullUrl(img.id);
       div.appendChild(im);
       container.appendChild(div);
@@ -717,7 +745,8 @@
     $('scrollIdx').textContent = `[${startIdx + 1}/${items.length}] ${items[startIdx].name}`;
     requestAnimationFrame(() => {
       scrollSuppressSync = true;
-      container.scrollTop = startIdx * container.clientHeight;
+      const target = container.children[startIdx];
+      if (target) target.scrollIntoView({ block: 'start' });
       setTimeout(() => { scrollSuppressSync = false; }, 300);
       showScrollChrome(true);
     });
@@ -731,13 +760,28 @@
     else localPreviewOpen = false;
   }
 
+  function currentScrollIdx() {
+    const c = $('scrollContainer');
+    const viewCenter = c.scrollTop + c.clientHeight / 2;
+    const kids = c.children;
+    let best = 0, bestDist = Infinity;
+    for (let i = 0; i < kids.length; i++) {
+      const el = kids[i];
+      const top = el.offsetTop;
+      const bottom = top + el.offsetHeight;
+      if (viewCenter >= top && viewCenter <= bottom) return i;
+      const mid = (top + bottom) / 2;
+      const d = Math.abs(mid - viewCenter);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return best;
+  }
   let scrollSettleTimer = null;
   $('scrollContainer').addEventListener('scroll', () => {
     if (scrollSuppressSync) return;
     clearTimeout(scrollSettleTimer);
     scrollSettleTimer = setTimeout(() => {
-      const c = $('scrollContainer');
-      const idx = Math.round(c.scrollTop / c.clientHeight);
+      const idx = currentScrollIdx();
       const items = (state && state.images) || [];
       if (!items[idx]) return;
       $('scrollIdx').textContent = `[${idx + 1}/${items.length}] ${items[idx].name}`;
@@ -763,7 +807,17 @@
     if (isBlankTarget(e.target)) toggleFs();
   });
   let lastTapTime = 0;
+  let multiTouch = false;
+  $('main').addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) { multiTouch = true; lastTapTime = 0; }
+  }, { passive: true });
   $('main').addEventListener('touchend', (e) => {
+    // ignore multi-finger gestures (pinch); only single-tap counts
+    if (multiTouch || e.touches.length > 0 || e.changedTouches.length > 1) {
+      if (e.touches.length === 0) multiTouch = false;
+      lastTapTime = 0;
+      return;
+    }
     if (!isBlankTarget(e.target)) { lastTapTime = 0; return; }
     const now = Date.now();
     if (now - lastTapTime < 320) { toggleFs(); lastTapTime = 0; e.preventDefault(); }

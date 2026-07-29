@@ -26,6 +26,7 @@ let currentState = {
   previewOpen: false,
   previewIndex: 0,
   previewId: null,
+  selectedIds: [],
   progress: null,
 };
 
@@ -96,6 +97,9 @@ function pushState(partial) {
     next.previewOpen = !!partial.previewPath;
     next.previewId = partial.previewPath ? registerPath(partial.previewPath) : null;
   }
+  if (partial.selected !== undefined) {
+    next.selectedIds = (partial.selected || []).map((p) => pathToId.get(p) || registerPath(p)).filter(Boolean);
+  }
   if (partial.progress !== undefined) next.progress = partial.progress;
   currentState = next;
   broadcast({ type: 'state', state: serialize() });
@@ -103,7 +107,32 @@ function pushState(partial) {
 
 const IMG_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg']);
 
-function firstImageInFolder(folderPath) {
+function isDrivePath(p) { return typeof p === 'string' && p.startsWith('drive://'); }
+
+async function driveAuth() {
+  const driveOauth = require('../drive/oauthClient');
+  return driveOauth.getAuthClient();
+}
+
+async function resolveLocalPath(p) {
+  if (isDrivePath(p)) {
+    const driveFs = require('../drive/driveFs');
+    return driveFs.materialize(await driveAuth(), p);
+  }
+  return p;
+}
+
+async function firstImageInFolder(folderPath) {
+  if (isDrivePath(folderPath)) {
+    try {
+      const driveFs = require('../drive/driveFs');
+      const list = await driveFs.getImages(await driveAuth(), folderPath);
+      const first = (list || [])
+        .filter((f) => IMG_EXTS.has(path.extname(f.name || '').toLowerCase()))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }))[0];
+      return first ? first.path : null;
+    } catch { return null; }
+  }
   try {
     const entries = fs.readdirSync(folderPath, { withFileTypes: true });
     const images = entries
@@ -114,7 +143,8 @@ function firstImageInFolder(folderPath) {
   } catch { return null; }
 }
 
-async function buildThumbnail(absPath) {
+async function buildThumbnail(originalPath) {
+  const absPath = await resolveLocalPath(originalPath);
   const cacheDir = path.join(os.homedir(), '.batchframe', 'thumbs');
   await fs.promises.mkdir(cacheDir, { recursive: true });
   const stat = await fs.promises.stat(absPath);
@@ -193,9 +223,9 @@ async function start({ onIntent } = {}) {
   app.get('/folder-thumb/:id', guardAuth, async (req, res) => {
     const p = idToPath.get(req.params.id);
     if (!p) return res.status(404).end();
-    const first = firstImageInFolder(p);
-    if (!first) return res.status(204).end();
     try {
+      const first = await firstImageInFolder(p);
+      if (!first) return res.status(204).end();
       const r = await buildThumbnail(first);
       res.setHeader('Cache-Control', 'public, max-age=600');
       res.setHeader('Content-Type', r.contentType);
@@ -203,10 +233,12 @@ async function start({ onIntent } = {}) {
     } catch { res.status(415).end(); }
   });
 
-  app.get('/full/:id', guardAuth, (req, res) => {
+  app.get('/full/:id', guardAuth, async (req, res) => {
     const p = idToPath.get(req.params.id);
     if (!p) return res.status(404).end();
-    const ext = path.extname(p).toLowerCase();
+    let local;
+    try { local = await resolveLocalPath(p); } catch { return res.status(500).end(); }
+    const ext = path.extname(local).toLowerCase();
     const type =
       ext === '.png' ? 'image/png'
       : ext === '.webp' ? 'image/webp'
@@ -215,7 +247,7 @@ async function start({ onIntent } = {}) {
       : 'image/jpeg';
     res.setHeader('Content-Type', type);
     res.setHeader('Cache-Control', 'public, max-age=3600');
-    fs.createReadStream(p).on('error', () => res.status(404).end()).pipe(res);
+    fs.createReadStream(local).on('error', () => res.status(404).end()).pipe(res);
   });
 
   app.use('/static', (req, res, next) => { if (req.query.t !== authToken) return res.status(401).end(); next(); },

@@ -66,6 +66,7 @@
       "ai_scan.py",
       "ai_detect.py",
       "ai_duplicates.py",
+      "find_source.py",
       "requirements.txt",
       {
         "from": ".env",

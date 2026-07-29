@@ -1497,6 +1497,69 @@ function App() {
     }
   }, []);
 
+  // ── Find Source: match edited images back to their raw sources ──
+  // Current folder = raws. User picks the edited folder. Script hashes
+  // both, matches each edited to its nearest raw (dhash + Hamming), and
+  // the unmatched raws (no edit corresponds to them) get selected so the
+  // user can delete/move them via the existing controls.
+  const handleFindSource = useCallback(async () => {
+    const rawImages = filteredImagesRef.current;
+    if (rawImages.length === 0) {
+      alert('No raw images in the current view.');
+      return;
+    }
+    const editedFolder = await window.electronAPI.selectFolder();
+    if (!editedFolder) return;
+
+    const edits = await window.electronAPI.getImages(editedFolder);
+    if (!edits || edits.length === 0) {
+      alert('No images found in the edited folder.');
+      return;
+    }
+
+    const rawPaths    = rawImages.map(i => i.path);
+    const editedPaths = edits.map(i => i.path);
+    const threshold   = 8;
+
+    setScanning(true);
+    setScanProgress({ done: 0, total: rawPaths.length + editedPaths.length });
+    setSelectedImages(new Set());
+
+    window.electronAPI.onScanProgress((data) => {
+      if (data.type === 'status') {
+        setScanStatus(data.text);
+      } else if (data.type === 'scanning') {
+        setScanStatus('');
+        setScanningPath(data.path);
+      }
+    });
+
+    try {
+      const report = await window.electronAPI.findSourceMatch(editedPaths, rawPaths, threshold);
+      const discardSet = new Set(report.discardRaws || []);
+      setSelectedImages(discardSet);
+      const s = report.stats || {};
+      alert(
+        `Find Source complete.\n\n` +
+        `Edits:      ${s.editCount ?? edits.length}\n` +
+        `Raws:       ${s.rawCount ?? rawImages.length}\n` +
+        `Matched:    ${s.matched ?? 0}\n` +
+        `Unmatched edits: ${s.unmatched ?? 0}\n` +
+        `Raws to keep:    ${s.keep ?? 0}\n` +
+        `Raws to discard: ${s.discard ?? 0}  ← selected in the grid`
+      );
+    } catch (err) {
+      console.error('Find source failed:', err);
+      alert(`Find source failed: ${err.message}`);
+    } finally {
+      window.electronAPI.removeScanListeners();
+      setScanningPath(null);
+      setScanStatus('');
+      setScanning(false);
+      setScanProgress({ done: 0, total: 0 });
+    }
+  }, []);
+
   const handleAddToRefs = useCallback(async (imagePaths) => {
     if (!window.electronAPI?.addToRefs || !activeCharacter) return;
     await window.electronAPI.addToRefs({ imagePaths, character: activeCharacter });
@@ -2434,6 +2497,7 @@ function App() {
         scanStatus={scanStatus}
         onAIScan={handleAIScan}
         onFindDuplicates={handleFindDuplicates}
+        onFindSource={handleFindSource}
         onClearAiScores={handleClearAiScores}
         profilesVersion={profilesVersion}
         onClearRefs={handleClearRefs}

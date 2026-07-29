@@ -488,6 +488,9 @@
       return;
     }
     if (sync && desktopIdx !== null) {
+      // Skip programmatic scroll while user is actively scrolling — otherwise
+      // desktop echoes fight the user's inertia and yank the view back.
+      if (Date.now() - lastUserScroll < 900) return;
       const c = $('scrollContainer');
       const currentIdx = currentScrollIdx();
       if (desktopIdx !== currentIdx) {
@@ -777,8 +780,10 @@
     return best;
   }
   let scrollSettleTimer = null;
+  let lastUserScroll = 0;
   $('scrollContainer').addEventListener('scroll', () => {
     if (scrollSuppressSync) return;
+    lastUserScroll = Date.now();
     clearTimeout(scrollSettleTimer);
     scrollSettleTimer = setTimeout(() => {
       const idx = currentScrollIdx();
@@ -787,7 +792,7 @@
       $('scrollIdx').textContent = `[${idx + 1}/${items.length}] ${items[idx].name}`;
       if (sync) send('goto-preview', { index: idx });
       else localPreviewIdx = idx;
-    }, 120);
+    }, 250);
   }, { passive: true });
 
   $('btnScrollClose').onclick = closeScrollPreview;

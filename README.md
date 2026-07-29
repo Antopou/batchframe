@@ -22,9 +22,23 @@ A fast, keyboard-driven desktop application to cull, organize, and manage large 
 - **Text File Previews**: Quickly preview text files alongside images with interactive tag filtering and selection.
 - **Visual Placeholders**: Instantly identify non-image files like `ZIP`, `TXT`, `TORRENT`, and `SAFETENSORS` in the grid.
 
-### 🤖 AI Integration & Similarity Scoring
-- **Local AI Scanning**: Connects to a local image recognition backend to scan your folders for specific characters or concepts.
-- **Similarity Badges**: Images receive a percentage match score badge, making it easy to weed out false positives.
+### 🤖 AI Tools (expandable AI menu)
+The `AI ▾` toolbar button expands inline to reveal a group of tools. The currently-running tool gets a rotating chase outline so you always know something is working.
+- **Scan** — Local character/concept recognition. Images receive a percentage match score badge to weed out false positives.
+- **Dupes** — Finds near-duplicate images with perceptual hashing (DHash + Hamming distance) and auto-selects the extras for deletion.
+- **Source** — Match Photoshop-edited exports back to their original raw images. Uses DHash which is invariant to color/tone edits. Perfect for the "I edited 200 favorites and want to delete the 800 raws I never used" workflow. Pick the edited folder in the in-app picker, and unmatched raws are selected in the grid for you to delete.
+- **Cluster** — Groups the current view by visual similarity (CLIP embeddings + KMeans). Same-cluster images sit adjacent in the grid with a colored border chip and a sticky cluster header at the top of the viewport. Great for reviewing large batches without picking five near-identical shots.
+- **Shuffle** — Randomizes the current view. Removes first-image position bias when you're eyeballing 200+ candidates.
+
+While an AI action runs:
+- The specific button (Source / Cluster / Dupes / Scan) shows a rotating chase outline.
+- The current image being processed gets an animated outline (pulsing glow + sweeping highlight).
+- The grid auto-scrolls to follow, switching pages if needed.
+
+### ✨ UI polish
+- **Themed dialogs** — All alerts, confirmations, and notices render as in-app modals matching the dark theme. No native OS popups.
+- **In-app folder picker** — A terminal-style folder navigator with fuzzy search, keyboard nav, and inline folder creation. Right-click anywhere in the picker to toggle "Show images" (revealing image contents alongside folders so you can confirm you're in the right place). Preference is saved.
+- **Custom order** — Cluster and Shuffle set a custom image order that overrides the default sort. Changing the sort dropdown clears it. A `Reset` button appears in the AI menu while a custom order is active.
 
 ### ☁️ Google Drive Sync
 - **Cloud Sync**: Directly pull and push folders from/to a Google Drive account with advanced sync strategies.
@@ -69,19 +83,28 @@ Power users can navigate entirely via the keyboard (when not focused on a text i
 
 ## Installation & Setup
 
-1. Clone this repository or download the project
-2. Install dependencies:
+1. Clone this repository or download the project.
+2. Install Node dependencies:
    ```bash
    npm install
    ```
-3. Set up Google Drive Sync (Optional):
+3. Install Python dependencies (required for AI tools):
+   ```bash
+   # Minimum for Find Dupes and Find Source:
+   python3 -m pip install --user Pillow
+
+   # Full AI stack (adds Cluster + AI Scan; ~1GB download for torch):
+   python3 -m pip install --user -r requirements.txt
+   ```
+   Each AI tool preflights its imports on run — if a dep is missing you get a themed dialog telling you the exact `pip install` command to fix it.
+4. Set up Google Drive Sync (optional):
    - Create a `.env` file in the root directory.
    - Add your Google OAuth credentials:
      ```env
      GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
      GOOGLE_CLIENT_SECRET=your-client-secret
      ```
-4. Start the development version:
+5. Start the development version:
    ```bash
    npm run dev
    ```
@@ -91,8 +114,18 @@ To build for production:
 npm run build
 ```
 
+### Python dependency reference
+
+| Tool | Requires |
+|---|---|
+| Find Dupes | `Pillow` |
+| Find Source | `Pillow` |
+| Cluster | `Pillow`, `numpy`, `torch`, `open_clip_torch` |
+| AI Scan | `dghs-imgutils`, `torch`, `open_clip_torch` |
+
 ## Built With
 
 - **Electron** - Desktop app framework
 - **React** - UI framework
 - **Node.js** - Backend API and file system interactions
+- **Python 3** - AI subprocesses (spawned from Electron main): DHash matching for Dupes/Source, CLIP embeddings for Cluster, CCIP/CLIP for character Scan

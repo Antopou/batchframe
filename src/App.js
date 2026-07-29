@@ -513,9 +513,12 @@ function App() {
 
     const localIndex = index - (currentPage - 1) * pageSize;
     // Defer to next frame so ImageGrid finishes rendering the new page slice
-    // before we ask it to scroll to a specific index.
+    // before we ask it to scroll to a specific index. Follow-mode has a wide
+    // dead zone and smooth-scrolls — feels less jumpy during a fast scan.
     requestAnimationFrame(() => {
-      gridRef.current?.scrollToIndex(localIndex);
+      const g = gridRef.current;
+      if (g?.scrollToIndexFollow) g.scrollToIndexFollow(localIndex);
+      else g?.scrollToIndex(localIndex);
     });
   }, [scanningPath, scanning, pathToIndex, currentPage, pageSize]);
 

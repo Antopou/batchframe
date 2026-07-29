@@ -71,22 +71,53 @@ const ImageGrid = forwardRef(function ImageGrid({
       const rowH = rowHRef.current;
       const gap = gapRef.current;
       const padV = 16;
-      
+
       const row = Math.floor(index / cols);
       const rowTop = padV + row * rowH;
       const itemHeight = rowH - gap;
       const rowBot = rowTop + itemHeight;
-      
+
       const { scrollTop, clientHeight } = vp;
-      
+
       // If the item is below the viewport, scroll down just enough
       if (rowBot > scrollTop + clientHeight) {
         vp.scrollTo({ top: rowBot - clientHeight + gap });
-      } 
+      }
       // If the item is above the viewport, scroll up just enough
       else if (rowTop < scrollTop) {
         vp.scrollTo({ top: Math.max(0, rowTop - padV) });
       }
+    },
+    // Follow mode for AI scan. Smooth-scroll can't keep up when the scanner
+    // fires many items per second — it gets left behind. Instead: keep the
+    // active row parked in the top ~15% of the viewport, and INSTANT-scroll
+    // whenever it drops past ~60% down. Each jump is small (never a full-
+    // screen leap) because we react before the row leaves view. Result: the
+    // outline stays visible and the motion looks stepwise, not laggy.
+    scrollToIndexFollow(index) {
+      if (!viewportRef.current || index < 0) return;
+      const vp = viewportRef.current;
+      const cols = colsRef.current;
+      const rowH = rowHRef.current;
+      const padV = 16;
+
+      const row = Math.floor(index / cols);
+      const rowTop = padV + row * rowH;
+      const { scrollTop, clientHeight } = vp;
+      const rowOffset = rowTop - scrollTop;
+
+      // Dead zone (row visible without repositioning). Kept narrow at the
+      // top and generous at the bottom so scan has headroom to advance.
+      const minOffset = clientHeight * 0.08;
+      const maxOffset = clientHeight * 0.60;
+      if (rowOffset >= minOffset && rowOffset <= maxOffset) return;
+
+      // Reposition target: row parked near the top of the viewport (~15%).
+      // Leaves ~85% of viewport below for the scan to advance through
+      // before we need to scroll again → small instant jumps, no lag.
+      const targetOffset = clientHeight * 0.15;
+      const targetTop = Math.max(0, rowTop - targetOffset);
+      vp.scrollTo({ top: targetTop });
     },
     scrollToTop() {
       if (viewportRef.current) viewportRef.current.scrollTop = 0;

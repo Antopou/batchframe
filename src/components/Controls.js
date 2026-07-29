@@ -137,6 +137,10 @@ function Controls({
   onAIScan,
   onFindDuplicates,
   onFindSource,
+  onCluster,
+  onShuffle,
+  customOrderActive,
+  onClearOrder,
   onClearAiScores,
   profilesVersion,
   onClearRefs,
@@ -606,6 +610,34 @@ function Controls({
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" /><path d="M8 11h6" /></svg>
                 Source
               </button>
+              <button
+                className="action-btn ai-sub"
+                onClick={onCluster}
+                title="Group by visual similarity (CLIP + KMeans) — reorders the grid"
+                disabled={loading || totalCount === 0}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="6"  cy="6"  r="2.5" /><circle cx="18" cy="6"  r="2.5" /><circle cx="6"  cy="18" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="12" cy="12" r="2.5" /></svg>
+                Cluster
+              </button>
+              <button
+                className="action-btn ai-sub"
+                onClick={onShuffle}
+                title="Randomize order to remove first-image bias"
+                disabled={loading || totalCount === 0}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5" /><path d="M4 20 21 3" /><path d="M21 16v5h-5" /><path d="m15 15 6 6" /><path d="M4 4l5 5" /></svg>
+                Shuffle
+              </button>
+              {customOrderActive && (
+                <button
+                  className="action-btn ai-sub"
+                  onClick={onClearOrder}
+                  title="Restore normal sort order"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M3 12h12" /><path d="M3 18h6" /></svg>
+                  Reset
+                </button>
+              )}
             </>
           )}
           {!browserMode && !driveLive && (

@@ -127,7 +127,21 @@ def run(edited_paths, raw_paths, threshold):
         },
     }})
 
+def preflight():
+    try:
+        import PIL  # noqa: F401
+    except ImportError:
+        emit({'error': (
+            "Python dependency 'Pillow' is not installed.\n"
+            "Open Terminal and run:\n"
+            "    python3 -m pip install --user Pillow\n"
+            "Then try Find Source again."
+        )})
+        sys.exit(1)
+
+
 def main():
+    preflight()
     try:
         args = json.loads(sys.stdin.read())
         edited_paths = args.get('editedPaths', [])

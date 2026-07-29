@@ -48,6 +48,7 @@ const ImageGrid = forwardRef(function ImageGrid({
   cursorIndex,
   onDropOnFolder,
   onEmptyContextMenu,
+  clusterAssignments,
 }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(0);
@@ -207,6 +208,18 @@ const ImageGrid = forwardRef(function ImageGrid({
     return m;
   }, [orderedSelection]);
 
+  // Per-cluster image counts — used by the sticky header to show group size.
+  const clusterCounts = useMemo(() => {
+    if (!clusterAssignments) return null;
+    const counts = new Map();
+    for (const img of images) {
+      const cid = clusterAssignments[img.path];
+      if (cid == null) continue;
+      counts.set(cid, (counts.get(cid) || 0) + 1);
+    }
+    return counts;
+  }, [clusterAssignments, images]);
+
   // ── Windowing geometry ──────────────────────────────────────────
   const isList = viewMode === 'list';
   const isPlain = isList && listDetail === 'plain';
@@ -229,6 +242,23 @@ const ImageGrid = forwardRef(function ImageGrid({
   const startIndex = startRow * cols;
   const endIndex = Math.min(entries.length, (endRow + 1) * cols);
   const offsetY = startRow * rowH;
+
+  // Sticky header: which cluster is dominant at the current scroll position?
+  // Peek at the first image entry near the top of the viewport (accounting for
+  // buffer rows).
+  const currentClusterId = useMemo(() => {
+    if (!clusterAssignments) return null;
+    const topRow = Math.max(0, Math.floor(scrollTop / rowH));
+    const peek = topRow * cols;
+    for (let i = peek; i < entries.length; i++) {
+      const e = entries[i];
+      if (e && e.kind === 'image') {
+        const cid = clusterAssignments[e.image.path];
+        return cid == null ? null : cid;
+      }
+    }
+    return null;
+  }, [clusterAssignments, scrollTop, rowH, cols, entries]);
 
   const gridStyle = useMemo(() => ({
     gridTemplateColumns: `repeat(${cols}, 1fr)`,
@@ -285,6 +315,7 @@ const ImageGrid = forwardRef(function ImageGrid({
       aiHit: aiScores && aiThreshold != null && (aiScores[image.path]?.score ?? -1) >= aiThreshold,
       isScanning: image.path === scanningPath,
       driveState: driveStatesByPath?.[image.path] || null,
+      clusterId: clusterAssignments ? clusterAssignments[image.path] : null,
     };
 
     const isCursor = cursorIndex !== undefined && cursorIndex !== null && imageIndex === (cursorIndex - folderCount);
@@ -369,6 +400,13 @@ const ImageGrid = forwardRef(function ImageGrid({
         }
       }}
     >
+      {currentClusterId != null && clusterCounts && (
+        <div className="cluster-sticky-header" data-cluster={currentClusterId}>
+          <span className="cluster-dot" style={{ background: `hsl(${(currentClusterId * 47) % 360}, 62%, 55%)` }} />
+          Cluster {currentClusterId + 1}
+          <span className="cluster-count">· {clusterCounts.get(currentClusterId) ?? 0} images</span>
+        </div>
+      )}
       {isDeleting && (
         <div className="delete-overlay">
           <div className="delete-indicator">

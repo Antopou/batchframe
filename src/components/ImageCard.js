@@ -3,7 +3,7 @@ import './ImageCard.css';
 
 const imageCache = new Map();
 
-function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardClick, onToggleLock, onDragMouseDown, onDragMouseEnter, onPreview, size, imageFitMode, orderNumber, orderSelectMode, onContextMenu, aiScore, aiCharacter, aiHit, isScanning, driveState, onDragStartImage }) {
+function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardClick, onToggleLock, onDragMouseDown, onDragMouseEnter, onPreview, size, imageFitMode, orderNumber, orderSelectMode, onContextMenu, aiScore, aiCharacter, aiHit, isScanning, driveState, onDragStartImage, clusterId }) {
   const [src, setSrc] = useState(image.previewSrc || '');
   const [imageError, setImageError] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -133,15 +133,21 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
   const ext = (image.name || '').toLowerCase().split('.').pop();
   const isNonImage = ['safetensors', 'zip', 'txt', 'torrent', 'ckpt', 'pt'].includes(ext);
 
+  const clusterHue = clusterId != null ? (clusterId * 47) % 360 : null;
+  const clusterStyle = clusterHue != null
+    ? { boxShadow: `inset 3px 0 0 hsl(${clusterHue}, 62%, 55%)` }
+    : undefined;
+
   return (
     <div
       data-path={image.path}
-      className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${isAnchor ? 'cursor' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'} ${isUpdating ? 'updating' : ''} ${isScanning ? 'scanning' : ''} ${isNonImage ? 'is-non-image' : ''}`}
+      className={`image-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''} ${isAnchor ? 'cursor' : ''} ${imageFitMode === 'contain' ? 'fit-contain' : 'fit-cover'} ${isUpdating ? 'updating' : ''} ${isScanning ? 'scanning' : ''} ${isNonImage ? 'is-non-image' : ''}${clusterId != null ? ' has-cluster' : ''}`}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onMouseEnter={handleMouseEnter}
       onContextMenu={handleContextMenu}
-      title={`${image.name}${isLocked ? ' (locked)' : ''}`}
+      title={`${image.name}${isLocked ? ' (locked)' : ''}${clusterId != null ? ` · Cluster ${clusterId + 1}` : ''}`}
+      style={clusterStyle}
     >
       {isNonImage ? (
         <div className="non-image-placeholder">
@@ -181,6 +187,15 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
         </div>
         {orderSelectMode && orderNumber != null && (
           <div className="order-badge">{orderNumber}</div>
+        )}
+        {clusterId != null && (
+          <div
+            className="cluster-chip"
+            style={{ background: `hsl(${clusterHue}, 62%, 55%)` }}
+            title={`Cluster ${clusterId + 1}`}
+          >
+            C{clusterId + 1}
+          </div>
         )}
         {isLocked && (
           <div className="lock-indicator" onClick={handleLockClick} title="Click to unlock">

@@ -55,6 +55,7 @@ try {
     detectFaces:           (imagePaths) => ipcRenderer.invoke('detect-faces', { imagePaths }),
     findDuplicates:        (imagePaths) => ipcRenderer.invoke('find-duplicates', { imagePaths }),
     findSourceMatch:       (editedPaths, rawPaths, threshold) => ipcRenderer.invoke('find-source-match', { editedPaths, rawPaths, threshold }),
+    clusterImages:         (imagePaths, numClusters) => ipcRenderer.invoke('cluster-images', { imagePaths, numClusters }),
     onDetectProgress:      (cb) => ipcRenderer.on('detect-progress', (_, p) => cb(p)),
     removeDetectListeners: () => ipcRenderer.removeAllListeners('detect-progress'),
 

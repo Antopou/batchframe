@@ -115,6 +115,22 @@ function App() {
   const [sortBy, setSortBy] = useState('name');
   const [sortDir, setSortDir] = useState('asc');
 
+  // Custom order (Cluster / Shuffle). When non-null, overrides sortBy for images.
+  // clusterAssignments: { [path]: clusterId } — drives per-tile badges/colors.
+  const [customOrder, setCustomOrder] = useState(null);
+  const [clusterAssignments, setClusterAssignments] = useState(null);
+
+  // Clear custom order (and cluster metadata) whenever the user changes sort.
+  const sortBySignatureRef = useRef(`${sortBy}|${sortDir}`);
+  useEffect(() => {
+    const sig = `${sortBy}|${sortDir}`;
+    if (sortBySignatureRef.current !== sig) {
+      sortBySignatureRef.current = sig;
+      setCustomOrder(null);
+      setClusterAssignments(null);
+    }
+  }, [sortBy, sortDir]);
+
   // Order-select state
   const [orderSelectMode, setOrderSelectMode] = useState(false);
   const [orderedSelection, setOrderedSelection] = useState([]);
@@ -130,6 +146,27 @@ function App() {
 
   // Drive folder picker for move/copy destinations (replaces native folder dialog when in Drive live mode)
   const [drivePickAction, setDrivePickAction] = useState(null);
+
+  // In-app folder picker for AI flows (Find Source's "edited folder" prompt).
+  // Promise-based so callers can `await pickSourceFolder()`.
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+  const sourcePickerResolveRef = useRef(null);
+  const pickSourceFolder = useCallback(() => new Promise((resolve) => {
+    sourcePickerResolveRef.current = resolve;
+    setSourcePickerOpen(true);
+  }), []);
+  const handleSourcePickSelected = useCallback((destPath) => {
+    setSourcePickerOpen(false);
+    const r = sourcePickerResolveRef.current;
+    sourcePickerResolveRef.current = null;
+    r?.(destPath);
+  }, []);
+  const handleSourcePickClose = useCallback(() => {
+    setSourcePickerOpen(false);
+    const r = sourcePickerResolveRef.current;
+    sourcePickerResolveRef.current = null;
+    r?.(null);
+  }, []);
 
   // Move state
   const [isMoving, setIsMoving] = useState(false);
@@ -357,6 +394,16 @@ function App() {
 
   // ── Sort ────────────────────────────────────────────────────────
   const sortedImages = useMemo(() => {
+    if (customOrder && customOrder.length) {
+      const orderMap = new Map(customOrder.map((p, i) => [p, i]));
+      const known = [];
+      const unknown = [];
+      for (const img of images) {
+        if (orderMap.has(img.path)) known.push(img); else unknown.push(img);
+      }
+      known.sort((a, b) => orderMap.get(a.path) - orderMap.get(b.path));
+      return [...known, ...unknown];
+    }
     if (sortBy === 'none') return images;
     return [...images].sort((a, b) => {
       let v = 0;
@@ -371,7 +418,7 @@ function App() {
       }
       return sortDir === 'asc' ? v : -v;
     });
-  }, [images, sortBy, sortDir]);
+  }, [images, sortBy, sortDir, customOrder]);
 
   const sortedSubfolders = useMemo(() => {
     if (sortBy === 'none') return subfolders;
@@ -1508,7 +1555,7 @@ function App() {
       alert('No raw images in the current view.');
       return;
     }
-    const editedFolder = await window.electronAPI.selectFolder();
+    const editedFolder = await pickSourceFolder();
     if (!editedFolder) return;
 
     const edits = await window.electronAPI.getImages(editedFolder);
@@ -1558,6 +1605,81 @@ function App() {
       setScanning(false);
       setScanProgress({ done: 0, total: 0 });
     }
+  }, [pickSourceFolder]);
+
+  // ── Cluster: group current view by visual similarity (CLIP + KMeans) ──
+  // Reorders the grid so same-cluster images sit adjacent. Cluster badge/tint
+  // is painted per-tile by ImageGrid → ImageCard.
+  const handleCluster = useCallback(async () => {
+    const current = filteredImagesRef.current;
+    if (!current || current.length < 6) {
+      alert('Need at least 6 images to cluster.');
+      return;
+    }
+    const paths = current.map(i => i.path);
+
+    setScanning(true);
+    setScanProgress({ done: 0, total: paths.length });
+
+    window.electronAPI.onScanProgress((data) => {
+      if (data.type === 'status') {
+        setScanStatus(data.text);
+      } else if (data.type === 'scanning') {
+        setScanStatus('');
+        setScanningPath(data.path);
+      }
+    });
+
+    try {
+      const result = await window.electronAPI.clusterImages(paths, null);
+      const clusterMap = result?.clusters || {};
+      const order = result?.clusterOrder || [];
+      // Build custom order: iterate clusters largest→smallest, within each keep
+      // the original order from the current view.
+      const buckets = new Map();
+      for (const img of current) {
+        const cid = clusterMap[img.path];
+        if (cid === undefined) continue;
+        if (!buckets.has(cid)) buckets.set(cid, []);
+        buckets.get(cid).push(img.path);
+      }
+      const nextOrder = [];
+      for (const cid of order) {
+        const b = buckets.get(cid);
+        if (b) nextOrder.push(...b);
+      }
+      // Any leftover (shouldn't happen) appended.
+      for (const [cid, b] of buckets) {
+        if (!order.includes(cid)) nextOrder.push(...b);
+      }
+      setCustomOrder(nextOrder);
+      setClusterAssignments(clusterMap);
+      const s = result?.stats || {};
+      alert(`Clustered ${s.numImages ?? paths.length} images into ${s.numClusters ?? '?'} groups. Scroll to review — same-cluster tiles sit together.`);
+    } catch (err) {
+      console.error('Cluster failed:', err);
+      alert(`Cluster failed: ${err.message}`);
+    } finally {
+      window.electronAPI.removeScanListeners();
+      setScanningPath(null);
+      setScanStatus('');
+      setScanning(false);
+      setScanProgress({ done: 0, total: 0 });
+    }
+  }, []);
+
+  // ── Shuffle: randomize current view to remove position bias ──
+  const handleShuffle = useCallback(() => {
+    const current = filteredImagesRef.current;
+    if (!current || current.length < 2) return;
+    const paths = current.map(i => i.path);
+    // Fisher-Yates
+    for (let i = paths.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [paths[i], paths[j]] = [paths[j], paths[i]];
+    }
+    setCustomOrder(paths);
+    setClusterAssignments(null);
   }, []);
 
   const handleAddToRefs = useCallback(async (imagePaths) => {
@@ -2498,6 +2620,10 @@ function App() {
         onAIScan={handleAIScan}
         onFindDuplicates={handleFindDuplicates}
         onFindSource={handleFindSource}
+        onCluster={handleCluster}
+        onShuffle={handleShuffle}
+        customOrderActive={!!customOrder}
+        onClearOrder={() => { setCustomOrder(null); setClusterAssignments(null); }}
         onClearAiScores={handleClearAiScores}
         profilesVersion={profilesVersion}
         onClearRefs={handleClearRefs}
@@ -2573,6 +2699,7 @@ function App() {
         onRenameCancel={() => setEditingFolderPath(null)}
         selectedFolders={selectedFolders}
         onFolderLongPress={handleFolderLongPress}
+        clusterAssignments={clusterAssignments}
       />
 
       {previewImage && (
@@ -2679,6 +2806,16 @@ function App() {
             onClose={() => setDrivePickAction(null)}
           />
         )
+      )}
+
+      {sourcePickerOpen && (
+        <LocalDestinationPicker
+          action="open"
+          startPath={folderPath && !folderPath.startsWith('drive://') ? folderPath : (lastFolderPath && !lastFolderPath.startsWith('drive://') ? lastFolderPath : '')}
+          sourcePath={folderPath}
+          onSelect={handleSourcePickSelected}
+          onClose={handleSourcePickClose}
+        />
       )}
 
     </div>

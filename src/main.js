@@ -963,6 +963,36 @@ ipcMain.handle('find-source-match', async (event, { editedPaths, rawPaths, thres
   });
 });
 
+ipcMain.handle('cluster-images', async (event, { imagePaths, numClusters }) => {
+  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = resourcePath('cluster_images.py');
+
+  return new Promise((resolve, reject) => {
+    const py = spawn(pyCmd, [scriptPath]);
+    py.stdin.write(JSON.stringify({ imagePaths, numClusters: numClusters ?? null }));
+    py.stdin.end();
+
+    let buf = '';
+    py.stdout.on('data', (data) => {
+      const lines = (buf + data.toString()).split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (msg.status   !== undefined) mainWindow?.webContents.send('scan-progress', { type: 'status',   text: msg.status });
+          if (msg.scanning !== undefined) mainWindow?.webContents.send('scan-progress', { type: 'scanning', path: msg.scanning });
+          if (msg.result)  resolve(msg.result);
+          if (msg.error)   reject(new Error(msg.error));
+        } catch {}
+      }
+    });
+
+    py.stderr.on('data', d => console.error('[cluster_images]', d.toString()));
+    py.on('close', code => { if (code !== 0) reject(new Error(`cluster_images.py exited with code ${code}`)); });
+  });
+});
+
 ipcMain.handle('get-image-metadata', async (event, filePath) => {
   try {
     // Live Drive paths: pull the bytes into the local byte-cache first, then

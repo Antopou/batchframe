@@ -154,6 +154,21 @@
   pointer-events: none;
 }
 
+/* ── Cluster chip (top-left, appears next to checkbox when clustering is active) ── */
+.cluster-chip {
+  padding: 2px 6px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  line-height: 1;
+  margin-left: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
 /* ── Lock indicator ── */
 .lock-indicator {
   width: 22px;

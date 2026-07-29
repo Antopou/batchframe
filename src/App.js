@@ -1718,15 +1718,39 @@ function App() {
   const handleShuffle = useCallback(() => {
     const current = filteredImagesRef.current;
     if (!current || current.length < 2) return;
-    const paths = current.map(i => i.path);
-    // Fisher-Yates
-    for (let i = paths.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [paths[i], paths[j]] = [paths[j], paths[i]];
+
+    const shuffleArr = (arr) => {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    };
+
+    // If clusters exist, shuffle the ORDER OF CLUSTERS but keep each
+    // cluster's members together.
+    if (clusterAssignments) {
+      const buckets = new Map();
+      for (const img of current) {
+        const cid = clusterAssignments[img.path] ?? '__none__';
+        if (!buckets.has(cid)) buckets.set(cid, []);
+        buckets.get(cid).push(img.path);
+      }
+      const keys = Array.from(buckets.keys());
+      shuffleArr(keys);
+      const paths = [];
+      for (const k of keys) paths.push(...buckets.get(k));
+      setCustomOrder(paths);
+      // Keep clusterAssignments so the per-tile badges & sticky header
+      // stay visible after a group-shuffle.
+      return;
     }
+
+    // No clusters — plain per-image shuffle.
+    const paths = current.map(i => i.path);
+    shuffleArr(paths);
     setCustomOrder(paths);
     setClusterAssignments(null);
-  }, []);
+  }, [clusterAssignments]);
 
   const handleAddToRefs = useCallback(async (imagePaths) => {
     if (!window.electronAPI?.addToRefs || !activeCharacter) return;

@@ -235,17 +235,18 @@ function Controls({
       }
 
       // A (no modifier) → open menu / advance keyboard focus through sub-items.
+      // IMPORTANT: never call setAiKbFocus inside the setShowAIMenu updater —
+      // React strict mode double-invokes updaters so nested setters fire twice
+      // and advance focus by 2 instead of 1. Use the closed-over state instead.
       if (isA) {
         if (driveLive) return;
         e.preventDefault();
-        setShowAIMenu((wasOpen) => {
-          if (!wasOpen) {
-            setAiKbFocus(0);
-            return true;
-          }
+        if (!showAIMenu) {
+          setShowAIMenu(true);
+          setAiKbFocus(0);
+        } else {
           setAiKbFocus((i) => (i + 1) % AI_ITEMS_COUNT);
-          return true;
-        });
+        }
         return;
       }
 

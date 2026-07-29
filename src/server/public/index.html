@@ -1045,26 +1045,40 @@
   // One-finger drag still scrolls the feed, so zoom can't own that gesture.
   // Instead a pinch lifts the frame into a separate layer, magnifies it, and
   // drops it back on release — the feed underneath never moves.
-  const PEEK_MAX = 8, PEEK_CLOSE = 2.5;
+  const PEEK_MAX = 8;
   let peekOn = false, peekHeld = false;
+  let pkFit = false;         // double-tapped state: fitted to the window
+  let pkGesture = null;      // within it, 'shift' | 'zoom' once a 2-finger gesture declares
+  const PK_SLOP = 16;        // px of movement before it counts as declared
   let pkScale = 1, pkTx = 0, pkTy = 0, pkBase = null;
   let pkSuppressClick = false;
 
-  function peekApply() {
+  // `stick` is for shifting only. Zooming is deliberately left unclamped: the
+  // border bound collapses to a single centred value at the exact scale where
+  // the frame grows past the window (1.5x for a 3:4 frame on a phone), so
+  // enforcing it while zooming snaps an off-centre frame to the middle. The
+  // focal point already keeps the frame under your fingers while pinching, and
+  // a shift runs at a fixed scale where the bound can't collapse underneath it.
+  function peekApply(stick) {
     if (!pkBase) return;
     const cx = pkBase.left + pkBase.width / 2;
     const cy = pkBase.top + pkBase.height / 2;
-    if (pkScale > 1.01) {
-      // Stick to the frame's borders: you can shift right up to an edge but
-      // never past it, so no dead space ever shows. An axis that's smaller
-      // than the window has nothing to shift and just centres.
+    if (stick) {
+      // Fitted state: hold the frame against the window. The bounds are sorted
+      // rather than gated on "is it bigger than the window", because at the fit
+      // scale the height equals the window's to within a rounding error — a
+      // `>=` test there can miss by a hair and leave the axis wide open.
+      // Sorted, the two bounds simply meet, which pins the axis exactly.
       const vw = window.innerWidth, vh = window.innerHeight;
       const hw = (pkBase.width * pkScale) / 2, hh = (pkBase.height * pkScale) / 2;
-      pkTx = hw * 2 >= vw ? Math.max(vw - cx - hw, Math.min(hw - cx, pkTx)) : vw / 2 - cx;
-      pkTy = hh * 2 >= vh ? Math.max(vh - cy - hh, Math.min(hh - cy, pkTy)) : vh / 2 - cy;
-    } else {
-      pkTx = 0; pkTy = 0;
+      const loX = vw - cx - hw, hiX = hw - cx;
+      const loY = vh - cy - hh, hiY = hh - cy;
+      pkTx = Math.max(Math.min(loX, hiX), Math.min(Math.max(loX, hiX), pkTx));
+      pkTy = Math.max(Math.min(loY, hiY), Math.min(Math.max(loY, hiY), pkTy));
     }
+    // Nothing snaps the offset back to zero at low scale: peekStart already
+    // opens at the frame's own position, and a fit can legitimately sit below
+    // 1x, where zeroing would jerk it back to where it sat in the feed.
     $('peekImg').style.transform = `translate(${pkTx}px, ${pkTy}px) scale(${pkScale})`;
     $('peekLvl').textContent = pkScale.toFixed(1) + '×';
     // flash the readout only when the zoom actually moves — panning shouldn't
@@ -1090,7 +1104,7 @@
     const cx = pkBase.left + pkBase.width / 2;
     const cy = pkBase.top + pkBase.height / 2;
     const fx = clientX - cx, fy = clientY - cy;
-    const s = Math.max(1, Math.min(PEEK_MAX, next));
+    const s = Math.max(0.05, Math.min(PEEK_MAX, next));   // a fit may sit below 1
     pkTx = fx - ((fx - pkTx) * s / pkScale);
     pkTy = fy - ((fy - pkTy) * s / pkScale);
     pkScale = s;
@@ -1115,6 +1129,7 @@
     pi.style.width = r.width + 'px';
     pi.style.height = r.height + 'px';
     pkScale = 1; pkTx = 0; pkTy = 0;
+    pkFit = false;                              // a fresh pinch peek, not a fitted one
     p.hidden = false;
     p.classList.remove('releasing');
     peekOn = true;
@@ -1126,7 +1141,7 @@
   function peekRelease() {
     if (!peekOn) return;
     const p = $('peek');
-    peekOn = false; peekHeld = false; pkOneFinger = false; pkMode = null;
+    peekOn = false; peekHeld = false; pkOneFinger = false; pkFit = false; pkGesture = null;
     pkScale = 1; pkTx = 0; pkTy = 0;
     pkLvlScale = null;                            // next peek re-flashes the readout
     if (pkLvlTimer) { clearTimeout(pkLvlTimer); pkLvlTimer = null; }
@@ -1144,9 +1159,13 @@
   // Scale at which the frame stops leaving gaps and fills the window. Feed
   // frames are width-fitted, so for a tall one this is already 1 (it fills
   // the width and overflows) and the fill step gets skipped.
-  function peekCoverScale() {
-    if (!pkBase || !pkBase.width || !pkBase.height) return 1;
-    return Math.max(window.innerWidth / pkBase.width, window.innerHeight / pkBase.height);
+  // The scale that makes the frame's height exactly the window's height, so it
+  // sits flush top and bottom with only sideways left to explore. This is
+  // allowed to be below 1: a photo taller than the window has to shrink to fit,
+  // and capping it at 1 was what left the vertical wide open.
+  function peekFitScale() {
+    if (!pkBase || !pkBase.height) return 1;
+    return window.innerHeight / pkBase.height;
   }
 
   // Park the frame dead centre of the window at the given scale. A feed frame
@@ -1154,10 +1173,12 @@
   // would leave it just as awkwardly parked, so the cycle always recentres.
   function peekZoomCentred(next) {
     if (!pkBase) return;
-    pkScale = Math.max(1, Math.min(PEEK_MAX, next));
+    pkScale = Math.max(0.05, Math.min(PEEK_MAX, next));   // fitting may shrink below 1
     pkTx = window.innerWidth / 2 - (pkBase.left + pkBase.width / 2);
     pkTy = window.innerHeight / 2 - (pkBase.top + pkBase.height / 2);
-    peekApply();
+    // stick, so a fit that shrinks below 1 isn't mistaken for a resting peek
+    // and reset back to the frame's position in the feed
+    peekApply(true);
   }
 
   // Double-tap toggles fill screen ↔ back to the feed, mirroring the standard
@@ -1171,29 +1192,36 @@
     const p = $('peek');
     p.classList.add('animating');
     setTimeout(() => p.classList.remove('animating'), 200);
-    const fill = Math.max(1, peekCoverScale());
-    // a frame already filling the window has nothing to fill — zoom in instead
-    const target = fill > 1.01 ? fill : PEEK_CLOSE;
-    if (pkScale < target - 0.01) peekZoomCentred(target);
+    // straight toggle: fit to the window, or drop back to the feed
+    if (!pkFit) { peekZoomCentred(peekFitScale()); pkFit = true; }
     else peekRelease();
   }
 
   let pkD0 = null, pkS0 = 1, pkMx0 = 0, pkMy0 = 0, pkTx0 = 0, pkTy0 = 0;
   let pkOneFinger = false;   // pinch ended but a finger is still down: keep the peek
-  let pkMode = null;         // 'zoom' | 'shift', locked once a 2-finger gesture declares itself
-  const PK_MODE_SLOP = 16;   // px of movement before we decide which it is
 
   $('scrollContainer').addEventListener('touchstart', (e) => {
     // a fresh gesture: drop any stale suppression, or it eats this tap's click
     pkSuppressClick = false;
+    // A peek is up, so this finger belongs to the peek, not the feed. Without
+    // this the first finger of a two-finger shift lands alone for a frame or
+    // two, scrolls the feed, and dismisses the peek before the second finger
+    // ever arrives — which made the shift gesture look broken on real devices.
+    if (e.touches.length === 1 && peekOn) {
+      const t = e.touches[0];
+      pkMx0 = t.clientX; pkMy0 = t.clientY;
+      pkTx0 = pkTx; pkTy0 = pkTy;
+      pkOneFinger = true;
+      return;
+    }
     if (e.touches.length !== 2) return;
     const a = e.touches[0], b = e.touches[1];
     const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
     if (!peekOn && !peekStart(itemImgAt(mx, my))) return;
     pkD0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
     pkS0 = pkScale; pkMx0 = mx; pkMy0 = my; pkTx0 = pkTx; pkTy0 = pkTy;
-    pkOneFinger = false;                         // two fingers again: back to pinching
-    pkMode = null;                               // and this gesture hasn't declared itself
+    pkOneFinger = false;                         // two fingers again
+    pkGesture = null;                            // undecided until it moves
   }, { passive: true });
 
   $('scrollContainer').addEventListener('touchmove', (e) => {
@@ -1202,25 +1230,41 @@
       const a = e.touches[0], b = e.touches[1];
       const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
       const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
-      // Two fingers mean two different things. Moving them opposite ways changes
-      // the spread → zoom. Moving them as a pair holds the spread and slides the
-      // midpoint → shift. First one past the slop wins and locks for the rest of
-      // the gesture, so a parallel drag can't jitter the zoom and back.
-      if (pkMode === null) {
+
+      // Only in the fitted state can two fingers mean two things, so that's the
+      // only place worth deciding between them. Moving as a pair is a shift and
+      // keeps the fit. Changing the spread is a zoom, and it becomes a held
+      // inspection rather than a new resting state: clearing `peekHeld` means
+      // the full lift springs it back to the feed, like a pinch from scratch.
+      // Outside the fitted state two fingers are always a zoom, nothing to decide.
+      if (pkFit && pkGesture === null) {
         const spread = Math.abs(d - pkD0);
         const slide = Math.hypot(mx - pkMx0, my - pkMy0);
-        if (spread < PK_MODE_SLOP && slide < PK_MODE_SLOP) return;
-        pkMode = spread > slide ? 'zoom' : 'shift';
-        // a parallel drag with nothing zoomed has nothing to shift — get out of
-        // the way rather than leaving a dimmed overlay hanging over the feed
-        if (pkMode === 'shift' && !peekHeld && pkScale <= 1.01) {
-          peekRelease(); pkD0 = null; return;
+        if (spread < PK_SLOP && slide < PK_SLOP) return;
+        if (spread > slide) {
+          pkGesture = 'zoom';
+          pkFit = false;               // no longer parked; falls through to zooming
+          peekHeld = false;            // and letting go returns to the feed
+        } else {
+          pkGesture = 'shift';
         }
       }
-      // rebuild from the gesture start: spread about the original midpoint, then
-      // carry however far that midpoint has drifted
+
+      if (pkFit) {
+        // fitted + sliding: the border clamp pins the vertical by itself, since
+        // at the fit scale the height equals the window's and its allowed range
+        // collapses to a single value — only sideways is left to explore.
+        pkTx = pkTx0 + (mx - pkMx0);
+        pkTy = pkTy0 + (my - pkMy0);
+        peekApply(true);
+        pkSuppressClick = true;
+        return;
+      }
+
+      // pinch-zoom: rebuild from the gesture start, spread about the original
+      // midpoint, then carry however far that midpoint has drifted
       pkScale = pkS0; pkTx = pkTx0; pkTy = pkTy0;
-      if (pkMode === 'zoom') peekZoomAt(pkS0 * (d / pkD0), pkMx0, pkMy0);
+      peekZoomAt(pkS0 * (d / pkD0), pkMx0, pkMy0);
       pkTx += mx - pkMx0; pkTy += my - pkMy0;
       peekApply();
       pkSuppressClick = true;
@@ -1233,7 +1277,7 @@
       const t = e.touches[0];
       pkTx = pkTx0 + (t.clientX - pkMx0);
       pkTy = pkTy0 + (t.clientY - pkMy0);
-      peekApply();
+      peekApply(pkFit);              // borders only bind in the double-tapped state
       pkSuppressClick = true;
     }
   }, { passive: false });
@@ -1287,6 +1331,7 @@
     else if (e.deltaMode === 2) d *= 400;
     const next = pkScale * Math.exp(-d * 0.0025);
     if (next <= 1.01) { peekRelease(); return; }
+    pkFit = false;                              // free zooming leaves the fitted state
     peekZoomAt(next, e.clientX, e.clientY);
   }, { passive: false });
 
@@ -1303,7 +1348,7 @@
     if (!pkMousePan) return;
     pkTx = pkTx0 + (e.clientX - pkMx);
     pkTy = pkTy0 + (e.clientY - pkMy);
-    peekApply();
+    peekApply(pkFit);
     if (Math.abs(e.clientX - pkMx) > 4 || Math.abs(e.clientY - pkMy) > 4) pkSuppressClick = true;
   });
   window.addEventListener('mouseup', () => { pkMousePan = false; });

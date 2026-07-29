@@ -26,6 +26,7 @@ const ImageGrid = forwardRef(function ImageGrid({
   loading,
   isDeleting,
   deleteProgress,
+  actionText = 'Deleting',
   orderedSelection,
   orderSelectMode,
   onContextMenu,
@@ -374,8 +375,8 @@ const ImageGrid = forwardRef(function ImageGrid({
             <div className="delete-spinner"></div>
             <div className="delete-text">
               {deleteProgress && deleteProgress.total > 0
-                ? `Deleting ${deleteProgress.current} / ${deleteProgress.total} images...`
-                : 'Deleting images...'}
+                ? `${actionText} ${deleteProgress.current} / ${deleteProgress.total} images...`
+                : `${actionText} images...`}
             </div>
             {deleteProgress && deleteProgress.total > 0 && (
               <div className="delete-progress-bar-container">

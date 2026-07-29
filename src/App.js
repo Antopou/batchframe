@@ -257,10 +257,14 @@ function App() {
     if (window.electronAPI.onMoveProgress) {
       window.electronAPI.onMoveProgress((data) => setMoveProgress(data));
     }
+    if (window.electronAPI.onCopyProgress) {
+      window.electronAPI.onCopyProgress((data) => setCopyProgress(data));
+    }
 
     return () => {
       window.electronAPI.removeDeleteListeners();
       if (window.electronAPI.removeMoveListeners) window.electronAPI.removeMoveListeners();
+      if (window.electronAPI.removeCopyListeners) window.electronAPI.removeCopyListeners();
     };
   }, []);
 
@@ -1550,12 +1554,14 @@ function App() {
       const paths = Array.from(e.dataTransfer.files).map(f => f.path).filter(Boolean);
       if (paths.length > 0) {
         setIsCopying(true);
+        setCopyProgress({ current: 0, total: paths.length });
         try {
           await window.electronAPI.copyImages(paths, folderPath);
         } catch (err) {
           console.error(err);
         } finally {
           setIsCopying(false);
+          setCopyProgress({ current: 0, total: 0 });
           if (!autoReloadEnabled) loadElectronFolder(folderPath);
         }
       }
@@ -1572,6 +1578,7 @@ function App() {
         const paths = JSON.parse(internalData);
         if (paths.length > 0) {
           setIsMoving(true);
+          setMoveProgress({ current: 0, total: paths.length });
           await window.electronAPI.moveImages(paths, folder.path);
           handleDeselectAll();
         }
@@ -1579,6 +1586,7 @@ function App() {
         console.error(err);
       } finally {
         setIsMoving(false);
+        setMoveProgress({ current: 0, total: 0 });
         if (!autoReloadEnabled) loadElectronFolder(folderPath);
       }
       return;
@@ -1588,12 +1596,14 @@ function App() {
       const paths = Array.from(e.dataTransfer.files).map(f => f.path).filter(Boolean);
       if (paths.length > 0) {
         setIsCopying(true);
+        setCopyProgress({ current: 0, total: paths.length });
         try {
           await window.electronAPI.copyImages(paths, folder.path);
         } catch (err) {
           console.error(err);
         } finally {
           setIsCopying(false);
+          setCopyProgress({ current: 0, total: 0 });
           if (!autoReloadEnabled) loadElectronFolder(folderPath);
         }
       }
@@ -2477,8 +2487,9 @@ function App() {
         previewSize={previewSize}
         imageFitMode={imageFitMode}
         loading={loading}
-        isDeleting={isDeleting || isMoving}
-        deleteProgress={isMoving ? moveProgress : deleteProgress}
+        isDeleting={isDeleting || isMoving || isCopying}
+        deleteProgress={isCopying ? copyProgress : (isMoving ? moveProgress : deleteProgress)}
+        actionText={isCopying ? "Copying" : (isMoving ? "Moving" : "Deleting")}
         orderedSelection={orderedSelection}
         orderSelectMode={orderSelectMode}
         onContextMenu={handleContextMenu}

@@ -49,7 +49,7 @@ const FilmstripThumbnail = React.memo(({ image, index, isActive, onClick }) => {
   );
 });
 
-function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPrev, onGoTo, onLock, onDelete, onToggleSelect, selected, locked, onSaveCrop, canCrop }) {
+function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPrev, onGoTo, onLock, onDelete, onToggleSelect, selected, locked, onSaveCrop, canCrop, showNotice }) {
   const zoomRef = useRef(1);
   const positionRef = useRef({ x: 0, y: 0 });
   const dragStartRef = useRef({ x: 0, y: 0 });
@@ -621,17 +621,19 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         // Exit crop mode; the parent swaps the preview to the new cropped file
         setCropMode(false);
       } else {
-        // eslint-disable-next-line no-alert
-        alert(`Could not save crop: ${result?.error || 'unknown error'}`);
+        const msg = `Could not save crop: ${result?.error || 'unknown error'}`;
+        if (showNotice) showNotice({ title: 'Crop failed', message: msg, variant: 'error' });
+        else alert(msg); // fallback if parent didn't wire notice
       }
     } catch (err) {
       console.error('Crop save failed:', err);
-      // eslint-disable-next-line no-alert
-      alert(`Could not save crop: ${err.message}`);
+      const msg = `Could not save crop: ${err.message}`;
+      if (showNotice) showNotice({ title: 'Crop failed', message: msg, variant: 'error' });
+      else alert(msg);
     } finally {
       setSaving(false);
     }
-  }, [cropRect, onSaveCrop, image, onClose, targetWidth, targetHeight]);
+  }, [cropRect, onSaveCrop, image, onClose, targetWidth, targetHeight, showNotice]);
 
   const handleTargetWidthChange = useCallback((e) => {
     const val = e.target.value;

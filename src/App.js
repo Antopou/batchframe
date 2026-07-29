@@ -5,6 +5,7 @@ import ImageGrid from './components/ImageGrid';
 import SubfolderBar from './components/SubfolderBar';
 import ImagePreviewModal from './components/ImagePreviewModal';
 import ConfirmDialog from './components/ConfirmDialog';
+import NoticeDialog from './components/NoticeDialog';
 import ContextMenu from './components/ContextMenu';
 import MetadataModal from './components/MetadataModal';
 import TextPreviewModal from './components/TextPreviewModal';
@@ -540,6 +541,30 @@ function App() {
     });
   }, []);
 
+  // ── Custom notice helper (in-app alert replacement) ─────────────
+  // variant: 'info' | 'success' | 'error'. Accepts either
+  //   showNotice('message')  or  showNotice({ title, message, variant, okLabel })
+  const [noticeDialog, setNoticeDialog] = useState(null);
+  const noticeResolveRef = useRef(null);
+  const showNotice = useCallback((arg) => {
+    const cfg = typeof arg === 'string' ? { message: arg } : (arg || {});
+    return new Promise((resolve) => {
+      noticeResolveRef.current = resolve;
+      setNoticeDialog({
+        title:    cfg.title    || null,
+        message:  cfg.message  || '',
+        variant:  cfg.variant  || 'info',
+        okLabel:  cfg.okLabel  || 'OK',
+      });
+    });
+  }, []);
+  const handleNoticeClose = useCallback(() => {
+    setNoticeDialog(null);
+    const r = noticeResolveRef.current;
+    noticeResolveRef.current = null;
+    r?.();
+  }, []);
+
   const handleConfirmYes = useCallback(() => {
     confirmDialog?.resolve(true);
     setConfirmDialog(null);
@@ -945,7 +970,7 @@ function App() {
       }
     } catch (err) {
       console.error('Delete failed:', err);
-      alert('Delete failed. Check console for details.');
+      showNotice({ title: 'Delete failed', message: 'Check console for details.', variant: 'error' });
     }
   }, [previewImage, previewIndex, pagedImages, lockedImages, confirmRequired,
       showConfirm, browserMode, handleClosePreview]);
@@ -963,7 +988,7 @@ function App() {
             await lastOp.reverse();
           } catch (err) {
             console.error('Undo failed', err);
-            alert('Undo failed: ' + err.message);
+            showNotice({ title: 'Undo failed', message: err.message, variant: 'error' });
           }
         }
       }
@@ -1483,7 +1508,7 @@ function App() {
       }
     } catch (err) {
       console.error('AI scan failed:', err);
-      alert(`AI scan failed: ${err.message}`);
+      showNotice({ title: 'AI scan failed', message: err.message, variant: 'error' });
     } finally {
       window.electronAPI.removeScanListeners();
       setScanningPath(null);
@@ -1528,13 +1553,17 @@ function App() {
           }
         });
         setSelectedImages(newSelected);
-        alert(`Found ${clusters.length} duplicate groups. ${newSelected.size} duplicate images have been selected for deletion.`);
+        showNotice({
+          title: 'Find Dupes complete',
+          message: `Found ${clusters.length} duplicate groups.\n${newSelected.size} duplicate images have been selected for deletion.`,
+          variant: 'success',
+        });
       } else {
-        alert('No duplicates found.');
+        showNotice({ title: 'Find Dupes', message: 'No duplicates found.' });
       }
     } catch (err) {
       console.error('Find duplicates failed:', err);
-      alert(`Find duplicates failed: ${err.message}`);
+      showNotice({ title: 'Find Dupes failed', message: err.message, variant: 'error' });
     } finally {
       window.electronAPI.removeScanListeners();
       setScanningPath(null);
@@ -1552,7 +1581,7 @@ function App() {
   const handleFindSource = useCallback(async () => {
     const rawImages = filteredImagesRef.current;
     if (rawImages.length === 0) {
-      alert('No raw images in the current view.');
+      showNotice({ title: 'Find Source', message: 'No raw images in the current view.' });
       return;
     }
     const editedFolder = await pickSourceFolder();
@@ -1560,7 +1589,7 @@ function App() {
 
     const edits = await window.electronAPI.getImages(editedFolder);
     if (!edits || edits.length === 0) {
-      alert('No images found in the edited folder.');
+      showNotice({ title: 'Find Source', message: 'No images found in the edited folder.' });
       return;
     }
 
@@ -1586,18 +1615,20 @@ function App() {
       const discardSet = new Set(report.discardRaws || []);
       setSelectedImages(discardSet);
       const s = report.stats || {};
-      alert(
-        `Find Source complete.\n\n` +
-        `Edits:      ${s.editCount ?? edits.length}\n` +
-        `Raws:       ${s.rawCount ?? rawImages.length}\n` +
-        `Matched:    ${s.matched ?? 0}\n` +
-        `Unmatched edits: ${s.unmatched ?? 0}\n` +
-        `Raws to keep:    ${s.keep ?? 0}\n` +
-        `Raws to discard: ${s.discard ?? 0}  ← selected in the grid`
-      );
+      showNotice({
+        title: 'Find Source complete',
+        variant: 'success',
+        message:
+          `Edits:            ${s.editCount ?? edits.length}\n` +
+          `Raws:             ${s.rawCount ?? rawImages.length}\n` +
+          `Matched:          ${s.matched ?? 0}\n` +
+          `Unmatched edits:  ${s.unmatched ?? 0}\n` +
+          `Raws to keep:     ${s.keep ?? 0}\n` +
+          `Raws to discard:  ${s.discard ?? 0}  ← selected in the grid`,
+      });
     } catch (err) {
       console.error('Find source failed:', err);
-      alert(`Find source failed: ${err.message}`);
+      showNotice({ title: 'Find Source failed', message: err.message, variant: 'error' });
     } finally {
       window.electronAPI.removeScanListeners();
       setScanningPath(null);
@@ -1613,7 +1644,7 @@ function App() {
   const handleCluster = useCallback(async () => {
     const current = filteredImagesRef.current;
     if (!current || current.length < 6) {
-      alert('Need at least 6 images to cluster.');
+      showNotice({ title: 'Cluster', message: 'Need at least 6 images to cluster.' });
       return;
     }
     const paths = current.map(i => i.path);
@@ -1655,10 +1686,14 @@ function App() {
       setCustomOrder(nextOrder);
       setClusterAssignments(clusterMap);
       const s = result?.stats || {};
-      alert(`Clustered ${s.numImages ?? paths.length} images into ${s.numClusters ?? '?'} groups. Scroll to review — same-cluster tiles sit together.`);
+      showNotice({
+        title: 'Cluster complete',
+        variant: 'success',
+        message: `Clustered ${s.numImages ?? paths.length} images into ${s.numClusters ?? '?'} groups.\nScroll to review — same-cluster tiles sit together.`,
+      });
     } catch (err) {
       console.error('Cluster failed:', err);
-      alert(`Cluster failed: ${err.message}`);
+      showNotice({ title: 'Cluster failed', message: err.message, variant: 'error' });
     } finally {
       window.electronAPI.removeScanListeners();
       setScanningPath(null);
@@ -1884,7 +1919,7 @@ function App() {
             setImages(prev => prev.filter(img => !selectedImages.has(img.path)));
           } else {
             console.error('Delete failed:', deleteResult?.error);
-            alert(`Failed to delete some images: ${deleteResult?.error}`);
+            showNotice({ title: 'Delete failed', message: `Failed to delete some images: ${deleteResult?.error}`, variant: 'error' });
           }
         }
         if (folderList.length > 0) {
@@ -1923,7 +1958,7 @@ function App() {
       }, 100);
     } catch (err) {
       console.error('Delete failed:', err);
-      alert('Delete failed. Check console for details.');
+      showNotice({ title: 'Delete failed', message: 'Check console for details.', variant: 'error' });
     } finally {
       setIsDeleting(false);
       setDeleteProgress({ current: 0, total: 0 });
@@ -2717,6 +2752,7 @@ function App() {
           selected={selectedImages.has(previewImage.path)}
           locked={lockedImages.has(previewImage.path)}
           onSaveCrop={handleSaveCrop}
+          showNotice={showNotice}
           canCrop={!browserMode}
         />
       )}
@@ -2729,6 +2765,16 @@ function App() {
           danger={confirmDialog.danger !== false}
           onConfirm={handleConfirmYes}
           onCancel={handleConfirmNo}
+        />
+      )}
+
+      {noticeDialog && (
+        <NoticeDialog
+          title={noticeDialog.title}
+          message={noticeDialog.message}
+          variant={noticeDialog.variant}
+          okLabel={noticeDialog.okLabel}
+          onClose={handleNoticeClose}
         />
       )}
 

@@ -60,6 +60,31 @@
   border: 1px solid rgba(92, 124, 255, 0.2);
 }
 
+.dialog-icon-wrap.success {
+  background: rgba(52, 210, 126, 0.1);
+  color: var(--green);
+  border: 1px solid rgba(52, 210, 126, 0.22);
+}
+
+/* Notice dialog (alert-replacement) — a bit wider than confirm for structured messages */
+.notice-dialog {
+  width: min(440px, 92vw);
+}
+
+.notice-dialog .dialog-message {
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  white-space: pre-line;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.notice-dialog .notice-ok {
+  min-width: 140px;
+}
+
 /* ── Text ────────────────────────────────────────── */
 .dialog-title {
   font-size: 16px;

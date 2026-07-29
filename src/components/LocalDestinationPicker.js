@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './DriveFolderPicker.css';
+import ContextMenu from './ContextMenu';
 
 // Destination picker for move/copy of local files. Mirrors DriveFolderPicker's
 // open-panel look: `~ / <last dirs> ❯` prompt, folder-only list, keyboard
@@ -17,6 +18,18 @@ function LocalDestinationPicker({ action, startPath, sourcePath, onSelect, onClo
   const [focusIndex, setFocusIndex] = useState(-1);
   const searchRef = useRef(null);
   const bodyRef = useRef(null);
+
+  // Right-click "Show images" toggle. Default: folder-only.
+  // Persisted in localStorage so the preference sticks across picker sessions.
+  const SHOW_IMAGES_KEY = 'batchframe:picker:showImages';
+  const [showImages, setShowImages] = useState(() => {
+    try { return localStorage.getItem(SHOW_IMAGES_KEY) === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(SHOW_IMAGES_KEY, showImages ? '1' : '0'); } catch {}
+  }, [showImages]);
+  const [folderImages, setFolderImages] = useState([]);
+  const [ctxMenu, setCtxMenu] = useState(null);
 
   const current = crumbs[crumbs.length - 1];
   const currentPath = current.path;
@@ -45,6 +58,21 @@ function LocalDestinationPicker({ action, startPath, sourcePath, onSelect, onClo
   }, [action]);
 
   useEffect(() => { load(currentPath); }, [currentPath, load]);
+
+  // Load images for the current folder only when "Show images" is toggled on.
+  useEffect(() => {
+    if (!showImages) { setFolderImages([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await window.electronAPI.getImages(currentPath);
+        if (!cancelled) setFolderImages(Array.isArray(list) ? list : []);
+      } catch {
+        if (!cancelled) setFolderImages([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showImages, currentPath]);
 
   useEffect(() => {
     setQuery('');
@@ -168,7 +196,7 @@ function LocalDestinationPicker({ action, startPath, sourcePath, onSelect, onClo
     if (el) el.scrollIntoView({ block: 'nearest' });
   }, [focusIndex]);
 
-  const nothingHere = !loading && folders.length === 0;
+  const nothingHere = !loading && folders.length === 0 && (!showImages || folderImages.length === 0);
 
   return (
     <div className="drive-picker-overlay" onClick={onClose}>
@@ -210,7 +238,15 @@ function LocalDestinationPicker({ action, startPath, sourcePath, onSelect, onClo
           )}
         </div>
 
-        <div className="drive-picker-body" ref={bodyRef}>
+        <div
+          className="drive-picker-body"
+          ref={bodyRef}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setCtxMenu({ x: e.clientX, y: e.clientY });
+          }}
+        >
           {error && <div className="drive-picker-error">{error}</div>}
           {(loading || creating) && (
             <div className="terminal-loader">
@@ -268,7 +304,37 @@ function LocalDestinationPicker({ action, startPath, sourcePath, onSelect, onClo
               </div>
             );
           })}
+
+          {!loading && showImages && folderImages.map((img) => (
+            <div
+              key={img.path}
+              className="drive-picker-row image"
+              title={img.name}
+            >
+              <span className="drive-picker-icon image-icon" aria-hidden>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="9" cy="9" r="2" />
+                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                </svg>
+              </span>
+              <span className="drive-picker-name">{img.name}</span>
+            </div>
+          ))}
         </div>
+
+        {ctxMenu && (
+          <ContextMenu
+            position={ctxMenu}
+            onClose={() => setCtxMenu(null)}
+            items={[
+              {
+                label: showImages ? 'Hide images' : 'Show images',
+                onClick: () => setShowImages((v) => !v),
+              },
+            ]}
+          />
+        )}
 
         <div className="drive-picker-footer">
           <div className="drive-picker-actions" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>

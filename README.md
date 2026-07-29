@@ -2,6 +2,8 @@
 
 A fast, keyboard-driven desktop application to cull, organize, and manage large collections of images and select non-image files. Designed for speed, it works well for digital asset management, photography culling, and organizing visual references. Built with Electron and React.
 
+It also syncs to Google Drive, runs a local AI toolkit for finding duplicates, originals, and visual clusters, and can mirror itself to your phone or tablet over Wi-Fi so you can review shots on a second screen.
+
 ## Key Features
 
 ### 📂 Organization & Curation
@@ -39,6 +41,7 @@ While an AI action runs:
 - **Themed dialogs** — All alerts, confirmations, and notices render as in-app modals matching the dark theme. No native OS popups.
 - **In-app folder picker** — A terminal-style folder navigator with fuzzy search, keyboard nav, and inline folder creation. Right-click anywhere in the picker to toggle "Show images" (revealing image contents alongside folders so you can confirm you're in the right place). Preference is saved.
 - **Custom order** — Cluster and Shuffle set a custom image order that overrides the default sort. Changing the sort dropdown clears it. A `Reset` button appears in the AI menu while a custom order is active.
+- **Native menu bar** — A standard application menu (Edit / View / Window, plus the app menu on macOS) so system copy/paste, zoom, reload, and fullscreen behave the way you'd expect.
 
 ### ☁️ Google Drive Sync
 - **Cloud Sync**: Directly pull and push folders from/to a Google Drive account with advanced sync strategies.
@@ -46,6 +49,41 @@ While an AI action runs:
 - **Local Caching**: Images are cached locally for instantaneous loading, with a tiny visual indicator showing sync status.
 - **Operation Cancellation**: Easily cancel long-running Google Drive API requests.
 - **Live Drive Mode** (`Cmd/Ctrl+Shift+D`): Open a Drive folder directly as your workspace — no pull, no push. Renames, moves, deletes, and crops apply straight to Drive as you make them (deletes go to Drive's trash). The grid loads from Drive thumbnails; nothing is bulk-downloaded. Photoshop and AI scanning are unavailable in this mode since they need real local files.
+
+### 📱 Remote Access
+
+The **Remote** button in the toolbar starts a small server on your local network so a second device — phone, tablet, or another laptop — can open a URL and mirror the app. Handy for judging shots on a phone screen, or handing a tablet to someone else while you cull.
+
+- **Scan and go**: Starting the server shows a QR code and a URL. Any device on the same Wi-Fi opens it in a browser — no install, no account, no sign-in.
+- **Live mirror**: The remote follows the desktop's folder, subfolders, open preview, and which images are selected. Navigating on the remote drives the desktop back, so you can browse from across the room. Turn `Sync desktop` off in the menu to look around on your own without moving the desktop.
+- **Scroll preview**: An optional continuous vertical feed (`Scroll preview` in the menu) for thumbing through a whole shoot. Your scroll position keeps the desktop in step.
+- **Read-only culling**: The remote browses and drives the preview, but cannot select, move, rename, or delete. Destructive actions stay on the desktop.
+- **Drive-aware**: Live Drive folders work too — the remote materializes thumbnails on demand rather than bulk-downloading.
+- **Direct, not cloud**: Devices talk straight to your machine — there is no relay, account, or third-party service involved. The server picks a random free port and mints a fresh random token each time you start it; every request, including the WebSocket, is rejected without that token, and old URLs stop working once you stop the server.
+- **Know your network**: The server listens on all network interfaces, so on a normal home or office network behind a router it is reachable only from your LAN. On an untrusted network (café Wi-Fi, a conference, or a machine with port forwarding) anyone on that network can reach the port — they would still need the token, but the safe habit is to stop the server from the same panel when you're finished.
+
+#### Remote gestures
+
+| Gesture | Standard preview | Scroll preview |
+|---|---|---|
+| Tap left / right third | Previous / next image | — |
+| Tap centre | Show or hide the controls | Show or hide the controls |
+| Swipe across | Previous / next image | — |
+| Swipe down | Close the preview | — |
+| **Double-tap** | Fill the screen; again to fit | Fill the screen, centred; again to return to the feed |
+| **Pinch** | Zoom freely, up to 8× | Lifts the frame into a magnifier that springs back on release |
+| **One finger dragging** | Pans once zoomed, sticking at the edges | Pans only while you keep a finger down after a pinch |
+| **Two fingers sliding together** | — | Shift the frame around, sticking at the edges |
+
+In scroll preview, two fingers do two different things: moving them *apart or together* zooms, while sliding them *as a pair* shifts the frame. Whichever you start with locks in for that gesture, so a sideways drag never jitters the zoom.
+
+A pinch magnifier stays up as long as any finger is still touching, so you can lift to one finger and keep panning; it springs back only when you let go completely. On a magnifier opened by *double-tap* the rules differ slightly — it stays open on its own, two fingers move it around, and a one-finger drag scrolls the feed and dismisses it. `Esc` or another double-tap also closes it.
+
+Back in the thumbnail grid, pinching resizes the thumbnails (`Ctrl`/`⌘`+wheel on a laptop), and double-tapping the folder bar or any empty space toggles fullscreen.
+
+On a laptop the same things work with a mouse: double-click to fill, wheel to zoom in the standard preview, `Ctrl`/`⌘`+wheel to magnify in scroll preview, and drag to pan.
+
+The scroll-preview magnifier is deliberately transient — it floats above the feed rather than resizing it, so your place in the feed never shifts and the desktop doesn't jump around while you inspect a frame.
 
 ### 🎨 Deep Integrations
 - **Photoshop Link**: One-click export of selected images directly into Adobe Photoshop for manual touch-ups.
@@ -81,6 +119,7 @@ Power users can navigate entirely via the keyboard (when not focused on a text i
 - **Escape** - Deselect all images
 - **Ctrl+Shift+O / Cmd+Shift+O** - Sign out of Google Drive
 - **Space / Shift+Space** - Scroll page up/down continuously
+- **Ctrl+Cmd+F** - Toggle window fullscreen (also in the View menu, where the platform default applies)
 
 ## Installation & Setup
 
@@ -129,4 +168,5 @@ npm run build
 - **Electron** - Desktop app framework
 - **React** - UI framework
 - **Node.js** - Backend API and file system interactions
+- **Express + ws** - The LAN remote server and its live state channel (`qrcode` generates the pairing code)
 - **Python 3** - AI subprocesses (spawned from Electron main): DHash matching for Dupes/Source, CLIP embeddings for Cluster, CCIP/CLIP for character Scan

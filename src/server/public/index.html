@@ -44,6 +44,8 @@
     border-bottom: 1px solid var(--border-subtle);
     display: flex; align-items: center; gap: 8px;
     padding-top: max(10px, env(safe-area-inset-top));
+    /* double-tap here toggles fullscreen — don't flash a text selection */
+    user-select: none; -webkit-user-select: none;
   }
   header .title {
     font-size: 12px; font-weight: 500; flex: 1;
@@ -309,7 +311,7 @@
 <body>
 <div id="app">
   <div id="conn" class="disconnected" style="display:none">Reconnecting…</div>
-  <header>
+  <header title="Double-click for fullscreen">
     <button class="back-btn" id="btnBack" title="Up folder" style="display:none">←</button>
     <div class="title" id="title"><span class="sym" id="titleSym"></span><span class="name" id="titleName">—</span></div>
     <button class="burger" id="btnMenu" title="Menu">☰</button>
@@ -983,33 +985,42 @@
     if (e.target.tagName === 'IMG') toggleScrollChrome();
   });
 
-  // double-click blank area of grid → toggle fullscreen
+  // Two taps on blank chrome → toggle fullscreen. dblclick alone isn't enough:
+  // touch browsers don't fire it reliably, hence the paired tap timer.
   function isBlankTarget(el) {
     if (!el) return false;
     if (el.id === 'main' || el.id === 'grid' || el.id === 'app') return true;
     if (el.classList && el.classList.contains('empty')) return true;
     return false;
   }
-  $('main').addEventListener('dblclick', (e) => {
-    if (isBlankTarget(e.target)) toggleFs();
-  });
-  let lastTapTime = 0;
-  let multiTouch = false;
-  $('main').addEventListener('touchstart', (e) => {
-    if (e.touches.length > 1) { multiTouch = true; lastTapTime = 0; }
-  }, { passive: true });
-  $('main').addEventListener('touchend', (e) => {
-    // ignore multi-finger gestures (pinch); only single-tap counts
-    if (multiTouch || e.touches.length > 0 || e.changedTouches.length > 1) {
-      if (e.touches.length === 0) multiTouch = false;
-      lastTapTime = 0;
-      return;
-    }
-    if (!isBlankTarget(e.target)) { lastTapTime = 0; return; }
-    const now = Date.now();
-    if (now - lastTapTime < 320) { toggleFs(); lastTapTime = 0; e.preventDefault(); }
-    else lastTapTime = now;
-  });
+  // .title is flex:1, so the dead space between the folder name and ☰ is #title
+  // itself rather than <header> — match on the ancestor, not a fixed id.
+  function isHeaderBlank(el) {
+    if (!el || !el.closest) return false;
+    if (el.closest('button')) return false;  // ← and ☰ keep their own actions
+    return !!el.closest('header');
+  }
+  function bindDoubleTapFs(el, isBlank) {
+    el.addEventListener('dblclick', (e) => { if (isBlank(e.target)) toggleFs(); });
+    let lastTap = 0, multi = false;
+    el.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 1) { multi = true; lastTap = 0; }
+    }, { passive: true });
+    el.addEventListener('touchend', (e) => {
+      // ignore multi-finger gestures (pinch); only single-tap counts
+      if (multi || e.touches.length > 0 || e.changedTouches.length > 1) {
+        if (e.touches.length === 0) multi = false;
+        lastTap = 0;
+        return;
+      }
+      if (!isBlank(e.target)) { lastTap = 0; return; }
+      const now = Date.now();
+      if (now - lastTap < 320) { toggleFs(); lastTap = 0; e.preventDefault(); }
+      else lastTap = now;
+    });
+  }
+  bindDoubleTapFs($('main'), isBlankTarget);
+  bindDoubleTapFs(document.querySelector('header'), isHeaderBlank);
 })();
 </script>
 </body>

@@ -15,6 +15,7 @@ import AutoCropModal from './components/AutoCropModal';
 import DriveButton from './components/DriveButton';
 import DriveDestinationPicker from './components/DriveDestinationPicker';
 import LocalDestinationPicker from './components/LocalDestinationPicker';
+import MobileButton from './components/MobileButton';
 import { boxToCropRect } from './utils/faceCrop';
 
 const LAST_FOLDER_KEY = 'batchframe-last-folder';
@@ -1033,6 +1034,74 @@ function App() {
   const handleToggleShortcuts = useCallback(() => {
     setShowShortcuts(prev => !prev);
   }, []);
+
+  // ── LAN mobile companion: broadcast state + accept remote intents ─
+  const pagedImagesRef = useRef([]);
+  useEffect(() => { pagedImagesRef.current = pagedImages; }, [pagedImages]);
+
+  const [lanRunning, setLanRunning] = useState(false);
+  useEffect(() => {
+    if (!window.electronAPI?.lan) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const s = await window.electronAPI.lan.status();
+        if (!cancelled) setLanRunning(!!s?.running);
+      } catch { /* handler missing — main not yet reloaded */ }
+    };
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  useEffect(() => {
+    if (!lanRunning || !window.electronAPI?.lan) return;
+    window.electronAPI.lan.pushState({
+      folderPath,
+      subfolders,
+      parentFolderPath,
+      images: pagedImages,
+      previewIndex,
+      previewPath: previewImage?.path || null,
+    }).catch(() => {});
+  }, [lanRunning, folderPath, subfolders, parentFolderPath, pagedImages, previewIndex, previewImage]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.lan) return;
+    const handler = ({ intent, payload }) => {
+      switch (intent) {
+        case 'nav-folder':
+          if (payload?.path) handleNavigateToFolder(payload.path);
+          break;
+        case 'nav-up':
+          handleNavigateUp();
+          break;
+        case 'open-preview': {
+          const list = pagedImagesRef.current || [];
+          let idx = -1;
+          if (typeof payload?.index === 'number') idx = payload.index;
+          else if (payload?.path) idx = list.findIndex(i => i.path === payload.path);
+          if (idx >= 0 && idx < list.length) handleOpenPreview(list[idx], idx);
+          break;
+        }
+        case 'close-preview':
+          handleClosePreview();
+          break;
+        case 'next-preview':
+          handleNextPreview();
+          break;
+        case 'prev-preview':
+          handlePrevPreview();
+          break;
+        case 'goto-preview':
+          if (typeof payload?.index === 'number') handleGoToPreview(payload.index);
+          break;
+        default:
+      }
+    };
+    window.electronAPI.lan.onIntent(handler);
+    return () => window.electronAPI.lan.removeIntentListeners();
+  }, [handleNavigateToFolder, handleNavigateUp, handleOpenPreview, handleClosePreview, handleNextPreview, handlePrevPreview, handleGoToPreview]);
 
   const handleToggleSubfolderBar = useCallback(() => {
     setSubfolderBarPinned(prev => {
@@ -2702,16 +2771,19 @@ function App() {
         activeCharacter={activeCharacter}
         onSetActiveCharacter={setActiveCharacter}
         driveSlot={
-          <DriveButton
-            localPath={isDriveLive ? null : folderPath}
-            cacheRoot={driveCacheRoot}
-            manifest={driveManifest}
-            summary={driveSummary}
-            onDatasetOpened={(cacheRoot) => loadElectronFolder(cacheRoot, true, true)}
-            liveRequest={driveLiveRequest}
-            onOpenLive={handleOpenLive}
-            liveActive={isDriveLive}
-          />
+          <>
+            <DriveButton
+              localPath={isDriveLive ? null : folderPath}
+              cacheRoot={driveCacheRoot}
+              manifest={driveManifest}
+              summary={driveSummary}
+              onDatasetOpened={(cacheRoot) => loadElectronFolder(cacheRoot, true, true)}
+              liveRequest={driveLiveRequest}
+              onOpenLive={handleOpenLive}
+              liveActive={isDriveLive}
+            />
+            <MobileButton />
+          </>
         }
       />
 

@@ -23,6 +23,7 @@ const driveApi = require('./drive/driveApi');
 const driveManifest = require('./drive/manifest');
 const driveSync = require('./drive/syncEngine');
 const driveFs = require('./drive/driveFs');
+const lanServer = require('./server/lanServer');
 
 // Auth for live `drive://` paths. Kept as a helper so every guard reads the
 // same and sign-in problems surface as one consistent error.
@@ -1312,4 +1313,41 @@ ipcMain.handle('drive-manifest-for-path', async (_e, absPath) => {
   } catch (err) {
     return { isCache: false, error: err.message };
   }
+});
+
+// ── LAN mobile companion ──────────────────────────────────────────
+
+ipcMain.handle('lan-start', async () => {
+  try {
+    const info = await lanServer.start({
+      onIntent: (intent, payload) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('lan-intent', { intent, payload });
+        }
+      },
+    });
+    let qrDataUrl = null;
+    try {
+      const qrcode = require('qrcode');
+      qrDataUrl = await qrcode.toDataURL(info.url, { margin: 1, width: 260 });
+    } catch (err) {
+      console.error('qrcode gen failed:', err);
+    }
+    return { success: true, ...info, qrDataUrl };
+  } catch (err) {
+    console.error('lan-start failed:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('lan-stop', async () => {
+  lanServer.stop();
+  return { success: true, ...lanServer.status() };
+});
+
+ipcMain.handle('lan-status', async () => lanServer.status());
+
+ipcMain.handle('lan-push-state', (_e, partial) => {
+  try { lanServer.pushState(partial || {}); } catch (err) { console.error('lan-push-state', err); }
+  return true;
 });

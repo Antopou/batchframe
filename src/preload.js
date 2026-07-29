@@ -84,6 +84,15 @@ try {
     },
     onFullscreenChange: (callback) => ipcRenderer.on('fullscreen-change', (event, isFullscreen) => callback(isFullscreen)),
     removeFullscreenChangeListeners: () => ipcRenderer.removeAllListeners('fullscreen-change'),
+
+    lan: {
+      start:     () => ipcRenderer.invoke('lan-start'),
+      stop:      () => ipcRenderer.invoke('lan-stop'),
+      status:    () => ipcRenderer.invoke('lan-status'),
+      pushState: (partial) => ipcRenderer.invoke('lan-push-state', partial),
+      onIntent:  (cb) => ipcRenderer.on('lan-intent', (_, data) => cb(data)),
+      removeIntentListeners: () => ipcRenderer.removeAllListeners('lan-intent'),
+    },
   };
 
   contextBridge.exposeInMainWorld('electronAPI', apis);

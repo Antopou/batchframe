@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#111214" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>BatchFrame Mobile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg-base:       #0a0c10;
+    --bg-surface:    #11141b;
+    --bg-elevated:   #1a1d26;
+    --bg-highlight:  #242936;
+    --border:        #2d3343;
+    --border-subtle: #1e222d;
+    --accent:        #5c7cff;
+    --green:         #34d27e;
+    --red:           #ff5c6a;
+    --text-primary:   #f0f3f9;
+    --text-secondary: #a0a8c0;
+    --text-muted:     #636c8a;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Consolas', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg-base); color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px; line-height: 1.4;
+    -webkit-tap-highlight-color: transparent; overflow: hidden;
+    letter-spacing: 0.01em;
+  }
+  #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+  header {
+    padding: 10px 12px; background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex; align-items: center; gap: 8px;
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+  header .title {
+    font-size: 12px; font-weight: 500; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-primary);
+    display: flex; align-items: center; gap: 6px; min-width: 0;
+  }
+  .title .sym { font-weight: 700; flex: 0 0 auto; }
+  .title .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .back-btn {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    color: var(--text-secondary); padding: 5px 8px; border-radius: 4px;
+    font-family: var(--font-mono); font-size: 12px; line-height: 1;
+    cursor: pointer; flex: 0 0 auto;
+  }
+  .back-btn:active { background: var(--bg-highlight); color: var(--text-primary); }
+  header .status { font-size: 10px; color: var(--text-muted); }
+  header .sync, header .up, header .fs {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    color: var(--text-secondary); padding: 5px 9px;
+    border-radius: 4px; font-size: 11px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  header .sync:active, header .up:active, header .fs:active { background: var(--bg-highlight); }
+  header .sync.on {
+    background: rgba(52, 210, 126, 0.12); border-color: rgba(52, 210, 126, 0.4);
+    color: var(--green);
+  }
+  header .fs.on {
+    background: rgba(92, 124, 255, 0.12); border-color: rgba(92, 124, 255, 0.4);
+    color: var(--accent);
+  }
+
+  .subs {
+    display: flex; overflow-x: auto; gap: 6px; padding: 8px 12px;
+    background: var(--bg-base); border-bottom: 1px solid var(--border-subtle);
+    scrollbar-width: none;
+  }
+  .subs::-webkit-scrollbar { display: none; }
+  .subs .chip {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated); padding: 6px 10px; border-radius: 4px;
+    font-size: 11px; white-space: nowrap;
+    border: 1px solid var(--border); color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .subs .chip::before { content: '> '; color: var(--text-muted); }
+  .subs .chip:active { background: var(--bg-highlight); color: var(--text-primary); }
+
+  .burger {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 6px 9px; border-radius: 4px; cursor: pointer;
+    font-family: var(--font-mono); font-size: 14px; line-height: 1;
+  }
+  .burger:active { background: var(--bg-highlight); }
+  .menu {
+    position: absolute; top: calc(env(safe-area-inset-top) + 42px); right: 10px;
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px; min-width: 180px; z-index: 50;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .menu button {
+    background: none; border: none; color: var(--text-secondary);
+    font-family: var(--font-mono); font-size: 12px;
+    padding: 8px 10px; border-radius: 4px; text-align: left; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .menu button:active { background: var(--bg-highlight); color: var(--text-primary); }
+  .menu button .badge {
+    font-size: 10px; padding: 2px 6px; border-radius: 3px;
+    background: var(--bg-highlight); color: var(--text-muted);
+  }
+  .menu button.on .badge { background: var(--green); color: #000; }
+  .menu-backdrop {
+    position: fixed; inset: 0; z-index: 40;
+  }
+
+  .folder-cell {
+    aspect-ratio: 1 / 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .folder-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .folder-cell .fallback {
+    color: var(--text-muted); font-size: 32px;
+  }
+  .folder-cell .label {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 4px 6px;
+    background: linear-gradient(180deg, rgba(10,12,16,0), rgba(10,12,16,0.88));
+    color: var(--text-primary);
+    font-family: var(--font-mono); font-size: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .folder-cell .label::before { content: '> '; color: var(--green); }
+
+  main {
+    flex: 1; overflow-y: auto; padding: 6px;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    background: var(--bg-base);
+  }
+  :root { --cols: 3; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cols), 1fr);
+    grid-auto-rows: 6px;
+    grid-auto-flow: row dense;
+    gap: 4px;
+  }
+  .cell, .folder-cell {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+  }
+  .cell img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    background: var(--bg-surface);
+  }
+  .cell.active {
+    outline: 2px solid var(--accent); outline-offset: -2px;
+    border-color: var(--accent);
+  }
+
+  .empty {
+    color: var(--text-muted); text-align: center;
+    padding: 40px 20px; font-size: 12px;
+    font-family: var(--font-mono);
+  }
+  .empty::before { content: '// '; color: var(--text-muted); }
+
+  /* preview overlay */
+  .overlay {
+    position: fixed; inset: 0; background: #000; z-index: 100;
+    display: flex; flex-direction: column;
+    font-family: var(--font-mono);
+  }
+  .overlay.chrome-hidden { cursor: none; }
+  .overlay-top {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    background: linear-gradient(180deg, rgba(0,0,0,0.75), rgba(0,0,0,0));
+    color: var(--text-primary); font-size: 11px;
+    position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .overlay.chrome-hidden .overlay-top {
+    opacity: 0; transform: translateY(-6px); pointer-events: none;
+  }
+  .overlay-top .close, .overlay-top .ovfs {
+    background: none; border: none; color: var(--text-primary);
+    font-size: 16px; padding: 4px 8px; cursor: pointer;
+    font-family: var(--font-mono);
+  }
+  .overlay-top .idx {
+    flex: 1; font-size: 11px; text-align: center;
+    color: var(--text-secondary); letter-spacing: 0.02em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .overlay-img-wrap {
+    flex: 1; position: relative; display: flex;
+    align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .overlay-img-wrap img {
+    max-width: 100%; max-height: 100%; object-fit: contain;
+    user-select: none; -webkit-user-drag: none;
+  }
+  .zone { position: absolute; top: 0; bottom: 0; width: 33%; z-index: 2; }
+  .zone.left   { left: 0; }
+  .zone.right  { right: 0; }
+  .zone.center { left: 33%; right: 33%; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--bg-elevated); color: var(--text-primary);
+    padding: 8px 14px; border-radius: 4px;
+    border: 1px solid var(--border);
+    font-family: var(--font-mono); font-size: 11px;
+    z-index: 200; pointer-events: none;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+
+  .disconnected {
+    background: rgba(255, 92, 106, 0.15); color: var(--red);
+    text-align: center; padding: 4px; font-size: 10px;
+    border-bottom: 1px solid rgba(255, 92, 106, 0.3);
+    font-family: var(--font-mono);
+  }
+  .disconnected::before { content: '[!] '; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="conn" class="disconnected" style="display:none">Reconnecting…</div>
+  <header>
+    <button class="back-btn" id="btnBack" title="Up folder" style="display:none">←</button>
+    <div class="title" id="title"><span class="sym" id="titleSym"></span><span class="name" id="titleName">—</span></div>
+    <button class="burger" id="btnMenu" title="Menu">☰</button>
+  </header>
+  <div id="menuBackdrop" class="menu-backdrop" style="display:none"></div>
+  <div id="menu" class="menu" style="display:none">
+    <button id="miSync" class="on"><span>Sync desktop</span><span class="badge" id="miSyncBadge">ON</span></button>
+    <button id="miFs"><span>Fullscreen</span><span class="badge" id="miFsBadge">OFF</span></button>
+  </div>
+  <div class="subs" id="subs"></div>
+  <main id="main">
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" style="display:none">No items</div>
+  </main>
+</div>
+
+<div class="overlay" id="overlay" style="display:none">
+  <div class="overlay-top">
+    <button class="close" id="btnClose">✕</button>
+    <div class="idx" id="ovIdx"></div>
+    <button class="ovfs" id="btnOvFs" title="Fullscreen">⛶</button>
+  </div>
+  <div class="overlay-img-wrap" id="ovWrap">
+    <img id="ovImg" alt="" draggable="false" />
+    <div class="zone left" id="zoneLeft"></div>
+    <div class="zone center" id="zoneCenter"></div>
+    <div class="zone right" id="zoneRight"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const token = params.get('t');
+  if (!token) { document.body.innerHTML = '<p style="padding:20px;color:#f66">Missing token.</p>'; return; }
+
+  const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/?t=${encodeURIComponent(token)}`;
+  const thumbUrl  = (id) => `/thumb/${id}?t=${encodeURIComponent(token)}`;
+  const folderThumbUrl = (id) => `/folder-thumb/${id}?t=${encodeURIComponent(token)}`;
+  const fullUrl   = (id) => `/full/${id}?t=${encodeURIComponent(token)}`;
+
+  let ws = null;
+  let state = null;
+  let sync = true;
+  let localPreviewIdx = null;   // when sync=off, mobile drives its own preview
+  let localPreviewOpen = false;
+
+  const $ = (id) => document.getElementById(id);
+
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 1200);
+  }
+
+  function connect() {
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => { $('conn').style.display = 'none'; };
+    ws.onclose = () => { $('conn').style.display = 'block'; setTimeout(connect, 1500); };
+    ws.onerror = () => { try { ws.close(); } catch {} };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'state') { state = msg.state; render(); }
+      } catch {}
+    };
+  }
+  connect();
+
+  function send(intent, payload) {
+    if (!ws || ws.readyState !== 1) return;
+    ws.send(JSON.stringify({ type: 'intent', intent, payload: payload || {} }));
+  }
+
+  function currentPreviewIdx() {
+    if (!state) return null;
+    if (sync) return state.previewOpen ? state.previewIndex : null;
+    return localPreviewOpen ? localPreviewIdx : null;
+  }
+
+  const SYMBOLS = ['!', '#', '$', '%', '&', '@', '*', '+', '=', '?', '/', '~', '^', '|'];
+  const COLORS  = ['#34d27e', '#5c7cff', '#ff5c6a', '#f5a623', '#a78bfa', '#22d3ee', '#f472b6', '#facc15'];
+  function hashStr(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }
+  function pickSymbol(name) {
+    const h = hashStr(name || 'root');
+    return { sym: SYMBOLS[h % SYMBOLS.length], color: COLORS[(h >> 3) % COLORS.length] };
+  }
+
+  function render() {
+    if (!state) return;
+    const name = state.folderName || state.folderPath || 'No folder';
+    const s = pickSymbol(name);
+    const symEl = $('titleSym');
+    symEl.textContent = s.sym;
+    symEl.style.color = s.color;
+    $('titleName').textContent = name;
+    $('btnBack').style.display = state.parentFolderPath ? 'inline-flex' : 'none';
+    $('subs').style.display = 'none';
+
+    const grid = $('grid');
+    grid.innerHTML = '';
+    const frag = document.createDocumentFragment();
+
+    const folders = state.subfolders || [];
+    const imgs = state.images || [];
+
+    const buildFolderCell = (sf) => {
+      const cell = document.createElement('div');
+      cell.className = 'folder-cell';
+      cell.dataset.aspect = '1';
+      const im = document.createElement('img');
+      im.loading = 'lazy'; im.decoding = 'async';
+      im.src = folderThumbUrl(sf.id);
+      im.onerror = () => { im.remove(); const fb = document.createElement('div'); fb.className = 'fallback'; fb.textContent = '▦'; cell.appendChild(fb); };
+      cell.appendChild(im);
+      const label = document.createElement('div');
+      label.className = 'label'; label.textContent = sf.name;
+      cell.appendChild(label);
+      cell.onclick = () => { if (sync) send('nav-folder', { path: sf.path }); else toast('Sync off — nav ignored'); };
+      return cell;
+    };
+
+    const activeIdx = currentPreviewIdx();
+    const buildImageCell = (img, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (i === activeIdx ? ' active' : '');
+      const aspect = (img.w && img.h) ? img.w / img.h : 1;
+      cell.dataset.aspect = String(aspect);
+      const im = document.createElement('img');
+      im.loading = 'lazy'; im.decoding = 'async';
+      im.src = thumbUrl(img.id);
+      cell.appendChild(im);
+      cell.onclick = () => {
+        if (sync) send('open-preview', { index: i });
+        else { localPreviewIdx = i; localPreviewOpen = true; renderOverlay(); }
+      };
+      return cell;
+    };
+
+    $('empty').style.display = (folders.length + imgs.length) === 0 ? 'block' : 'none';
+    folders.forEach((sf) => frag.appendChild(buildFolderCell(sf)));
+    imgs.forEach((img, i) => frag.appendChild(buildImageCell(img, i)));
+    grid.appendChild(frag);
+    relayoutMasonry();
+
+    renderOverlay();
+  }
+
+  const ROW_UNIT = 6, GAP = 4;
+  function cellPixelWidth() {
+    const gridEl = $('grid');
+    const rect = gridEl.getBoundingClientRect();
+    const totalGap = (cols - 1) * GAP;
+    return Math.max(1, (rect.width - totalGap) / cols);
+  }
+  function spanForAspect(aspect) {
+    const cw = cellPixelWidth();
+    const ch = cw / (aspect || 1);
+    return Math.max(1, Math.round((ch + GAP) / (ROW_UNIT + GAP)));
+  }
+  function relayoutMasonry() {
+    const kids = $('grid').children;
+    for (const cell of kids) {
+      const a = parseFloat(cell.dataset.aspect || '1');
+      cell.style.gridRow = `span ${spanForAspect(a)}`;
+    }
+  }
+  window.addEventListener('resize', () => { relayoutMasonry(); });
+
+  // hamburger menu
+  function openMenu()  { $('menu').style.display = 'flex'; $('menuBackdrop').style.display = 'block'; }
+  function closeMenu() { $('menu').style.display = 'none'; $('menuBackdrop').style.display = 'none'; }
+  function refreshMenuBadges() {
+    $('miSync').classList.toggle('on', sync);
+    $('miSyncBadge').textContent = sync ? 'ON' : 'OFF';
+    const fsOn = !!fsElement() || isStandalone();
+    $('miFs').classList.toggle('on', fsOn);
+    $('miFsBadge').textContent = fsOn ? 'ON' : 'OFF';
+  }
+  $('btnMenu').onclick = () => { refreshMenuBadges(); openMenu(); };
+  $('menuBackdrop').onclick = closeMenu;
+  $('btnBack').onclick = () => { if (sync) send('nav-up'); else toast('Sync off'); };
+
+  let chromeHideTimer = null;
+  function showChrome(resetTimer) {
+    const ov = $('overlay');
+    ov.classList.remove('chrome-hidden');
+    if (chromeHideTimer) { clearTimeout(chromeHideTimer); chromeHideTimer = null; }
+    if (resetTimer !== false) scheduleHideChrome();
+  }
+  function hideChrome() {
+    $('overlay').classList.add('chrome-hidden');
+    if (chromeHideTimer) { clearTimeout(chromeHideTimer); chromeHideTimer = null; }
+  }
+  function scheduleHideChrome() {
+    if (chromeHideTimer) clearTimeout(chromeHideTimer);
+    chromeHideTimer = setTimeout(hideChrome, 2500);
+  }
+  function toggleChrome() {
+    const ov = $('overlay');
+    if (ov.classList.contains('chrome-hidden')) showChrome(true);
+    else hideChrome();
+  }
+
+  function renderOverlay() {
+    const idx = currentPreviewIdx();
+    const ov = $('overlay');
+    if (idx === null || !state) {
+      ov.style.display = 'none';
+      if (chromeHideTimer) { clearTimeout(chromeHideTimer); chromeHideTimer = null; }
+      return;
+    }
+    const img = state.images[idx];
+    if (!img) { ov.style.display = 'none'; return; }
+    const justOpened = ov.style.display === 'none';
+    ov.style.display = 'flex';
+    $('ovImg').src = fullUrl(img.id);
+    $('ovIdx').textContent = `[${idx + 1}/${state.images.length}] ${img.name}`;
+    if (justOpened) showChrome(true);
+    // nav within preview: leave chrome state alone
+  }
+
+  // fullscreen
+  function fsElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+  }
+  async function enterFs() {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) {
+      if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+        toast('iOS: Share → Add to Home Screen for fullscreen');
+      } else {
+        toast('Fullscreen not supported');
+      }
+      return;
+    }
+    try { await req.call(el); } catch (e) { toast('Fullscreen blocked'); }
+  }
+  async function exitFs() {
+    const ex = document.exitFullscreen || document.webkitExitFullscreen;
+    if (ex) { try { await ex.call(document); } catch {} }
+  }
+  function toggleFs() { fsElement() ? exitFs() : enterFs(); }
+  function syncFsUi() { refreshMenuBadges(); }
+  document.addEventListener('fullscreenchange', syncFsUi);
+  document.addEventListener('webkitfullscreenchange', syncFsUi);
+
+  $('btnOvFs').onclick = toggleFs;
+  $('miFs').onclick = () => { toggleFs(); setTimeout(refreshMenuBadges, 200); };
+
+  $('miSync').onclick = () => {
+    sync = !sync;
+    refreshMenuBadges();
+    toast(sync ? 'Sync ON' : 'Sync OFF');
+    if (sync) { localPreviewOpen = false; localPreviewIdx = null; }
+    render();
+    closeMenu();
+  };
+
+  $('btnClose').onclick = () => {
+    if (sync) send('close-preview');
+    else { localPreviewOpen = false; renderOverlay(); }
+  };
+  function isOnImage(clientX, clientY) {
+    const img = $('ovImg');
+    if (!img) return false;
+    const r = img.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return false;
+    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+  }
+  function closePreview() {
+    if (sync) send('close-preview');
+    else { localPreviewOpen = false; renderOverlay(); }
+  }
+  function navPrev() {
+    if (sync) send('prev-preview');
+    else if (localPreviewIdx > 0) { localPreviewIdx--; renderOverlay(); }
+  }
+  function navNext() {
+    if (sync) send('next-preview');
+    else if (state && localPreviewIdx < state.images.length - 1) { localPreviewIdx++; renderOverlay(); }
+  }
+
+  $('zoneLeft').onclick   = (e) => { if (!isOnImage(e.clientX, e.clientY)) closePreview(); else navPrev(); };
+  $('zoneRight').onclick  = (e) => { if (!isOnImage(e.clientX, e.clientY)) closePreview(); else navNext(); };
+  $('zoneCenter').onclick = (e) => { if (!isOnImage(e.clientX, e.clientY)) closePreview(); else toggleChrome(); };
+
+  // swipe for preview
+  let touchStartX = null, touchStartY = null;
+  $('ovWrap').addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  $('ovWrap').addEventListener('touchend', (e) => {
+    if (touchStartX === null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX, dy = t.clientY - touchStartY;
+    touchStartX = touchStartY = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      if (dx < 0) navNext(); else navPrev();
+    } else if (dy > 80 && Math.abs(dy) > Math.abs(dx) * 1.2) {
+      closePreview();
+    }
+  }, { passive: true });
+
+  // prevent iOS double-tap zoom / rubber-band inside grid
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+  // thumbnail zoom (pinch on touch, ctrl+wheel on desktop)
+  const MIN_COLS = 2, MAX_COLS = 8;
+  let cols = parseInt(localStorage.getItem('bf_cols') || '3', 10);
+  if (!Number.isFinite(cols)) cols = 3;
+  function applyCols() {
+    cols = Math.max(MIN_COLS, Math.min(MAX_COLS, cols));
+    document.documentElement.style.setProperty('--cols', cols);
+    localStorage.setItem('bf_cols', String(cols));
+    if (typeof relayoutMasonry === 'function') relayoutMasonry();
+  }
+  applyCols();
+
+  let pinchDist0 = null, pinchCols0 = null;
+  $('main').addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchDist0 = Math.hypot(dx, dy);
+      pinchCols0 = cols;
+    }
+  }, { passive: true });
+  $('main').addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && pinchDist0) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const scale = dist / pinchDist0;
+      // scale > 1 (spread) → fewer cols (bigger thumbs); < 1 (pinch) → more cols
+      const step = Math.round(Math.log2(scale) * -2);
+      const target = pinchCols0 + step;
+      if (target !== cols) { cols = target; applyCols(); }
+    }
+  }, { passive: true });
+  $('main').addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) { pinchDist0 = null; pinchCols0 = null; }
+  });
+  $('main').addEventListener('wheel', (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    cols += e.deltaY > 0 ? 1 : -1;
+    applyCols();
+  }, { passive: false });
+
+  // double-click blank area of grid → toggle fullscreen
+  function isBlankTarget(el) {
+    if (!el) return false;
+    if (el.id === 'main' || el.id === 'grid' || el.id === 'app') return true;
+    if (el.classList && el.classList.contains('empty')) return true;
+    return false;
+  }
+  $('main').addEventListener('dblclick', (e) => {
+    if (isBlankTarget(e.target)) toggleFs();
+  });
+  let lastTapTime = 0;
+  $('main').addEventListener('touchend', (e) => {
+    if (!isBlankTarget(e.target)) { lastTapTime = 0; return; }
+    const now = Date.now();
+    if (now - lastTapTime < 320) { toggleFs(); lastTapTime = 0; e.preventDefault(); }
+    else lastTapTime = now;
+  });
+})();
+</script>
+</body>
+</html>

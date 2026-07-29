@@ -949,6 +949,24 @@ input[type="range"]::-webkit-slider-thumb:hover {
   pointer-events: none;
 }
 
+.action-btn.ai-sub {
+  border-style: dashed;
+  border-color: rgba(92, 124, 255, 0.3);
+  color: var(--accent);
+  animation: aiSubIn 0.18s ease-out;
+}
+
+.action-btn.ai-sub:hover:not(:disabled) {
+  background: rgba(92, 124, 255, 0.08);
+  border-color: rgba(92, 124, 255, 0.5);
+  color: var(--accent);
+}
+
+@keyframes aiSubIn {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 .action-btn.copy:hover:not(:disabled) {
   color: var(--accent);
   border-color: rgba(92, 124, 255, 0.3);

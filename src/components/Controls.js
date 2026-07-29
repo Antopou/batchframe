@@ -155,6 +155,7 @@ function Controls({
   const [renamePrefix, setRenamePrefix] = useState('img_');
   const [renameDigits, setRenameDigits] = useState(3);
   const [showAIScan, setShowAIScan] = useState(false);
+  const [showAIMenu, setShowAIMenu] = useState(false);
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -566,36 +567,46 @@ function Controls({
           )}
           {!browserMode && !driveLive && (
             <button
-              className={`action-btn${showAIScan ? ' active' : ''}`}
-              onClick={() => setShowAIScan(v => !v)}
-              title="AI character scan (A)"
+              className={`action-btn${showAIMenu ? ' active' : ''}`}
+              onClick={() => setShowAIMenu(v => !v)}
+              title="AI tools"
               disabled={loading || totalCount === 0}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" /><path d="M19 14.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>
               AI
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4, transform: showAIMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><polyline points="6 9 12 15 18 9" /></svg>
             </button>
           )}
-          {!browserMode && !driveLive && (
-            <button
-              className="action-btn"
-              onClick={onFindDuplicates}
-              title="Find duplicate images"
-              disabled={loading || totalCount === 0}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-              Find Dupes
-            </button>
-          )}
-          {!browserMode && !driveLive && (
-            <button
-              className="action-btn"
-              onClick={onFindSource}
-              title="Find raws with no matching edit — selects them for deletion"
-              disabled={loading || totalCount === 0}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" /><path d="M8 11h6" /></svg>
-              Find Source
-            </button>
+          {!browserMode && !driveLive && showAIMenu && (
+            <>
+              <button
+                className={`action-btn ai-sub${showAIScan ? ' active' : ''}`}
+                onClick={() => setShowAIScan(v => !v)}
+                title="AI character scan (A)"
+                disabled={loading || totalCount === 0}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a7 7 0 0 1 14 0v1" /></svg>
+                Scan
+              </button>
+              <button
+                className="action-btn ai-sub"
+                onClick={onFindDuplicates}
+                title="Find duplicate images"
+                disabled={loading || totalCount === 0}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                Dupes
+              </button>
+              <button
+                className="action-btn ai-sub"
+                onClick={onFindSource}
+                title="Find raws with no matching edit — selects them for deletion"
+                disabled={loading || totalCount === 0}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" /><path d="M8 11h6" /></svg>
+                Source
+              </button>
+            </>
           )}
           {!browserMode && !driveLive && (
             <button

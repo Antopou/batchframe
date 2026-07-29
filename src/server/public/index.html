@@ -126,8 +126,8 @@
   }
 
   .folder-cell {
-    aspect-ratio: 1 / 1;
     display: flex; align-items: center; justify-content: center;
+    background: var(--bg-base);
   }
   .folder-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .folder-cell .fallback {
@@ -152,25 +152,23 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(var(--cols), 1fr);
-    grid-auto-rows: 6px;
-    grid-auto-flow: row dense;
-    gap: 4px;
+    gap: 2px;
   }
   .cell, .folder-cell {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: 3px;
+    background: var(--bg-base);
+    border: none;
+    border-radius: 0;
     overflow: hidden;
     position: relative;
     cursor: pointer;
+    aspect-ratio: 1 / 1;
   }
   .cell img {
-    width: 100%; height: 100%; object-fit: cover; display: block;
-    background: var(--bg-surface);
+    width: 100%; height: 100%; object-fit: contain; display: block;
+    background: var(--bg-base);
   }
   .cell.active {
     outline: 2px solid var(--accent); outline-offset: -2px;
-    border-color: var(--accent);
   }
 
   .empty {
@@ -240,6 +238,48 @@
     font-family: var(--font-mono);
   }
   .disconnected::before { content: '[!] '; }
+
+  /* scroll preview overlay */
+  .scroll-overlay {
+    position: fixed; inset: 0; background: #000; z-index: 100;
+    display: flex; flex-direction: column;
+    font-family: var(--font-mono);
+  }
+  .scroll-top {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top));
+    background: linear-gradient(180deg, rgba(0,0,0,0.75), rgba(0,0,0,0));
+    color: var(--text-primary);
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .scroll-overlay.chrome-hidden .scroll-top { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+  .scroll-top .close, .scroll-top .ovfs {
+    background: none; border: none; color: var(--text-primary);
+    font-size: 16px; padding: 4px 8px; cursor: pointer; font-family: var(--font-mono);
+  }
+  .scroll-top .idx {
+    flex: 1; text-align: center; font-size: 11px; color: var(--text-secondary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .scroll-container {
+    flex: 1; overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    overscroll-behavior: contain;
+  }
+  .scroll-container::-webkit-scrollbar { display: none; }
+  .scroll-item {
+    height: 100%; width: 100%;
+    scroll-snap-align: start;
+    display: flex; align-items: center; justify-content: center;
+    background: #000;
+  }
+  .scroll-item img {
+    max-width: 100%; max-height: 100%; object-fit: contain;
+    user-select: none; -webkit-user-drag: none;
+  }
 </style>
 </head>
 <body>
@@ -254,6 +294,8 @@
   <div id="menu" class="menu" style="display:none">
     <button id="miSync" class="on"><span>Sync desktop</span><span class="badge" id="miSyncBadge">ON</span></button>
     <button id="miFs"><span>Fullscreen</span><span class="badge" id="miFsBadge">OFF</span></button>
+    <button id="miScroll"><span>Scroll preview</span><span class="badge" id="miScrollBadge">OFF</span></button>
+    <button id="miReset"><span>Reset thumbnail size</span><span class="badge" id="miColsBadge">3</span></button>
   </div>
   <div class="subs" id="subs"></div>
   <main id="main">
@@ -276,6 +318,15 @@
   </div>
 </div>
 
+<div class="scroll-overlay" id="scrollOv" style="display:none">
+  <div class="scroll-top" id="scrollTop">
+    <button class="close" id="btnScrollClose">✕</button>
+    <div class="idx" id="scrollIdx"></div>
+    <button class="ovfs" id="btnScrollFs" title="Fullscreen">⛶</button>
+  </div>
+  <div class="scroll-container" id="scrollContainer"></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -292,8 +343,11 @@
   let ws = null;
   let state = null;
   let sync = true;
+  let scrollMode = localStorage.getItem('bf_scroll') === '1';
   let localPreviewIdx = null;   // when sync=off, mobile drives its own preview
   let localPreviewOpen = false;
+  let scrollOpen = false;
+  let scrollSuppressSync = false;  // guard: don't loop when we programmatically scroll
 
   const $ = (id) => document.getElementById(id);
 
@@ -384,6 +438,11 @@
       im.src = thumbUrl(img.id);
       cell.appendChild(im);
       cell.onclick = () => {
+        if (scrollMode) {
+          if (sync) send('open-preview', { index: i });
+          openScrollPreview(i);
+          return;
+        }
         if (sync) send('open-preview', { index: i });
         else { localPreviewIdx = i; localPreviewOpen = true; renderOverlay(); }
       };
@@ -394,31 +453,33 @@
     folders.forEach((sf) => frag.appendChild(buildFolderCell(sf)));
     imgs.forEach((img, i) => frag.appendChild(buildImageCell(img, i)));
     grid.appendChild(frag);
-    relayoutMasonry();
 
     renderOverlay();
+    syncScrollOverlay();
   }
 
-  const ROW_UNIT = 6, GAP = 4;
-  function cellPixelWidth() {
-    const gridEl = $('grid');
-    const rect = gridEl.getBoundingClientRect();
-    const totalGap = (cols - 1) * GAP;
-    return Math.max(1, (rect.width - totalGap) / cols);
-  }
-  function spanForAspect(aspect) {
-    const cw = cellPixelWidth();
-    const ch = cw / (aspect || 1);
-    return Math.max(1, Math.round((ch + GAP) / (ROW_UNIT + GAP)));
-  }
-  function relayoutMasonry() {
-    const kids = $('grid').children;
-    for (const cell of kids) {
-      const a = parseFloat(cell.dataset.aspect || '1');
-      cell.style.gridRow = `span ${spanForAspect(a)}`;
+  function syncScrollOverlay() {
+    if (!state) return;
+    const items = state.images || [];
+    const desktopIdx = state.previewOpen ? state.previewIndex : null;
+    // Sync desktop-driven open when scroll mode is on
+    if (scrollMode && sync && desktopIdx !== null && !scrollOpen) {
+      openScrollPreview(desktopIdx);
+      return;
+    }
+    if (!scrollOpen) return;
+    if (sync && desktopIdx === null) { $('scrollOv').style.display = 'none'; scrollOpen = false; return; }
+    if (sync && desktopIdx !== null) {
+      const c = $('scrollContainer');
+      const currentIdx = Math.round(c.scrollTop / c.clientHeight);
+      if (desktopIdx !== currentIdx) {
+        scrollSuppressSync = true;
+        c.scrollTo({ top: desktopIdx * c.clientHeight, behavior: 'smooth' });
+        setTimeout(() => { scrollSuppressSync = false; }, 400);
+        if (items[desktopIdx]) $('scrollIdx').textContent = `[${desktopIdx + 1}/${items.length}] ${items[desktopIdx].name}`;
+      }
     }
   }
-  window.addEventListener('resize', () => { relayoutMasonry(); });
 
   // hamburger menu
   function openMenu()  { $('menu').style.display = 'flex'; $('menuBackdrop').style.display = 'block'; }
@@ -429,6 +490,9 @@
     const fsOn = !!fsElement() || isStandalone();
     $('miFs').classList.toggle('on', fsOn);
     $('miFsBadge').textContent = fsOn ? 'ON' : 'OFF';
+    $('miColsBadge').textContent = String(cols);
+    $('miScroll').classList.toggle('on', scrollMode);
+    $('miScrollBadge').textContent = scrollMode ? 'ON' : 'OFF';
   }
   $('btnMenu').onclick = () => { refreshMenuBadges(); openMenu(); };
   $('menuBackdrop').onclick = closeMenu;
@@ -514,6 +578,18 @@
     render();
     closeMenu();
   };
+  $('miReset').onclick = () => {
+    cols = 3; applyCols(); refreshMenuBadges();
+    toast('Thumbnail size reset');
+    closeMenu();
+  };
+  $('miScroll').onclick = () => {
+    scrollMode = !scrollMode;
+    localStorage.setItem('bf_scroll', scrollMode ? '1' : '0');
+    refreshMenuBadges();
+    toast('Scroll preview ' + (scrollMode ? 'ON' : 'OFF'));
+    closeMenu();
+  };
 
   $('btnClose').onclick = () => {
     if (sync) send('close-preview');
@@ -565,14 +641,13 @@
   document.addEventListener('gesturestart', (e) => e.preventDefault());
 
   // thumbnail zoom (pinch on touch, ctrl+wheel on desktop)
-  const MIN_COLS = 2, MAX_COLS = 8;
+  const MIN_COLS = 1, MAX_COLS = 8;
   let cols = parseInt(localStorage.getItem('bf_cols') || '3', 10);
   if (!Number.isFinite(cols)) cols = 3;
   function applyCols() {
     cols = Math.max(MIN_COLS, Math.min(MAX_COLS, cols));
     document.documentElement.style.setProperty('--cols', cols);
     localStorage.setItem('bf_cols', String(cols));
-    if (typeof relayoutMasonry === 'function') relayoutMasonry();
   }
   applyCols();
 
@@ -606,6 +681,76 @@
     cols += e.deltaY > 0 ? 1 : -1;
     applyCols();
   }, { passive: false });
+
+  // scroll preview
+  let scrollChromeTimer = null;
+  function showScrollChrome(reset) {
+    $('scrollOv').classList.remove('chrome-hidden');
+    if (scrollChromeTimer) { clearTimeout(scrollChromeTimer); scrollChromeTimer = null; }
+    if (reset !== false) scrollChromeTimer = setTimeout(hideScrollChrome, 2500);
+  }
+  function hideScrollChrome() { $('scrollOv').classList.add('chrome-hidden'); }
+  function toggleScrollChrome() {
+    const ov = $('scrollOv');
+    if (ov.classList.contains('chrome-hidden')) showScrollChrome(true);
+    else hideScrollChrome();
+  }
+
+  function openScrollPreview(startIdx) {
+    const container = $('scrollContainer');
+    container.innerHTML = '';
+    const items = (state && state.images) || [];
+    if (items.length === 0) return;
+    items.forEach((img, i) => {
+      const div = document.createElement('div');
+      div.className = 'scroll-item';
+      div.dataset.idx = String(i);
+      const im = document.createElement('img');
+      im.decoding = 'async';
+      im.loading = (Math.abs(i - startIdx) <= 2) ? 'eager' : 'lazy';
+      im.src = fullUrl(img.id);
+      div.appendChild(im);
+      container.appendChild(div);
+    });
+    $('scrollOv').style.display = 'flex';
+    scrollOpen = true;
+    $('scrollIdx').textContent = `[${startIdx + 1}/${items.length}] ${items[startIdx].name}`;
+    requestAnimationFrame(() => {
+      scrollSuppressSync = true;
+      container.scrollTop = startIdx * container.clientHeight;
+      setTimeout(() => { scrollSuppressSync = false; }, 300);
+      showScrollChrome(true);
+    });
+  }
+
+  function closeScrollPreview() {
+    $('scrollOv').style.display = 'none';
+    scrollOpen = false;
+    if (scrollChromeTimer) { clearTimeout(scrollChromeTimer); scrollChromeTimer = null; }
+    if (sync) send('close-preview');
+    else localPreviewOpen = false;
+  }
+
+  let scrollSettleTimer = null;
+  $('scrollContainer').addEventListener('scroll', () => {
+    if (scrollSuppressSync) return;
+    clearTimeout(scrollSettleTimer);
+    scrollSettleTimer = setTimeout(() => {
+      const c = $('scrollContainer');
+      const idx = Math.round(c.scrollTop / c.clientHeight);
+      const items = (state && state.images) || [];
+      if (!items[idx]) return;
+      $('scrollIdx').textContent = `[${idx + 1}/${items.length}] ${items[idx].name}`;
+      if (sync) send('goto-preview', { index: idx });
+      else localPreviewIdx = idx;
+    }, 120);
+  }, { passive: true });
+
+  $('btnScrollClose').onclick = closeScrollPreview;
+  $('btnScrollFs').onclick = toggleFs;
+  $('scrollContainer').addEventListener('click', (e) => {
+    if (e.target.tagName === 'IMG') toggleScrollChrome();
+  });
 
   // double-click blank area of grid → toggle fullscreen
   function isBlankTarget(el) {

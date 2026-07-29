@@ -69,6 +69,13 @@ function createWindow() {
 
   mainWindow.loadURL(startUrl);
 
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.control && input.meta && input.key.toLowerCase() === 'f') {
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+      event.preventDefault();
+    }
+  });
+
   const menuTemplate = [
     ...(process.platform === 'darwin' ? [{
       label: electron.app.name,
@@ -1375,7 +1382,7 @@ ipcMain.handle('drive-manifest-for-path', async (_e, absPath) => {
   }
 });
 
-// ── LAN mobile companion ──────────────────────────────────────────
+// ── LAN remote access ─────────────────────────────────────────────
 
 ipcMain.handle('lan-start', async () => {
   try {

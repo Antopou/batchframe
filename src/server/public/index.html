@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<title>BatchFrame Mobile</title>
+<title>BatchFrame Remote</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap">
@@ -227,11 +227,24 @@
   .overlay-img-wrap img {
     max-width: 100%; max-height: 100%; object-fit: contain;
     user-select: none; -webkit-user-drag: none;
+    transform-origin: center center; will-change: transform;
   }
+  /* while zoomed the wrap owns the gesture: the browser must not pan/scroll it */
+  .overlay-img-wrap.zoomed { touch-action: none; }
+  .overlay-img-wrap.zoomed .zone { cursor: grab; }
+  .overlay-img-wrap.panning .zone { cursor: grabbing; }
+  .overlay-img-wrap.animating img { transition: transform 0.18s ease-out; }
   .zone { position: absolute; top: 0; bottom: 0; width: 33%; z-index: 2; }
   .zone.left   { left: 0; }
   .zone.right  { right: 0; }
   .zone.center { left: 33%; right: 33%; }
+
+  .overlay-top .zoomlvl {
+    background: rgba(255,255,255,0.12); color: var(--text-primary);
+    border: none; border-radius: 3px; padding: 3px 7px; cursor: pointer;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.02em;
+  }
+  .overlay-top .zoomlvl[hidden] { display: none; }
 
   .toast {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -319,6 +332,7 @@
   <div class="overlay-top">
     <button class="close" id="btnClose">✕</button>
     <div class="idx" id="ovIdx"></div>
+    <button class="zoomlvl" id="ovZoom" title="Reset zoom" hidden>1.0×</button>
     <button class="ovfs" id="btnOvFs" title="Fullscreen">⛶</button>
   </div>
   <div class="overlay-img-wrap" id="ovWrap">
@@ -355,7 +369,7 @@
   let state = null;
   let sync = true;
   let scrollMode = localStorage.getItem('bf_scroll') === '1';
-  let localPreviewIdx = null;   // when sync=off, mobile drives its own preview
+  let localPreviewIdx = null;   // when sync=off, this device drives its own preview
   let localPreviewOpen = false;
   let scrollOpen = false;
   let scrollSuppressSync = false;  // guard: don't loop when we programmatically scroll
@@ -553,14 +567,18 @@
     const ov = $('overlay');
     if (idx === null || !state) {
       ov.style.display = 'none';
+      zoomImgId = null;
       if (chromeHideTimer) { clearTimeout(chromeHideTimer); chromeHideTimer = null; }
       return;
     }
     const img = state.images[idx];
-    if (!img) { ov.style.display = 'none'; return; }
+    if (!img) { ov.style.display = 'none'; zoomImgId = null; return; }
     const justOpened = ov.style.display === 'none';
     ov.style.display = 'flex';
     $('ovImg').src = fullUrl(img.id);
+    // this runs on every state push, so only drop the zoom when the photo itself
+    // changes — otherwise a desktop-side selection would snap you back to fit
+    if (zoomImgId !== img.id) { zoomImgId = img.id; resetZoom(false); }
     $('ovIdx').textContent = `[${idx + 1}/${state.images.length}] ${img.name}`;
     if (justOpened) showChrome(true);
     // nav within preview: leave chrome state alone
@@ -644,14 +662,38 @@
     else if (state && localPreviewIdx < state.images.length - 1) { localPreviewIdx++; renderOverlay(); }
   }
 
-  $('zoneLeft').onclick   = (e) => { if (!isOnImage(e.clientX, e.clientY)) closePreview(); else navPrev(); };
-  $('zoneRight').onclick  = (e) => { if (!isOnImage(e.clientX, e.clientY)) closePreview(); else navNext(); };
-  $('zoneCenter').onclick = (e) => { if (!isOnImage(e.clientX, e.clientY)) closePreview(); else toggleChrome(); };
+  // While zoomed the side zones stop navigating — a tap there reveals the
+  // chrome (and its reset control) instead of yanking you to another photo.
+  let centerTapTimer = null;
+  $('zoneLeft').onclick = (e) => {
+    if (consumeTap()) return;
+    if (isZoomed()) { toggleChrome(); return; }
+    if (!isOnImage(e.clientX, e.clientY)) closePreview(); else navPrev();
+  };
+  $('zoneRight').onclick = (e) => {
+    if (consumeTap()) return;
+    if (isZoomed()) { toggleChrome(); return; }
+    if (!isOnImage(e.clientX, e.clientY)) closePreview(); else navNext();
+  };
+  $('zoneCenter').onclick = (e) => {
+    if (consumeTap()) return;
+    if (!isZoomed() && !isOnImage(e.clientX, e.clientY)) { closePreview(); return; }
+    // a second tap here means zoom, so hold the chrome toggle just long enough
+    // to tell the two apart — nav taps on the side zones stay instant
+    if (centerTapTimer) {
+      clearTimeout(centerTapTimer); centerTapTimer = null;
+      glide();
+      if (isZoomed()) resetZoom(false); else zoomAt(DBL_ZOOM, e.clientX, e.clientY);
+      return;
+    }
+    centerTapTimer = setTimeout(() => { centerTapTimer = null; toggleChrome(); }, 260);
+  };
 
   // swipe for preview
   let touchStartX = null, touchStartY = null;
   $('ovWrap').addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) return;
+    // multi-touch is a pinch, and while zoomed a drag is a pan — neither navigates
+    if (e.touches.length !== 1 || isZoomed()) { touchStartX = touchStartY = null; return; }
     touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
   }, { passive: true });
   $('ovWrap').addEventListener('touchend', (e) => {
@@ -665,6 +707,146 @@
       closePreview();
     }
   }, { passive: true });
+
+  // ── preview zoom ──────────────────────────────────────────────────
+  // The transform lives on #ovImg and .overlay-img-wrap clips it. Pan offsets
+  // are screen px measured from the wrap's centre, which is where flexbox parks
+  // the image, so translate() composes cleanly with the centred layout.
+  const MIN_ZOOM = 1, MAX_ZOOM = 8, DBL_ZOOM = 2.5;
+  let zScale = 1, zTx = 0, zTy = 0;
+  let zoomImgId = null;      // reset zoom on image change, not on every state push
+  let suppressClick = false; // a pan/pinch just ended — swallow the tap it spawns
+
+  function isZoomed() { return zScale > 1.01; }
+
+  // A pan or pinch synthesises a click on the tap zone underneath it. Any zone
+  // handler calls this first so a drag never also navigates or closes.
+  function consumeTap() {
+    if (!suppressClick) return false;
+    suppressClick = false;
+    return true;
+  }
+
+  function clampPan() {
+    const img = $('ovImg'), wrap = $('ovWrap');
+    // offsetWidth is the layout box (unaffected by transform) = the fitted image
+    const maxX = Math.max(0, (img.offsetWidth * zScale - wrap.clientWidth) / 2);
+    const maxY = Math.max(0, (img.offsetHeight * zScale - wrap.clientHeight) / 2);
+    zTx = Math.max(-maxX, Math.min(maxX, zTx));
+    zTy = Math.max(-maxY, Math.min(maxY, zTy));
+  }
+
+  function applyZoom() {
+    clampPan();
+    $('ovImg').style.transform = `translate(${zTx}px, ${zTy}px) scale(${zScale})`;
+    $('ovWrap').classList.toggle('zoomed', isZoomed());
+    const badge = $('ovZoom');
+    badge.hidden = !isZoomed();
+    badge.textContent = zScale.toFixed(1) + '×';
+  }
+
+  function glide() {
+    const wrap = $('ovWrap');
+    wrap.classList.add('animating');
+    setTimeout(() => wrap.classList.remove('animating'), 200);
+  }
+
+  function resetZoom(animate) {
+    if (animate) glide();
+    zScale = 1; zTx = 0; zTy = 0;
+    applyZoom();
+  }
+
+  // Scale about a focal point so the pixel under the fingers/cursor stays put.
+  function zoomAt(nextScale, clientX, clientY) {
+    const r = $('ovWrap').getBoundingClientRect();
+    const fx = clientX - (r.left + r.width / 2);
+    const fy = clientY - (r.top + r.height / 2);
+    const s = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextScale));
+    zTx = fx - ((fx - zTx) * s / zScale);
+    zTy = fy - ((fy - zTy) * s / zScale);
+    zScale = s;
+    if (!isZoomed()) { zTx = 0; zTy = 0; }
+    applyZoom();
+  }
+
+  $('ovWrap').addEventListener('wheel', (e) => {
+    e.preventDefault();
+    let d = e.deltaY;
+    if (e.deltaMode === 1) d *= 16;        // lines → px
+    else if (e.deltaMode === 2) d *= 400;  // pages → px
+    zoomAt(zScale * Math.exp(-d * 0.0025), e.clientX, e.clientY);
+  }, { passive: false });
+
+  let pinchD0 = null, pinchS0 = 1;
+  let gx0 = 0, gy0 = 0, gTx0 = 0, gTy0 = 0;
+  let touchPan = false, mousePan = false;
+
+  $('ovWrap').addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      const a = e.touches[0], b = e.touches[1];
+      pinchD0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      pinchS0 = zScale;
+      gx0 = (a.clientX + b.clientX) / 2;
+      gy0 = (a.clientY + b.clientY) / 2;
+      gTx0 = zTx; gTy0 = zTy;
+      touchPan = false;
+      touchStartX = touchStartY = null;  // a pinch is never a nav swipe
+    } else if (e.touches.length === 1 && isZoomed()) {
+      gx0 = e.touches[0].clientX; gy0 = e.touches[0].clientY;
+      gTx0 = zTx; gTy0 = zTy;
+      touchPan = true;
+    }
+  }, { passive: true });
+
+  $('ovWrap').addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && pinchD0) {
+      e.preventDefault();
+      const a = e.touches[0], b = e.touches[1];
+      const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
+      // rebuild from the gesture's start each frame: spread about the original
+      // midpoint, then carry however far that midpoint has since drifted
+      zScale = pinchS0; zTx = gTx0; zTy = gTy0;
+      zoomAt(pinchS0 * (d / pinchD0), gx0, gy0);
+      zTx += mx - gx0; zTy += my - gy0;
+      applyZoom();
+      suppressClick = true;
+    } else if (touchPan && e.touches.length === 1) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - gx0, dy = e.touches[0].clientY - gy0;
+      zTx = gTx0 + dx; zTy = gTy0 + dy;
+      applyZoom();
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) suppressClick = true;
+    }
+  }, { passive: false });
+
+  $('ovWrap').addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) pinchD0 = null;
+    if (e.touches.length === 0) touchPan = false;
+  }, { passive: true });
+
+  $('ovWrap').addEventListener('mousedown', (e) => {
+    if (!isZoomed() || e.button !== 0) return;
+    e.preventDefault();
+    gx0 = e.clientX; gy0 = e.clientY; gTx0 = zTx; gTy0 = zTy;
+    mousePan = true;
+    $('ovWrap').classList.add('panning');
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!mousePan) return;
+    const dx = e.clientX - gx0, dy = e.clientY - gy0;
+    zTx = gTx0 + dx; zTy = gTy0 + dy;
+    applyZoom();
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) suppressClick = true;
+  });
+  window.addEventListener('mouseup', () => {
+    if (!mousePan) return;
+    mousePan = false;
+    $('ovWrap').classList.remove('panning');
+  });
+
+  $('ovZoom').onclick = (e) => { e.stopPropagation(); resetZoom(true); };
 
   // prevent iOS double-tap zoom / rubber-band inside grid
   document.addEventListener('gesturestart', (e) => e.preventDefault());

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
-function MobileButton() {
+function RemoteButton() {
   const [open, setOpen] = useState(false);
   const [info, setInfo] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -58,7 +58,7 @@ function MobileButton() {
       <button
         className={`sync-button${info ? ' active' : ''}`}
         onClick={() => setOpen(true)}
-        title={info ? `Mobile ${clients} client(s)` : 'Enable mobile companion'}
+        title={info ? `Remote access · ${clients} device${clients === 1 ? '' : 's'} connected` : 'Enable remote access'}
         type="button"
         style={{
           background: info ? 'rgba(46, 204, 113, 0.15)' : 'transparent',
@@ -74,10 +74,13 @@ function MobileButton() {
         }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-          <line x1="12" y1="18" x2="12" y2="18" />
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
         </svg>
-        <span>Mobile{info ? ` · ${clients}` : ''}</span>
+        <span>Remote{info ? ` · ${clients}` : ''}</span>
       </button>
 
       {open && (
@@ -95,9 +98,9 @@ function MobileButton() {
               minWidth: 320, maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
             }}
           >
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Mobile companion</h3>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Remote access</h3>
             <p style={{ fontSize: 13, color: '#aaa', marginTop: 0 }}>
-              Phone on same Wi-Fi opens URL, mirrors this window's folder + preview.
+              Any device on the same Wi-Fi opens this URL and mirrors this window's folder + preview.
             </p>
 
             {!info && (
@@ -111,7 +114,7 @@ function MobileButton() {
               <>
                 {info.qrDataUrl && (
                   <div style={{ textAlign: 'center', margin: '12px 0' }}>
-                    <img src={info.qrDataUrl} alt="QR" style={{ width: 220, height: 220, borderRadius: 8, background: '#fff', padding: 8 }} />
+                    <img src={info.qrDataUrl} alt="Connection QR code" style={{ width: 220, height: 220, borderRadius: 8, background: '#fff', padding: 8 }} />
                   </div>
                 )}
                 <div style={{ background: '#111', padding: '8px 10px', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all', marginBottom: 8 }}>
@@ -124,7 +127,7 @@ function MobileButton() {
                   </button>
                 </div>
                 <div style={{ fontSize: 12, color: '#888', textAlign: 'center' }}>
-                  {clients} connected client{clients === 1 ? '' : 's'}
+                  {clients} connected device{clients === 1 ? '' : 's'}
                 </div>
               </>
             )}
@@ -140,4 +143,4 @@ function MobileButton() {
   );
 }
 
-export default MobileButton;
+export default RemoteButton;

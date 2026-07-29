@@ -15,7 +15,7 @@ import AutoCropModal from './components/AutoCropModal';
 import DriveButton from './components/DriveButton';
 import DriveDestinationPicker from './components/DriveDestinationPicker';
 import LocalDestinationPicker from './components/LocalDestinationPicker';
-import MobileButton from './components/MobileButton';
+import RemoteButton from './components/RemoteButton';
 import { boxToCropRect } from './utils/faceCrop';
 
 const LAST_FOLDER_KEY = 'batchframe-last-folder';
@@ -1035,7 +1035,7 @@ function App() {
     setShowShortcuts(prev => !prev);
   }, []);
 
-  // ── LAN mobile companion: broadcast state + accept remote intents ─
+  // ── LAN remote access: broadcast state + accept remote intents ────
   const pagedImagesRef = useRef([]);
   useEffect(() => { pagedImagesRef.current = pagedImages; }, [pagedImages]);
 
@@ -2783,7 +2783,7 @@ function App() {
               onOpenLive={handleOpenLive}
               liveActive={isDriveLive}
             />
-            <MobileButton />
+            <RemoteButton />
           </>
         }
       />

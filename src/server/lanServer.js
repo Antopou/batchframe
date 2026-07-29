@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const express = require('express');
-const { WebSocketServer } = require('ws');
+const { Server: WebSocketServer } = require('ws');
 
 let server = null;
 let wss = null;

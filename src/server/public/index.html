@@ -306,6 +306,33 @@
     width: 100%; height: auto; display: block;
     user-select: none; -webkit-user-drag: none;
   }
+
+  /* Peek: transient magnifier for scroll mode. It lives in its own layer and
+     is position:fixed to the frame's measured rect, so the feed's layout and
+     scrollTop never change — currentScrollIdx() stays put and no goto-preview
+     fires at the desktop while you're inspecting a frame. */
+  .peek { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+  .peek[hidden] { display: none; }
+  .peek-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.72);
+    opacity: 0; transition: opacity 0.16s;
+  }
+  .peek img {
+    position: fixed; transform-origin: center center; will-change: transform;
+    user-select: none; -webkit-user-drag: none;
+  }
+  .peek-lvl {
+    position: absolute; left: 50%; margin-left: -22px;
+    top: max(12px, env(safe-area-inset-top));
+    background: rgba(0,0,0,0.6); border: 1px solid var(--border);
+    color: var(--text-primary); font-family: var(--font-mono); font-size: 11px;
+    padding: 4px 9px; border-radius: 4px; text-align: center;
+    opacity: 0; transition: opacity 0.12s;
+  }
+  .peek.on .peek-backdrop { opacity: 1; }
+  /* the readout only flashes on a zoom change, then gets out of the way */
+  .peek.lvl-on .peek-lvl { opacity: 1; }
+  .peek.releasing img, .peek.animating img { transition: transform 0.18s ease-out; }
 </style>
 </head>
 <body>
@@ -352,6 +379,11 @@
     <button class="ovfs" id="btnScrollFs" title="Fullscreen">⛶</button>
   </div>
   <div class="scroll-container" id="scrollContainer"></div>
+  <div class="peek" id="peek" hidden>
+    <div class="peek-backdrop"></div>
+    <img id="peekImg" alt="" draggable="false" />
+    <div class="peek-lvl" id="peekLvl">1.0×</div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -684,8 +716,7 @@
     // to tell the two apart — nav taps on the side zones stay instant
     if (centerTapTimer) {
       clearTimeout(centerTapTimer); centerTapTimer = null;
-      glide();
-      if (isZoomed()) resetZoom(false); else zoomAt(DBL_ZOOM, e.clientX, e.clientY);
+      cycleZoom(e.clientX, e.clientY);
       return;
     }
     centerTapTimer = setTimeout(() => { centerTapTimer = null; toggleChrome(); }, 260);
@@ -714,7 +745,7 @@
   // The transform lives on #ovImg and .overlay-img-wrap clips it. Pan offsets
   // are screen px measured from the wrap's centre, which is where flexbox parks
   // the image, so translate() composes cleanly with the centred layout.
-  const MIN_ZOOM = 1, MAX_ZOOM = 8, DBL_ZOOM = 2.5;
+  const MIN_ZOOM = 1, MAX_ZOOM = 8, ZOOM_CLOSE = 2.5;
   let zScale = 1, zTx = 0, zTy = 0;
   let zoomImgId = null;      // reset zoom on image change, not on every state push
   let suppressClick = false; // a pan/pinch just ended — swallow the tap it spawns
@@ -772,6 +803,28 @@
     applyZoom();
   }
 
+  // The scale at which the image stops being letterboxed and fills the wrap.
+  // At rest the img is object-fit:contain, so one axis already matches the wrap
+  // and this is just the larger of the two ratios.
+  function coverScale() {
+    const img = $('ovImg'), wrap = $('ovWrap');
+    if (!img.offsetWidth || !img.offsetHeight) return 1;
+    return Math.max(wrap.clientWidth / img.offsetWidth, wrap.clientHeight / img.offsetHeight);
+  }
+
+  // Double-tap toggles fill screen ↔ fit. Which way to go is derived from the
+  // current scale rather than a counter, so wheeling or pinching in between
+  // can't desync it — anything at or above the fill step collapses back.
+  function cycleZoom(x, y) {
+    const fill = Math.max(1, coverScale());
+    // a photo whose aspect already matches the window has nothing to fill, so
+    // that would be a dead tap — zoom in instead
+    const target = fill > 1.01 ? fill : ZOOM_CLOSE;
+    glide();
+    if (zScale < target - 0.01) zoomAt(target, x, y);
+    else resetZoom(false);
+  }
+
   $('ovWrap').addEventListener('wheel', (e) => {
     e.preventDefault();
     let d = e.deltaY;
@@ -785,6 +838,10 @@
   let touchPan = false, mousePan = false;
 
   $('ovWrap').addEventListener('touchstart', (e) => {
+    // a fresh gesture: drop any stale suppression, or it eats this tap's click.
+    // preventDefault on pinch/pan means the browser may never synthesise the
+    // click that would otherwise have consumed the flag.
+    suppressClick = false;
     if (e.touches.length === 2) {
       const a = e.touches[0], b = e.touches[1];
       pinchD0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
@@ -829,6 +886,7 @@
   }, { passive: true });
 
   $('ovWrap').addEventListener('mousedown', (e) => {
+    suppressClick = false;
     if (!isZoomed() || e.button !== 0) return;
     e.preventDefault();
     gx0 = e.clientX; gy0 = e.clientY; gTx0 = zTx; gTy0 = zTy;
@@ -942,6 +1000,7 @@
   function closeScrollPreview() {
     $('scrollOv').style.display = 'none';
     scrollOpen = false;
+    peekRelease();
     if (scrollChromeTimer) { clearTimeout(scrollChromeTimer); scrollChromeTimer = null; }
     if (sync) send('close-preview');
     else localPreviewOpen = false;
@@ -981,9 +1040,282 @@
 
   $('btnScrollClose').onclick = closeScrollPreview;
   $('btnScrollFs').onclick = toggleFs;
+
+  // ── scroll-mode peek ──────────────────────────────────────────────
+  // One-finger drag still scrolls the feed, so zoom can't own that gesture.
+  // Instead a pinch lifts the frame into a separate layer, magnifies it, and
+  // drops it back on release — the feed underneath never moves.
+  const PEEK_MAX = 8, PEEK_CLOSE = 2.5;
+  let peekOn = false, peekHeld = false;
+  let pkScale = 1, pkTx = 0, pkTy = 0, pkBase = null;
+  let pkSuppressClick = false;
+
+  function peekApply() {
+    if (!pkBase) return;
+    const cx = pkBase.left + pkBase.width / 2;
+    const cy = pkBase.top + pkBase.height / 2;
+    if (pkScale > 1.01) {
+      // Stick to the frame's borders: you can shift right up to an edge but
+      // never past it, so no dead space ever shows. An axis that's smaller
+      // than the window has nothing to shift and just centres.
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const hw = (pkBase.width * pkScale) / 2, hh = (pkBase.height * pkScale) / 2;
+      pkTx = hw * 2 >= vw ? Math.max(vw - cx - hw, Math.min(hw - cx, pkTx)) : vw / 2 - cx;
+      pkTy = hh * 2 >= vh ? Math.max(vh - cy - hh, Math.min(hh - cy, pkTy)) : vh / 2 - cy;
+    } else {
+      pkTx = 0; pkTy = 0;
+    }
+    $('peekImg').style.transform = `translate(${pkTx}px, ${pkTy}px) scale(${pkScale})`;
+    $('peekLvl').textContent = pkScale.toFixed(1) + '×';
+    // flash the readout only when the zoom actually moves — panning shouldn't
+    // keep it on screen, and a steady zoom shouldn't either
+    if (pkScale !== pkLvlScale) { pkLvlScale = pkScale; flashPeekLvl(); }
+  }
+
+  // A movement indicator, not a status badge: it lives only while the zoom is
+  // actually changing. The linger just has to outlast the gap between pinch
+  // frames (~16ms) so it doesn't strobe mid-gesture — then it's gone.
+  const PEEK_LVL_LINGER = 250;
+  let pkLvlTimer = null, pkLvlScale = null;
+  function flashPeekLvl() {
+    const p = $('peek');
+    p.classList.add('lvl-on');
+    if (pkLvlTimer) clearTimeout(pkLvlTimer);
+    pkLvlTimer = setTimeout(() => { p.classList.remove('lvl-on'); pkLvlTimer = null; }, PEEK_LVL_LINGER);
+  }
+
+  // scale about a focal point, measured from the frame's own resting centre
+  function peekZoomAt(next, clientX, clientY) {
+    if (!pkBase) return;
+    const cx = pkBase.left + pkBase.width / 2;
+    const cy = pkBase.top + pkBase.height / 2;
+    const fx = clientX - cx, fy = clientY - cy;
+    const s = Math.max(1, Math.min(PEEK_MAX, next));
+    pkTx = fx - ((fx - pkTx) * s / pkScale);
+    pkTy = fy - ((fy - pkTy) * s / pkScale);
+    pkScale = s;
+    peekApply();
+  }
+
+  function itemImgAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    const item = el && el.closest ? el.closest('.scroll-item') : null;
+    return item ? item.querySelector('img') : null;
+  }
+
+  function peekStart(srcImg) {
+    if (!srcImg || !srcImg.src) return false;
+    const r = srcImg.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    pkBase = { left: r.left, top: r.top, width: r.width, height: r.height };
+    const p = $('peek'), pi = $('peekImg');
+    pi.src = srcImg.currentSrc || srcImg.src;   // already cached — no flash
+    pi.style.left = r.left + 'px';
+    pi.style.top = r.top + 'px';
+    pi.style.width = r.width + 'px';
+    pi.style.height = r.height + 'px';
+    pkScale = 1; pkTx = 0; pkTy = 0;
+    p.hidden = false;
+    p.classList.remove('releasing');
+    peekOn = true;
+    peekApply();
+    requestAnimationFrame(() => { if (peekOn) p.classList.add('on'); });
+    return true;
+  }
+
+  function peekRelease() {
+    if (!peekOn) return;
+    const p = $('peek');
+    peekOn = false; peekHeld = false; pkOneFinger = false; pkMode = null;
+    pkScale = 1; pkTx = 0; pkTy = 0;
+    pkLvlScale = null;                            // next peek re-flashes the readout
+    if (pkLvlTimer) { clearTimeout(pkLvlTimer); pkLvlTimer = null; }
+    p.classList.add('releasing');
+    p.classList.remove('on', 'lvl-on');
+    $('peekImg').style.transform = 'translate(0px, 0px) scale(1)';
+    setTimeout(() => {
+      if (peekOn) return;                       // a new peek began meanwhile
+      p.hidden = true;
+      p.classList.remove('releasing');
+      pkBase = null;
+    }, 190);
+  }
+
+  // Scale at which the frame stops leaving gaps and fills the window. Feed
+  // frames are width-fitted, so for a tall one this is already 1 (it fills
+  // the width and overflows) and the fill step gets skipped.
+  function peekCoverScale() {
+    if (!pkBase || !pkBase.width || !pkBase.height) return 1;
+    return Math.max(window.innerWidth / pkBase.width, window.innerHeight / pkBase.height);
+  }
+
+  // Park the frame dead centre of the window at the given scale. A feed frame
+  // can sit anywhere — half off the bottom, say — and magnifying it in place
+  // would leave it just as awkwardly parked, so the cycle always recentres.
+  function peekZoomCentred(next) {
+    if (!pkBase) return;
+    pkScale = Math.max(1, Math.min(PEEK_MAX, next));
+    pkTx = window.innerWidth / 2 - (pkBase.left + pkBase.width / 2);
+    pkTy = window.innerHeight / 2 - (pkBase.top + pkBase.height / 2);
+    peekApply();
+  }
+
+  // Double-tap toggles fill screen ↔ back to the feed, mirroring the standard
+  // preview, and centres the frame. Pinch is left alone: it keeps its own
+  // free-form anchoring around your fingers.
+  function peekCycle(srcImg) {
+    if (!peekOn) {
+      if (!peekStart(srcImg)) return;
+      peekHeld = true;
+    }
+    const p = $('peek');
+    p.classList.add('animating');
+    setTimeout(() => p.classList.remove('animating'), 200);
+    const fill = Math.max(1, peekCoverScale());
+    // a frame already filling the window has nothing to fill — zoom in instead
+    const target = fill > 1.01 ? fill : PEEK_CLOSE;
+    if (pkScale < target - 0.01) peekZoomCentred(target);
+    else peekRelease();
+  }
+
+  let pkD0 = null, pkS0 = 1, pkMx0 = 0, pkMy0 = 0, pkTx0 = 0, pkTy0 = 0;
+  let pkOneFinger = false;   // pinch ended but a finger is still down: keep the peek
+  let pkMode = null;         // 'zoom' | 'shift', locked once a 2-finger gesture declares itself
+  const PK_MODE_SLOP = 16;   // px of movement before we decide which it is
+
+  $('scrollContainer').addEventListener('touchstart', (e) => {
+    // a fresh gesture: drop any stale suppression, or it eats this tap's click
+    pkSuppressClick = false;
+    if (e.touches.length !== 2) return;
+    const a = e.touches[0], b = e.touches[1];
+    const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
+    if (!peekOn && !peekStart(itemImgAt(mx, my))) return;
+    pkD0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    pkS0 = pkScale; pkMx0 = mx; pkMy0 = my; pkTx0 = pkTx; pkTy0 = pkTy;
+    pkOneFinger = false;                         // two fingers again: back to pinching
+    pkMode = null;                               // and this gesture hasn't declared itself
+  }, { passive: true });
+
+  $('scrollContainer').addEventListener('touchmove', (e) => {
+    if (e.touches.length >= 2 && pkD0 !== null) {
+      e.preventDefault();                        // stop the feed scrolling under us
+      const a = e.touches[0], b = e.touches[1];
+      const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
+      // Two fingers mean two different things. Moving them opposite ways changes
+      // the spread → zoom. Moving them as a pair holds the spread and slides the
+      // midpoint → shift. First one past the slop wins and locks for the rest of
+      // the gesture, so a parallel drag can't jitter the zoom and back.
+      if (pkMode === null) {
+        const spread = Math.abs(d - pkD0);
+        const slide = Math.hypot(mx - pkMx0, my - pkMy0);
+        if (spread < PK_MODE_SLOP && slide < PK_MODE_SLOP) return;
+        pkMode = spread > slide ? 'zoom' : 'shift';
+        // a parallel drag with nothing zoomed has nothing to shift — get out of
+        // the way rather than leaving a dimmed overlay hanging over the feed
+        if (pkMode === 'shift' && !peekHeld && pkScale <= 1.01) {
+          peekRelease(); pkD0 = null; return;
+        }
+      }
+      // rebuild from the gesture start: spread about the original midpoint, then
+      // carry however far that midpoint has drifted
+      pkScale = pkS0; pkTx = pkTx0; pkTy = pkTy0;
+      if (pkMode === 'zoom') peekZoomAt(pkS0 * (d / pkD0), pkMx0, pkMy0);
+      pkTx += mx - pkMx0; pkTy += my - pkMy0;
+      peekApply();
+      pkSuppressClick = true;
+      return;
+    }
+    // one finger still on the glass: the peek stays, and that finger pans it —
+    // without this the feed would scroll away underneath a live peek
+    if (pkOneFinger && peekOn && e.touches.length === 1) {
+      e.preventDefault();
+      const t = e.touches[0];
+      pkTx = pkTx0 + (t.clientX - pkMx0);
+      pkTy = pkTy0 + (t.clientY - pkMy0);
+      peekApply();
+      pkSuppressClick = true;
+    }
+  }, { passive: false });
+
+  $('scrollContainer').addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) pkD0 = null;       // the pinch proper is over
+    if (e.touches.length === 0) {
+      pkOneFinger = false;
+      if (peekOn && !peekHeld) peekRelease();    // only a full lift springs back
+      return;
+    }
+    // a finger is still down, so you still mean to be here: keep the peek up
+    // and hand control of it to whichever finger remains
+    if (peekOn && e.touches.length === 1) {
+      const t = e.touches[0];
+      pkMx0 = t.clientX; pkMy0 = t.clientY;
+      pkTx0 = pkTx; pkTy0 = pkTy;
+      pkOneFinger = true;
+    }
+  }, { passive: true });
+
+  // Single tap toggles chrome as before; a second tap holds a peek open so you
+  // can study a frame hands-free. Chrome toggling isn't latency-critical, so
+  // holding it 260ms to tell the two apart costs nothing.
+  let scrollTapTimer = null;
   $('scrollContainer').addEventListener('click', (e) => {
-    if (e.target.tagName === 'IMG') toggleScrollChrome();
+    if (pkSuppressClick) { pkSuppressClick = false; return; }
+    if (e.target.tagName !== 'IMG') return;
+    if (scrollTapTimer) {
+      clearTimeout(scrollTapTimer); scrollTapTimer = null;
+      peekCycle(e.target);
+      return;
+    }
+    scrollTapTimer = setTimeout(() => { scrollTapTimer = null; toggleScrollChrome(); }, 260);
   });
+
+  // Desktop: plain wheel keeps scrolling the feed; ctrl/⌘+wheel peeks — the
+  // same modifier the grid already uses for thumbnail sizing.
+  $('scrollContainer').addEventListener('wheel', (e) => {
+    if (!e.ctrlKey && !e.metaKey) {
+      if (peekOn) peekRelease();
+      return;
+    }
+    e.preventDefault();
+    if (!peekOn) {
+      if (!peekStart(itemImgAt(e.clientX, e.clientY))) return;
+      peekHeld = true;
+    }
+    let d = e.deltaY;
+    if (e.deltaMode === 1) d *= 16;
+    else if (e.deltaMode === 2) d *= 400;
+    const next = pkScale * Math.exp(-d * 0.0025);
+    if (next <= 1.01) { peekRelease(); return; }
+    peekZoomAt(next, e.clientX, e.clientY);
+  }, { passive: false });
+
+  // drag to re-aim a held peek (desktop)
+  let pkMousePan = false, pkMx = 0, pkMy = 0;
+  $('scrollContainer').addEventListener('mousedown', (e) => {
+    pkSuppressClick = false;
+    if (!peekOn || !peekHeld || e.button !== 0) return;
+    e.preventDefault();
+    pkMousePan = true; pkMx = e.clientX; pkMy = e.clientY;
+    pkTx0 = pkTx; pkTy0 = pkTy;
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!pkMousePan) return;
+    pkTx = pkTx0 + (e.clientX - pkMx);
+    pkTy = pkTy0 + (e.clientY - pkMy);
+    peekApply();
+    if (Math.abs(e.clientX - pkMx) > 4 || Math.abs(e.clientY - pkMy) > 4) pkSuppressClick = true;
+  });
+  window.addEventListener('mouseup', () => { pkMousePan = false; });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && peekOn) { e.preventDefault(); peekRelease(); }
+  });
+
+  // scrolling away dismisses a held peek — its anchor frame is moving
+  $('scrollContainer').addEventListener('scroll', () => {
+    if (peekOn && peekHeld) peekRelease();
+  }, { passive: true });
 
   // Two taps on blank chrome → toggle fullscreen. dblclick alone isn't enough:
   // touch browsers don't fire it reliably, hence the paired tap timer.

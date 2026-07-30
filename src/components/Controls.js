@@ -168,6 +168,19 @@ function Controls({
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
+  const aiMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!showAIMenu) return;
+    const handleClickOutside = (e) => {
+      if (aiMenuRef.current && !aiMenuRef.current.contains(e.target)) {
+        setShowAIMenu(false);
+        setAiKbFocus(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAIMenu]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -225,22 +238,22 @@ function Controls({
 
       const isA = e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey;
 
-      // Shift+A → close the AI menu (and clear focus).
+      // Shift+A → close the AI menu (and clear focus) and close scan panel.
       if (isA && e.shiftKey) {
         if (driveLive) return;
         e.preventDefault();
+        e.stopPropagation();
         setShowAIMenu(false);
+        setShowAIScan(false);
         setAiKbFocus(-1);
         return;
       }
 
       // A (no modifier) → open menu / advance keyboard focus through sub-items.
-      // IMPORTANT: never call setAiKbFocus inside the setShowAIMenu updater —
-      // React strict mode double-invokes updaters so nested setters fire twice
-      // and advance focus by 2 instead of 1. Use the closed-over state instead.
       if (isA) {
         if (driveLive) return;
         e.preventDefault();
+        e.stopPropagation();
         if (!showAIMenu) {
           setShowAIMenu(true);
           setAiKbFocus(0);
@@ -250,24 +263,31 @@ function Controls({
         return;
       }
 
-      // Enter → activate the focused sub-item (only while menu is open and focused).
-      if (e.key === 'Enter' && showAIMenu && aiKbFocus >= 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        if (loading || totalCount === 0) return;
+      // Enter → activate the focused sub-item, or just close if nothing focused
+      if (e.key === 'Enter' && showAIMenu && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         e.preventDefault();
-        switch (aiKbFocus) {
-          case 0: setShowAIScan((v) => !v); break;
-          case 1: onFindDuplicates?.(); break;
-          case 2: onFindSource?.(); break;
-          case 3: onCluster?.(); break;
-          case 4: onShuffle?.(); break;
-          default: break;
+        e.stopPropagation();
+        if (aiKbFocus >= 0) {
+          if (loading || totalCount === 0) return;
+          setShowAIMenu(false);
+          switch (aiKbFocus) {
+            case 0: setShowAIScan((v) => !v); break;
+            case 1: setShowAIScan(false); onFindDuplicates?.(); break;
+            case 2: setShowAIScan(false); onFindSource?.(); break;
+            case 3: setShowAIScan(false); onCluster?.(); break;
+            case 4: setShowAIScan(false); onShuffle?.(); break;
+            default: break;
+          }
+        } else {
+          setShowAIMenu(false);
         }
         return;
       }
 
       // Escape closes the AI menu if it's open (and focus is engaged).
-      if (e.key === 'Escape' && showAIMenu && aiKbFocus >= 0) {
+      if (e.key === 'Escape' && showAIMenu) {
         e.preventDefault();
+        e.stopPropagation();
         setShowAIMenu(false);
         setAiKbFocus(-1);
         return;
@@ -278,12 +298,17 @@ function Controls({
         setIsEditing(true);
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
   }, [driveLive, showAIMenu, aiKbFocus, loading, totalCount, onFindDuplicates, onFindSource, onCluster, onShuffle]);
 
+  useEffect(() => {
+    if (activeAiAction && activeAiAction !== 'scan') {
+      setShowAIScan(false);
+    }
+  }, [activeAiAction]);
 
-  const handlePathSubmit = () => {
+  const handlePathSubmit = async () => {
     const trimmed = editPath.trim();
     if (trimmed) {
       if (trimmed === getReadableDrivePath(folderPath) || trimmed === driveLabels?.get(folderPath) || trimmed === folderPath) {
@@ -621,75 +646,102 @@ function Controls({
             </button>
           )}
           {!browserMode && !driveLive && (
-            <button
-              className={`action-btn${showAIMenu ? ' active' : ''}`}
-              onClick={() => setShowAIMenu(v => !v)}
-              title="AI tools"
-              disabled={loading || totalCount === 0}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" /><path d="M19 14.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>
-              AI
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4, transform: showAIMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><polyline points="6 9 12 15 18 9" /></svg>
-            </button>
-          )}
-          {!browserMode && !driveLive && showAIMenu && (
-            <>
+            <div style={{ position: 'relative' }} ref={aiMenuRef}>
               <button
-                className={`action-btn ai-sub${showAIScan ? ' active' : ''}${activeAiAction === 'scan' ? ' ai-busy' : ''}${aiKbFocus === 0 ? ' kb-focused' : ''}`}
-                onClick={() => setShowAIScan(v => !v)}
-                title="AI character scan (A)"
+                className={`action-btn${showAIMenu ? ' active' : ''}`}
+                onClick={() => setShowAIMenu(v => !v)}
+                title="AI tools"
                 disabled={loading || totalCount === 0}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a7 7 0 0 1 14 0v1" /></svg>
-                Scan
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" /><path d="M19 14.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></svg>
+                AI
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4, transform: showAIMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><polyline points="6 9 12 15 18 9" /></svg>
               </button>
-              <button
-                className={`action-btn ai-sub${activeAiAction === 'dupes' ? ' ai-busy' : ''}${aiKbFocus === 1 ? ' kb-focused' : ''}`}
-                onClick={onFindDuplicates}
-                title="Find duplicate images"
-                disabled={loading || totalCount === 0}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                Dupes
-              </button>
-              <button
-                className={`action-btn ai-sub${activeAiAction === 'source' ? ' ai-busy' : ''}${aiKbFocus === 2 ? ' kb-focused' : ''}`}
-                onClick={onFindSource}
-                title="Find raws with no matching edit — selects them for deletion"
-                disabled={loading || totalCount === 0}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" /><path d="M8 11h6" /></svg>
-                Source
-              </button>
-              <button
-                className={`action-btn ai-sub${activeAiAction === 'cluster' ? ' ai-busy' : ''}${aiKbFocus === 3 ? ' kb-focused' : ''}`}
-                onClick={onCluster}
-                title="Group by visual similarity (CLIP + KMeans) — reorders the grid"
-                disabled={loading || totalCount === 0}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="6"  cy="6"  r="2.5" /><circle cx="18" cy="6"  r="2.5" /><circle cx="6"  cy="18" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="12" cy="12" r="2.5" /></svg>
-                Cluster
-              </button>
-              <button
-                className={`action-btn ai-sub${aiKbFocus === 4 ? ' kb-focused' : ''}`}
-                onClick={onShuffle}
-                title="Randomize order to remove first-image bias"
-                disabled={loading || totalCount === 0}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5" /><path d="M4 20 21 3" /><path d="M21 16v5h-5" /><path d="m15 15 6 6" /><path d="M4 4l5 5" /></svg>
-                Shuffle
-              </button>
-              {customOrderActive && (
-                <button
-                  className="action-btn ai-sub"
-                  onClick={onClearOrder}
-                  title="Restore normal sort order"
+
+              {showAIMenu && (
+                <div 
+                  className="dropdown-menu"
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: 6,
+                    padding: '6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                    minWidth: 140,
+                    background: '#222',
+                    border: '1px solid #333',
+                    borderRadius: 8,
+                    zIndex: 100,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                  }}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M3 12h12" /><path d="M3 18h6" /></svg>
-                  Reset
-                </button>
+                  <button
+                    className={`action-btn ai-sub${showAIScan ? ' active' : ''}${activeAiAction === 'scan' ? ' ai-busy' : ''}${aiKbFocus === 0 ? ' kb-focused' : ''}`}
+                    onClick={() => { setShowAIScan(v => !v); setShowAIMenu(false); }}
+                    title="AI character scan (A)"
+                    disabled={loading || totalCount === 0}
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a7 7 0 0 1 14 0v1" /></svg>
+                    Scan
+                  </button>
+                  <button
+                    className={`action-btn ai-sub${activeAiAction === 'dupes' ? ' ai-busy' : ''}${aiKbFocus === 1 ? ' kb-focused' : ''}`}
+                    onClick={() => { setShowAIScan(false); onFindDuplicates(); setShowAIMenu(false); }}
+                    title="Find duplicate images"
+                    disabled={loading || totalCount === 0}
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                    Dupes
+                  </button>
+                  <button
+                    className={`action-btn ai-sub${activeAiAction === 'source' ? ' ai-busy' : ''}${aiKbFocus === 2 ? ' kb-focused' : ''}`}
+                    onClick={() => { setShowAIScan(false); onFindSource(); setShowAIMenu(false); }}
+                    title="Find raws with no matching edit — selects them for deletion"
+                    disabled={loading || totalCount === 0}
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" /><path d="M8 11h6" /></svg>
+                    Source
+                  </button>
+                  <button
+                    className={`action-btn ai-sub${activeAiAction === 'cluster' ? ' ai-busy' : ''}${aiKbFocus === 3 ? ' kb-focused' : ''}`}
+                    onClick={() => { setShowAIScan(false); onCluster(); setShowAIMenu(false); }}
+                    title="Group by visual similarity (CLIP + KMeans) — reorders the grid"
+                    disabled={loading || totalCount === 0}
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="6"  cy="6"  r="2.5" /><circle cx="18" cy="6"  r="2.5" /><circle cx="6"  cy="18" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="12" cy="12" r="2.5" /></svg>
+                    Cluster
+                  </button>
+                  <button
+                    className={`action-btn ai-sub${aiKbFocus === 4 ? ' kb-focused' : ''}`}
+                    onClick={() => { setShowAIScan(false); onShuffle(); setShowAIMenu(false); }}
+                    title="Randomize order to remove first-image bias"
+                    disabled={loading || totalCount === 0}
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5" /><path d="M4 20 21 3" /><path d="M21 16v5h-5" /><path d="m15 15 6 6" /><path d="M4 4l5 5" /></svg>
+                    Shuffle
+                  </button>
+                  {customOrderActive && (
+                    <button
+                      className="action-btn ai-sub"
+                      onClick={() => { setShowAIScan(false); onClearOrder(); setShowAIMenu(false); }}
+                      title="Restore normal sort order"
+                      style={{ width: '100%', justifyContent: 'flex-start' }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M3 12h12" /><path d="M3 18h6" /></svg>
+                      Reset
+                    </button>
+                  )}
+                </div>
               )}
-            </>
+            </div>
           )}
           {!browserMode && !driveLive && (
             <button

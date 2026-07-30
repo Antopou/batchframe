@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <defs>
-    <mask id="round">
-      <rect width="256" height="256" rx="64" fill="white"/>
-    </mask>
-  </defs>
-  <rect width="256" height="256" rx="64" fill="#667eea"/>
-  <image href="app_icon.png" width="256" height="256" mask="url(#round)" preserveAspectRatio="xMidYMid slice"/>
-</svg>

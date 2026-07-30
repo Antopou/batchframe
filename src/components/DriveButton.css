@@ -308,3 +308,12 @@
   0%, 100% { transform: translateY(-0.3px); }
   50%      { transform: translateY(0.3px); }
 }
+
+/* ── Remote action buttons ── */
+.remote-action-btn {
+  outline: none;
+}
+.remote-action-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.2) !important;
+  outline-offset: 1px !important;
+}

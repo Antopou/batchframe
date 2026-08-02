@@ -54,6 +54,18 @@ function createWindow() {
     height: 900,
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 14, y: 11 },
+    // On Windows a hidden title bar leaves no caption buttons at all, so draw
+    // the native minimise/maximise/close set over the header instead. Colours
+    // track --bg-surface / --text-primary so the overlay blends into it, and
+    // the height matches .App-header. macOS ignores this and keeps its traffic
+    // lights, positioned above.
+    ...(process.platform === 'win32' && {
+      titleBarOverlay: {
+        color: '#11141b',
+        symbolColor: '#f0f3f9',
+        height: 36,
+      },
+    }),
     webPreferences: {
       preload: preloadPath,
       nodeIntegration: false,

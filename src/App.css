@@ -31,6 +31,13 @@
   -webkit-app-region: drag;
 }
 
+/* Windows draws its caption buttons at the top right (see titleBarOverlay in
+   main.js), so the traffic-light inset moves to the other side. */
+[data-platform="win32"] .App-header {
+  padding-left: 20px;
+  padding-right: 148px;
+}
+
 .App-header button,
 .App-header input,
 .App-header .search-box,

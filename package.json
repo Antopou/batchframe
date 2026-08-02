@@ -23,10 +23,6 @@
     "express": "^5.2.1",
     "googleapis": "^173.0.0",
     "qrcode": "^1.5.4",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1",
-    "react-window": "^2.2.7",
     "trash": "^8.1.0",
     "ws": "^8.21.1"
   },
@@ -35,6 +31,10 @@
     "cross-env": "^7.0.3",
     "electron": "^27.3.11",
     "electron-builder": "^24.4.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "react-window": "^2.2.7",
     "wait-on": "^7.0.1"
   },
   "browserslist": {
@@ -86,7 +86,7 @@
       ]
     },
     "win": {
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.ico",
       "target": [
         {
           "target": "nsis",

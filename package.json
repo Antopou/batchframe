@@ -70,6 +70,7 @@
       "ai_detect.py",
       "ai_duplicates.py",
       "remove_bg.py",
+      "remove_subs.py",
       "find_source.py",
       "cluster_images.py",
       "requirements.txt",

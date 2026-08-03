@@ -10,6 +10,9 @@
 # to run the two support models, both fetched from HuggingFace on first use:
 # RMBG-1.4 for the tight close-ups isnetis gives up on, and BiRefNet for the
 # optional "Best" quality mode.
+#
+# Subtitle removal (remove_subs.py) rides on the same stack: imgutils' PP-OCR
+# detector finds the lettering, and LaMa fine-tuned on manga paints it out.
 dghs-imgutils
 
 # Offline fallback engine: whole-image CLIP embedding. Used only if imgutils /

@@ -60,6 +60,10 @@ try {
     removeDetectListeners: () => ipcRenderer.removeAllListeners('detect-progress'),
     removeBackground:      (imagePaths, saveMode, background, quality) => ipcRenderer.invoke('remove-background', { imagePaths, saveMode, background, quality }),
     previewBackground:     (imagePath, background, quality) => ipcRenderer.invoke('preview-background', { imagePath, background, quality }),
+    removeSubtitles:       (imagePaths, saveMode, area, fill, orderedPaths) => ipcRenderer.invoke('remove-subtitles', { imagePaths, saveMode, area, fill, orderedPaths }),
+    previewSubtitles:      (imagePath, area, fill, orderedPaths) => ipcRenderer.invoke('preview-subtitles', { imagePath, area, fill, orderedPaths }),
+    onSubProgress:         (cb) => ipcRenderer.on('sub-progress', (_, p) => cb(p)),
+    removeSubListeners:    () => ipcRenderer.removeAllListeners('sub-progress'),
     onBgProgress:          (cb) => ipcRenderer.on('bg-progress', (_, p) => cb(p)),
     removeBgListeners:     () => ipcRenderer.removeAllListeners('bg-progress'),
 

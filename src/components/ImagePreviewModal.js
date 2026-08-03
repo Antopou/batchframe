@@ -50,7 +50,7 @@ const FilmstripThumbnail = React.memo(({ image, index, isActive, onClick }) => {
   );
 });
 
-function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPrev, onGoTo, onLock, onDelete, onToggleSelect, selected, locked, onSaveCrop, canCrop, showNotice }) {
+function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPrev, onGoTo, onLock, onDelete, onToggleSelect, selected, locked, onSaveCrop, canCrop, showNotice, onApplyRemoveBg, onApplyRemoveSubs, aiPanelOpen }) {
   const zoomRef = useRef(1);
   const positionRef = useRef({ x: 0, y: 0 });
   const dragStartRef = useRef({ x: 0, y: 0 });
@@ -83,6 +83,10 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
 
   // ── UI Directional Hover state ────────────────────────────────────────
   const [hoverZones, setHoverZones] = useState({ top: false, bottom: false, left: false, right: false });
+  // The proximity zone is only 150px tall, so anything that stands taller than
+  // it — a pointer resting on the bar, or an open menu above it — has to hold
+  // the bar open on its own, or it vanishes from under the cursor.
+  const [controlsHover, setControlsHover] = useState(false);
 
   useEffect(() => {
     const handleMove = (e) => {
@@ -156,11 +160,67 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
     }
   }, [image, cutoutOn]);
 
-  // Never carry one image's cut-out over to the next.
+  // ── Subtitle-free preview (T) ──
+  const [nosubSrc, setNosubSrc] = useState('');
+  const [nosubOn, setNosubOn] = useState(false);
+  const [nosubBusy, setNosubBusy] = useState(false);
+  const [nosubError, setNosubError] = useState('');
+  const nosubCache = useRef(new Map());
+
+  const toggleNosub = useCallback(async () => {
+    if (!image || !window.electronAPI?.previewSubtitles) return;
+    if (nosubOn) { setNosubOn(false); return; }
+
+    const cached = nosubCache.current.get(image.path);
+    if (cached) { setNosubSrc(cached); setNosubOn(true); return; }
+
+    setNosubBusy(true);
+    setNosubError('');
+    try {
+      const area = localStorage.getItem('removeSubsArea') || 'bottom';
+      const fill = localStorage.getItem('removeSubsFill') || 'reference';
+      const ordered = (images || []).map(i => i?.path).filter(Boolean);
+      const res = await window.electronAPI.previewSubtitles(image.path, area, fill, ordered);
+      if (res?.success) {
+        nosubCache.current.set(image.path, res.dataUrl);
+        setNosubSrc(res.dataUrl);
+        setNosubOn(true);
+      } else {
+        setNosubError(res?.error || 'Subtitle removal failed');
+      }
+    } catch (err) {
+      setNosubError(err.message);
+    } finally {
+      setNosubBusy(false);
+    }
+  }, [image, images, nosubOn]);
+
+  // ── AI menu in the toolbar ──
+  // Both previews live behind one button so the bar stays readable.
+  const [showAiMenu, setShowAiMenu] = useState(false);
+  const aiMenuRef = useRef(null);
+  const aiBusy = cutoutBusy || nosubBusy;
+  const aiError = cutoutError || nosubError;
+  const aiLabel = cutoutOn ? 'Cut out' : nosubOn ? 'No subs' : 'AI';
+
+  useEffect(() => {
+    if (!showAiMenu) return;
+    const onDown = (e) => {
+      if (aiMenuRef.current && !aiMenuRef.current.contains(e.target)) setShowAiMenu(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showAiMenu]);
+
+  // Never carry one image's preview over to the next.
   useEffect(() => {
     setCutoutOn(false);
     setCutoutSrc('');
     setCutoutError('');
+    setNosubOn(false);
+    setNosubSrc('');
+    setNosubError('');
+    setShowAiMenu(false);
   }, [image?.path]);
 
   const toggleCleanMode = useCallback(() => {
@@ -707,6 +767,10 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   const handleKeydown = useCallback((e) => {
     const isInputFocused = document.activeElement && document.activeElement.tagName === 'INPUT';
 
+    // An AI panel opened on top of the preview owns the keyboard: Escape there
+    // should close the panel, not the image behind it.
+    if (aiPanelOpen) return;
+
     if (cropMode) {
       if (e.key === 'Escape') {
         if (showResizePanel) {
@@ -809,6 +873,11 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         e.preventDefault();
         toggleCutout();
         return;
+      case 't':
+      case 'T':
+        e.preventDefault();
+        toggleNosub();
+        return;
       case '=':
       case '+':
         e.preventDefault();
@@ -825,7 +894,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       default:
         return;
     }
-  }, [cropMode, cropAspect, applyCrop, chooseAspect, autoCropToFace, enterCrop, canCrop, onClose, onNext, onPrev, onDelete, onToggleSelect, toggleCutout, locked, setZoom, resetZoom]);
+  }, [cropMode, cropAspect, applyCrop, chooseAspect, autoCropToFace, enterCrop, canCrop, onClose, onNext, onPrev, onDelete, onToggleSelect, toggleCutout, toggleNosub, aiPanelOpen, locked, setZoom, resetZoom]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeydown);
@@ -868,7 +937,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
 
   return (
     <div className="preview-modal-overlay" onClick={cropMode ? undefined : onClose}>
-      <div className={`preview-modal-content ${hoverZones.top ? 'show-top' : ''} ${hoverZones.bottom ? 'show-bottom' : ''} ${hoverZones.left ? 'show-left' : ''} ${hoverZones.right ? 'show-right' : ''} ${cropMode ? 'crop-mode' : ''} ${showFilmstrip ? 'filmstrip-active' : ''} ${cleanMode ? 'clean-mode' : ''}`}>
+      <div className={`preview-modal-content ${hoverZones.top ? 'show-top' : ''} ${hoverZones.bottom || controlsHover || showAiMenu ? 'show-bottom' : ''} ${hoverZones.left ? 'show-left' : ''} ${hoverZones.right ? 'show-right' : ''} ${cropMode ? 'crop-mode' : ''} ${showFilmstrip ? 'filmstrip-active' : ''} ${cleanMode ? 'clean-mode' : ''}`}>
         {!showFilmstrip && !cropMode && (
           <div className="preview-header" onClick={e => e.stopPropagation()}>
             <div className="preview-info">
@@ -946,7 +1015,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
           ) : (
             <img
               ref={imageRef}
-              src={cutoutOn && cutoutSrc ? cutoutSrc : imageSrc}
+              src={cutoutOn && cutoutSrc ? cutoutSrc : nosubOn && nosubSrc ? nosubSrc : imageSrc}
               alt={image.name}
               className={`preview-image${smoothZoom && !isDragging ? ' smooth' : ''}`}
               draggable={false}
@@ -999,7 +1068,12 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         )}
 
         {cropMode ? (
-          <div className="preview-controls crop-controls" onClick={e => e.stopPropagation()}>
+          <div
+            className="preview-controls crop-controls"
+            onClick={e => e.stopPropagation()}
+            onMouseEnter={() => setControlsHover(true)}
+            onMouseLeave={() => setControlsHover(false)}
+          >
             <div className="crop-aspects" ref={aspectsContainerRef}>
               {ASPECT_PRESETS.map((p, i) => (
                 <button
@@ -1071,7 +1145,12 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                 />
               </div>
             </>
-            <div className="preview-controls" onClick={e => e.stopPropagation()}>
+            <div
+              className="preview-controls"
+              onClick={e => e.stopPropagation()}
+              onMouseEnter={() => setControlsHover(true)}
+              onMouseLeave={() => setControlsHover(false)}
+            >
               <div className="preview-zoom-controls">
                 <button
                   onClick={() => setZoom(zoomRef.current / 1.25, null, true)}
@@ -1106,21 +1185,71 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                 </button>
               )}
 
-              <button
-                className={`preview-crop-btn${cutoutOn ? ' active' : ''}`}
-                onClick={toggleCutout}
-                disabled={cutoutBusy}
-                title={cutoutError || (cutoutOn ? 'Show original (B)' : 'Preview without background (B)')}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 12a8 8 0 1 0-8 8" />
-                  <path d="M12 4v16" />
-                  <path d="M4 12h8" />
-                  <path d="m16 16 5 5" />
-                  <path d="m21 16-5 5" />
-                </svg>
-                {cutoutBusy ? 'Cutting…' : cutoutOn ? 'Original' : 'Cut out'}
-              </button>
+              <div className="preview-ai-wrap" ref={aiMenuRef}>
+                <button
+                  className={`preview-crop-btn${cutoutOn || nosubOn ? ' active' : ''}`}
+                  onClick={() => setShowAiMenu(v => !v)}
+                  disabled={aiBusy}
+                  title={aiError || 'AI tools (B: cut out · T: no subs)'}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3v3" /><path d="M12 18v3" /><path d="M3 12h3" /><path d="M18 12h3" />
+                    <circle cx="12" cy="12" r="4" />
+                  </svg>
+                  {aiBusy ? 'Working…' : aiLabel}
+                </button>
+
+                {showAiMenu && !aiBusy && (
+                  <div className="preview-ai-menu">
+                    <button
+                      className={`preview-ai-item${cutoutOn ? ' active' : ''}`}
+                      onClick={() => { setShowAiMenu(false); toggleCutout(); }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 12a8 8 0 1 0-8 8" /><path d="M12 4v16" /><path d="M4 12h8" />
+                        <path d="m16 16 5 5" /><path d="m21 16-5 5" />
+                      </svg>
+                      {cutoutOn ? 'Show original' : 'Remove background'}
+                      <span className="preview-ai-key">B</span>
+                    </button>
+                    <button
+                      className={`preview-ai-item${nosubOn ? ' active' : ''}`}
+                      onClick={() => { setShowAiMenu(false); toggleNosub(); }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="5" width="20" height="14" rx="2" /><path d="M6 15h5" /><path d="M14 15h4" />
+                      </svg>
+                      {nosubOn ? 'Show original' : 'Remove subtitles'}
+                      <span className="preview-ai-key">T</span>
+                    </button>
+
+                    <div className="preview-ai-sep" />
+                    <div className="preview-ai-heading">Apply and save this image</div>
+
+                    <button
+                      className="preview-ai-item"
+                      onClick={() => { setShowAiMenu(false); onApplyRemoveBg?.(); }}
+                      disabled={!onApplyRemoveBg || locked}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 12a8 8 0 1 0-8 8" /><path d="M12 4v16" /><path d="M4 12h8" />
+                        <path d="m16 16 5 5" /><path d="m21 16-5 5" />
+                      </svg>
+                      Remove background…
+                    </button>
+                    <button
+                      className="preview-ai-item"
+                      onClick={() => { setShowAiMenu(false); onApplyRemoveSubs?.(); }}
+                      disabled={!onApplyRemoveSubs || locked}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="5" width="20" height="14" rx="2" /><path d="M6 15h5" /><path d="M14 15h4" />
+                      </svg>
+                      Remove subtitles…
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <button
                 className={`preview-crop-btn${selected ? ' active' : ''}`}

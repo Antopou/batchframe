@@ -12,6 +12,7 @@ import TextPreviewModal from './components/TextPreviewModal';
 import RenameModal from './components/RenameModal';
 import AutoCropModal from './components/AutoCropModal';
 import RemoveBgModal from './components/RemoveBgModal';
+import RemoveSubsModal from './components/RemoveSubsModal';
 
 import DriveButton from './components/DriveButton';
 import DriveDestinationPicker from './components/DriveDestinationPicker';
@@ -195,6 +196,13 @@ function App() {
   const [removeBgRunning, setRemoveBgRunning]   = useState(false);
   const [removeBgProgress, setRemoveBgProgress] = useState({ current: 0, total: 0, text: '' });
   const [removeBgResult, setRemoveBgResult]     = useState(null); // { written, failed, error } | null
+  const [subsModal, setSubsModal]               = useState(null); // { paths: [...] } | null
+  const [subsRunning, setSubsRunning]           = useState(false);
+  const [subsProgress, setSubsProgress]         = useState({ current: 0, total: 0, text: '' });
+  const [subsResult, setSubsResult]             = useState(null); // { written, skipped, failed, error } | null
+  // A panel launched from the preview closes it when the run ends: the file on
+  // screen may have just been rewritten, and the grid behind is now the truth.
+  const panelFromPreview = useRef(false);
 
   // Copy state
   const [isCopying, setIsCopying]       = useState(false);
@@ -1485,8 +1493,10 @@ function App() {
   // ── Batch background removal (character cut-out) ───────────────
   // Same selection rules as auto-crop: the whole selection when the clicked
   // image is part of a multi-selection, otherwise just that one image.
-  const handleOpenRemoveBg = useCallback((image) => {
-    const isSelected = image && selectedImages.has(image.path);
+  // `single` is set when the panel is opened from the preview modal, where the
+  // user means the image they are looking at, not whatever else is selected.
+  const handleOpenRemoveBg = useCallback((image, single = false) => {
+    const isSelected = !single && image && selectedImages.has(image.path);
     const base = isSelected && selectedImages.size > 1 ? [...selectedImages] : (image ? [image.path] : [...selectedImages]);
     const paths = base.filter(p => !lockedImages.has(p));
     if (paths.length === 0) return;
@@ -1522,6 +1532,7 @@ function App() {
 
     setSelectedImages(new Set());
     if (folderPath) await loadElectronFolder(folderPath, false);
+    if (panelFromPreview.current) { panelFromPreview.current = false; setPreviewImage(null); }
   }, [removeBgModal, folderPath, loadElectronFolder]);
 
   const handleCloseRemoveBg = useCallback(() => {
@@ -1530,6 +1541,61 @@ function App() {
     setRemoveBgResult(null);
     setRemoveBgProgress({ current: 0, total: 0, text: '' });
   }, [removeBgRunning]);
+
+  // ── Batch subtitle removal ─────────────────────────────────────
+  const handleOpenSubs = useCallback((image, single = false) => {
+    const isSelected = !single && image && selectedImages.has(image.path);
+    const base = isSelected && selectedImages.size > 1 ? [...selectedImages] : (image ? [image.path] : [...selectedImages]);
+    const paths = base.filter(p => !lockedImages.has(p));
+    if (paths.length === 0) return;
+    setSubsResult(null);
+    setSubsProgress({ current: 0, total: 0, text: '' });
+    setSubsModal({ paths });
+  }, [selectedImages, lockedImages]);
+
+  const handleRemoveSubs = useCallback(async (saveMode, area, fill) => {
+    const paths = subsModal?.paths || [];
+    if (paths.length === 0 || !window.electronAPI?.removeSubtitles) return;
+    setSubsRunning(true);
+    setSubsResult(null);
+
+    let processed = 0;
+    setSubsProgress({ current: 0, total: paths.length, text: 'Loading models…' });
+    window.electronAPI.onSubProgress?.((p) => {
+      if (p.type === 'status') setSubsProgress(prev => ({ ...prev, text: p.text }));
+      else if (p.type === 'done') setSubsProgress(prev => ({ ...prev, current: ++processed }));
+    });
+
+    try {
+      // The whole folder order goes along so the worker can reach frames next
+      // to each target, which are usually not part of the selection.
+      const ordered = filteredImages.map(i => i.path);
+      const summary = await window.electronAPI.removeSubtitles(paths, saveMode, area, fill, ordered);
+      setSubsResult({
+        written: summary?.written || 0,
+        fromRef: summary?.fromRef || 0,
+        skipped: summary?.skipped || 0,
+        failed: summary?.failed || 0,
+        error: summary?.error,
+      });
+    } catch (err) {
+      setSubsResult({ written: 0, fromRef: 0, skipped: 0, failed: paths.length, error: err.message });
+    } finally {
+      window.electronAPI.removeSubListeners?.();
+      setSubsRunning(false);
+    }
+
+    setSelectedImages(new Set());
+    if (folderPath) await loadElectronFolder(folderPath, false);
+    if (panelFromPreview.current) { panelFromPreview.current = false; setPreviewImage(null); }
+  }, [subsModal, filteredImages, folderPath, loadElectronFolder]);
+
+  const handleCloseSubs = useCallback(() => {
+    if (subsRunning) return;
+    setSubsModal(null);
+    setSubsResult(null);
+    setSubsProgress({ current: 0, total: 0, text: '' });
+  }, [subsRunning]);
 
   // ── Invert selection (across all filtered images) ─────────────
   const handleInvertSelection = useCallback(() => {
@@ -2261,7 +2327,7 @@ function App() {
       if (previewImage) return;
 
       // Other modals also own the keyboard
-      if (confirmDialog || renameModal || autoCropModal || removeBgModal || metadataModal || drivePickAction || textModal) return;
+      if (confirmDialog || renameModal || autoCropModal || removeBgModal || subsModal || metadataModal || drivePickAction || textModal) return;
 
       if (e.key === 'Escape') {
 
@@ -2543,7 +2609,7 @@ function App() {
       window.removeEventListener('wheel', cancelAnim);
       cancelAnim();
     };
-  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode, selectedFolders, handleOpenLastFolder, handleNavigateToFolder, handleNavigateUp, handleNavigateForward, handleOpenPreview, confirmDialog, renameModal, autoCropModal, removeBgModal, metadataModal]);
+  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode, selectedFolders, handleOpenLastFolder, handleNavigateToFolder, handleNavigateUp, handleNavigateForward, handleOpenPreview, confirmDialog, renameModal, autoCropModal, removeBgModal, subsModal, metadataModal]);
 
   // ── Ctrl+Wheel zoom ─────────────────────────────────────────────
   useEffect(() => {
@@ -2693,6 +2759,13 @@ function App() {
         icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12a8 8 0 1 0-8 8"/><path d="M12 4v16"/><path d="M4 12h8"/><path d="m16 16 5 5"/><path d="m21 16-5 5"/></svg>,
         onClick: () => handleOpenRemoveBg(image),
       },
+      {
+        label: (isSelected && selectedImages.size > 1)
+          ? `Remove subtitles from ${selectedImages.size}`
+          : 'Remove subtitles',
+        icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 15h5"/><path d="M14 15h4"/></svg>,
+        onClick: () => handleOpenSubs(image),
+      },
       { separator: true },
       {
         label: isSelected ? 'Deselect' : 'Select',
@@ -2830,6 +2903,7 @@ function App() {
         onCluster={handleCluster}
         onShuffle={handleShuffle}
         onRemoveBackground={() => handleOpenRemoveBg(null)}
+        onRemoveSubtitles={() => handleOpenSubs(null)}
         activeAiAction={activeAiAction}
         customOrderActive={!!customOrder}
         onClearOrder={() => { setCustomOrder(null); setClusterAssignments(null); }}
@@ -2929,6 +3003,9 @@ function App() {
           selected={selectedImages.has(previewImage.path)}
           locked={lockedImages.has(previewImage.path)}
           onSaveCrop={handleSaveCrop}
+          onApplyRemoveBg={() => { panelFromPreview.current = true; handleOpenRemoveBg(previewImage, true); }}
+          onApplyRemoveSubs={() => { panelFromPreview.current = true; handleOpenSubs(previewImage, true); }}
+          aiPanelOpen={!!removeBgModal || !!subsModal}
           showNotice={showNotice}
           canCrop={!browserMode}
         />
@@ -3016,6 +3093,17 @@ function App() {
           result={removeBgResult}
           onRun={handleRemoveBg}
           onClose={handleCloseRemoveBg}
+        />
+      )}
+
+      {subsModal && (
+        <RemoveSubsModal
+          count={subsModal.paths.length}
+          running={subsRunning}
+          progress={subsProgress}
+          result={subsResult}
+          onRun={handleRemoveSubs}
+          onClose={handleCloseSubs}
         />
       )}
       {drivePickAction && (

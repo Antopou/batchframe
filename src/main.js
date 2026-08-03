@@ -1097,6 +1097,130 @@ ipcMain.handle('remove-background', async (event, { imagePaths, saveMode, backgr
   return outcomes;
 });
 
+// How far either side of an image to look for a frame to borrow pixels from.
+// Neighbours are offered nearest-first; the worker stops at the first one that
+// is the same shot and has no lettering of its own.
+const REF_RADIUS = 3;
+
+function neighboursOf(target, ordered) {
+  const at = ordered.indexOf(target);
+  if (at < 0) return [];
+  const out = [];
+  for (let d = 1; d <= REF_RADIUS; d++) {
+    if (ordered[at + d]) out.push(ordered[at + d]);
+    if (ordered[at - d]) out.push(ordered[at - d]);
+  }
+  return out;
+}
+
+function runRemoveSubs({ jobs, area, fill, progressChannel, onDone }) {
+  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = resourcePath('remove_subs.py');
+
+  return new Promise((resolve, reject) => {
+    const py = spawn(pyCmd, [scriptPath]);
+    py.stdin.write(JSON.stringify({ jobs, area, fill }));
+    py.stdin.end();
+
+    let buf = '';
+    py.stdout.on('data', (data) => {
+      const lines = (buf + data.toString()).split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (progressChannel) {
+            if (msg.status   !== undefined) mainWindow?.webContents.send(progressChannel, { type: 'status',   text: msg.status });
+            if (msg.scanning !== undefined) mainWindow?.webContents.send(progressChannel, { type: 'scanning', path: msg.scanning });
+            if (msg.done     !== undefined) mainWindow?.webContents.send(progressChannel, { type: 'done',     path: msg.done, ok: msg.ok });
+          }
+          // Only a file that actually had subtitles was written.
+          if (msg.done !== undefined && msg.ok && msg.changed) onDone?.(msg.done);
+          if (msg.summary) resolve(msg.summary);
+          if (msg.error)   reject(new Error(msg.error));
+        } catch {}
+      }
+    });
+
+    py.stderr.on('data', d => console.error('[remove_subs]', d.toString()));
+    py.on('close', code => { if (code !== 0) reject(new Error(`remove_subs.py exited with code ${code}`)); });
+  });
+}
+
+// Subtitle removal never needs an alpha channel, so the source format always
+// survives; only formats a canvas/PIL round trip cannot write become PNG.
+const SUBS_KEEPABLE = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+function subsOutPath(p, overwrite) {
+  const dir  = path.dirname(p);
+  const ext  = path.extname(p);
+  const base = path.basename(p, ext);
+  const keep = SUBS_KEEPABLE.has(ext.toLowerCase());
+  return path.join(dir, `${base}${overwrite ? '' : '_nosub'}${keep ? ext : '.png'}`);
+}
+
+ipcMain.handle('preview-subtitles', async (event, { imagePath, area, fill, orderedPaths }) => {
+  if (driveFs.isDrivePath(imagePath)) {
+    return { success: false, error: 'Subtitle removal is not available for Google Drive folders.' };
+  }
+  const out = path.join(app.getPath('temp'), `batchframe-nosub-${Date.now()}${path.extname(imagePath) || '.png'}`);
+  try {
+    const refs = neighboursOf(imagePath, Array.isArray(orderedPaths) ? orderedPaths : []);
+    const summary = await runRemoveSubs({
+      jobs: [{ in: imagePath, out, refs }], area, fill, progressChannel: null,
+    });
+    if (!summary?.written) {
+      return { success: false, error: 'No subtitles found in this image.' };
+    }
+    const data = await fs.readFile(out);
+    const ext = path.extname(out).toLowerCase();
+    const mime = ext === '.jpg' || ext === '.jpeg' ? 'jpeg' : ext === '.webp' ? 'webp' : 'png';
+    return { success: true, dataUrl: `data:image/${mime};base64,${Buffer.from(data).toString('base64')}` };
+  } catch (error) {
+    console.error('Preview subtitles error:', error);
+    return { success: false, error: error.message };
+  } finally {
+    try { await fs.unlink(out); } catch { /* never got written */ }
+  }
+});
+
+ipcMain.handle('remove-subtitles', async (event, { imagePaths, saveMode, area, fill, orderedPaths }) => {
+  const overwrite = saveMode === 'overwrite';
+
+  if (imagePaths.some(p => driveFs.isDrivePath(p))) {
+    return { written: 0, skipped: 0, failed: 0, error: 'Subtitle removal is not available for Google Drive folders.' };
+  }
+
+  // Neighbours come from the folder's current order, not the selection: the
+  // frame that can donate pixels is usually one the user did not select.
+  const ordered = Array.isArray(orderedPaths) && orderedPaths.length ? orderedPaths : imagePaths;
+  const jobs = imagePaths.map(p => ({
+    in: p,
+    out: subsOutPath(p, overwrite),
+    refs: neighboursOf(p, ordered),
+  }));
+  const succeeded = new Set();
+
+  const outcomes = await runRemoveSubs({
+    jobs,
+    area,
+    fill,
+    progressChannel: 'sub-progress',
+    onDone: (p) => succeeded.add(p),
+  });
+
+  for (const job of jobs) {
+    if (!succeeded.has(job.in)) continue;
+    if (overwrite && path.resolve(job.in) !== path.resolve(job.out)) {
+      try { await fs.unlink(job.in); } catch { /* original already gone */ }
+      await markManifestRenamed(job.in, job.out);
+    }
+    await markManifestModified(job.out);
+  }
+
+  return outcomes;
+});
+
 ipcMain.handle('find-duplicates', async (event, { imagePaths }) => {
   const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
   const scriptPath = resourcePath('ai_duplicates.py');

@@ -1,5 +1,7 @@
+/* Above the preview modal (z-index 10000): these panels can be opened from
+   inside it, and must sit on top rather than behind it. */
 .removebg-overlay {
-  position: fixed; inset: 0; z-index: 1000;
+  position: fixed; inset: 0; z-index: 10050;
   background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
 }

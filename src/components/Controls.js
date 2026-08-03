@@ -139,6 +139,7 @@ function Controls({
   onFindSource,
   onCluster,
   onShuffle,
+  onRemoveBackground,
   activeAiAction,
   customOrderActive,
   onClearOrder,
@@ -162,9 +163,9 @@ function Controls({
   const [showAIScan, setShowAIScan] = useState(false);
   const [showAIMenu, setShowAIMenu] = useState(false);
   // Keyboard-driven AI menu navigation. -1 = no keyboard focus.
-  // Order matches the sub-buttons rendered below: 0=Scan, 1=Dupes, 2=Source, 3=Cluster, 4=Shuffle.
+  // Order matches the sub-buttons rendered below: 0=Scan, 1=Dupes, 2=Source, 3=Cluster, 4=Remove BG, 5=Shuffle.
   const [aiKbFocus, setAiKbFocus] = useState(-1);
-  const AI_ITEMS_COUNT = 5;
+  const AI_ITEMS_COUNT = 6;
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -275,7 +276,8 @@ function Controls({
             case 1: setShowAIScan(false); onFindDuplicates?.(); break;
             case 2: setShowAIScan(false); onFindSource?.(); break;
             case 3: setShowAIScan(false); onCluster?.(); break;
-            case 4: setShowAIScan(false); onShuffle?.(); break;
+            case 4: if (selectedCount > 0) { setShowAIScan(false); onRemoveBackground?.(); } break;
+            case 5: setShowAIScan(false); onShuffle?.(); break;
             default: break;
           }
         } else {
@@ -300,7 +302,7 @@ function Controls({
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [driveLive, showAIMenu, aiKbFocus, loading, totalCount, onFindDuplicates, onFindSource, onCluster, onShuffle]);
+  }, [driveLive, showAIMenu, aiKbFocus, loading, totalCount, selectedCount, onFindDuplicates, onFindSource, onCluster, onShuffle, onRemoveBackground]);
 
   useEffect(() => {
     if (activeAiAction && activeAiAction !== 'scan') {
@@ -720,6 +722,16 @@ function Controls({
                   </button>
                   <button
                     className={`action-btn ai-sub${aiKbFocus === 4 ? ' kb-focused' : ''}`}
+                    onClick={() => { setShowAIScan(false); onRemoveBackground(); setShowAIMenu(false); }}
+                    title="Cut the character out onto transparency — works on the selection"
+                    disabled={loading || selectedCount === 0}
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12a8 8 0 1 0-8 8" /><path d="M12 4v16" /><path d="M4 12h8" /><path d="m16 16 5 5" /><path d="m21 16-5 5" /></svg>
+                    Remove BG
+                  </button>
+                  <button
+                    className={`action-btn ai-sub${aiKbFocus === 5 ? ' kb-focused' : ''}`}
                     onClick={() => { setShowAIScan(false); onShuffle(); setShowAIMenu(false); }}
                     title="Randomize order to remove first-image bias"
                     disabled={loading || totalCount === 0}

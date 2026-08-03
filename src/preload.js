@@ -58,6 +58,10 @@ try {
     clusterImages:         (imagePaths, numClusters) => ipcRenderer.invoke('cluster-images', { imagePaths, numClusters }),
     onDetectProgress:      (cb) => ipcRenderer.on('detect-progress', (_, p) => cb(p)),
     removeDetectListeners: () => ipcRenderer.removeAllListeners('detect-progress'),
+    removeBackground:      (imagePaths, saveMode, background, quality) => ipcRenderer.invoke('remove-background', { imagePaths, saveMode, background, quality }),
+    previewBackground:     (imagePath, background, quality) => ipcRenderer.invoke('preview-background', { imagePath, background, quality }),
+    onBgProgress:          (cb) => ipcRenderer.on('bg-progress', (_, p) => cb(p)),
+    removeBgListeners:     () => ipcRenderer.removeAllListeners('bg-progress'),
 
     drive: {
       status:            () => ipcRenderer.invoke('drive-status'),

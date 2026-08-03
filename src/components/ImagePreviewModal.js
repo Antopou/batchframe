@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './ImagePreviewModal.css';
 import { boxToCropRect, ASPECT_PRESETS } from '../utils/faceCrop';
+import { encodeCanvas } from '../utils/imageFormat';
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 8;
@@ -118,6 +119,49 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
   useEffect(() => { cleanModeRef.current = cleanMode; }, [cleanMode]);
   const filmstripRef = useRef(null);
   const wasFullscreenRef = useRef(false);
+
+  // ── Cut-out preview (B) ──
+  // Runs the background remover on the current image and shows the result
+  // without writing anything; the result is cached so toggling is instant.
+  const [cutoutSrc, setCutoutSrc] = useState('');
+  const [cutoutOn, setCutoutOn] = useState(false);
+  const [cutoutBusy, setCutoutBusy] = useState(false);
+  const [cutoutError, setCutoutError] = useState('');
+  const cutoutCache = useRef(new Map());
+
+  const toggleCutout = useCallback(async () => {
+    if (!image || !window.electronAPI?.previewBackground) return;
+    if (cutoutOn) { setCutoutOn(false); return; }
+
+    const cached = cutoutCache.current.get(image.path);
+    if (cached) { setCutoutSrc(cached); setCutoutOn(true); return; }
+
+    setCutoutBusy(true);
+    setCutoutError('');
+    try {
+      const background = localStorage.getItem('removeBgBackground') || 'white';
+      const quality = localStorage.getItem('removeBgQuality') || 'fast';
+      const res = await window.electronAPI.previewBackground(image.path, background, quality);
+      if (res?.success) {
+        cutoutCache.current.set(image.path, res.dataUrl);
+        setCutoutSrc(res.dataUrl);
+        setCutoutOn(true);
+      } else {
+        setCutoutError(res?.error || 'Background removal failed');
+      }
+    } catch (err) {
+      setCutoutError(err.message);
+    } finally {
+      setCutoutBusy(false);
+    }
+  }, [image, cutoutOn]);
+
+  // Never carry one image's cut-out over to the next.
+  useEffect(() => {
+    setCutoutOn(false);
+    setCutoutSrc('');
+    setCutoutError('');
+  }, [image?.path]);
 
   const toggleCleanMode = useCallback(() => {
     setCleanMode(prev => {
@@ -608,11 +652,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
     const ctx = canvas.getContext('2d');
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, finalW, finalH);
 
-    const ext = (image.name || '').toLowerCase().split('.').pop();
-    const isJpg = ext === 'jpg' || ext === 'jpeg';
-    const dataUrl = isJpg
-      ? canvas.toDataURL('image/jpeg', 0.95)
-      : canvas.toDataURL('image/png');
+    const dataUrl = encodeCanvas(canvas, image.name);
 
     setSaving(true);
     try {
@@ -764,6 +804,11 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
         e.preventDefault();
         onToggleSelect();
         return;
+      case 'b':
+      case 'B':
+        e.preventDefault();
+        toggleCutout();
+        return;
       case '=':
       case '+':
         e.preventDefault();
@@ -780,7 +825,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
       default:
         return;
     }
-  }, [cropMode, cropAspect, applyCrop, chooseAspect, autoCropToFace, enterCrop, canCrop, onClose, onNext, onPrev, onDelete, onToggleSelect, locked, setZoom, resetZoom]);
+  }, [cropMode, cropAspect, applyCrop, chooseAspect, autoCropToFace, enterCrop, canCrop, onClose, onNext, onPrev, onDelete, onToggleSelect, toggleCutout, locked, setZoom, resetZoom]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeydown);
@@ -901,7 +946,7 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
           ) : (
             <img
               ref={imageRef}
-              src={imageSrc}
+              src={cutoutOn && cutoutSrc ? cutoutSrc : imageSrc}
               alt={image.name}
               className={`preview-image${smoothZoom && !isDragging ? ' smooth' : ''}`}
               draggable={false}
@@ -1060,6 +1105,22 @@ function ImagePreviewModal({ image, images, currentIndex, onClose, onNext, onPre
                   Crop
                 </button>
               )}
+
+              <button
+                className={`preview-crop-btn${cutoutOn ? ' active' : ''}`}
+                onClick={toggleCutout}
+                disabled={cutoutBusy}
+                title={cutoutError || (cutoutOn ? 'Show original (B)' : 'Preview without background (B)')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 12a8 8 0 1 0-8 8" />
+                  <path d="M12 4v16" />
+                  <path d="M4 12h8" />
+                  <path d="m16 16 5 5" />
+                  <path d="m21 16-5 5" />
+                </svg>
+                {cutoutBusy ? 'Cutting…' : cutoutOn ? 'Original' : 'Cut out'}
+              </button>
 
               <button
                 className={`preview-crop-btn${selected ? ' active' : ''}`}

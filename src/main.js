@@ -24,6 +24,7 @@ const driveManifest = require('./drive/manifest');
 const driveSync = require('./drive/syncEngine');
 const driveFs = require('./drive/driveFs');
 const lanServer = require('./server/lanServer');
+const { extForMime } = require('./utils/cropFormat');
 
 // Auth for live `drive://` paths. Kept as a helper so every guard reads the
 // same and sign-in problems surface as one consistent error.
@@ -582,8 +583,9 @@ ipcMain.handle('save-cropped-image', async (event, { originalPath, dataUrl }) =>
 
     const dir = path.dirname(originalPath);
     const origExt = path.extname(originalPath);
-    // PNG for lossless crops; keep jpg for jpg sources to match dataset format
-    const ext = /^\.jpe?g$/i.test(origExt) ? origExt : '.png';
+    // Name the file for what the renderer actually encoded, which is the
+    // source's own format whenever a canvas can produce it.
+    const ext = extForMime(match[1], origExt);
     const base = path.basename(originalPath, origExt);
 
     // Overwrite the original in place. When the produced format can't keep the
@@ -979,6 +981,120 @@ ipcMain.handle('detect-faces', async (event, { imagePaths }) => {
     py.stderr.on('data', d => console.error('[ai_detect]', d.toString()));
     py.on('close', code => { if (code !== 0) reject(new Error(`ai_detect.py exited with code ${code}`)); });
   });
+});
+
+// Shared driver for remove_bg.py. `progressChannel` is null for one-off preview
+// runs, which must not push events at the batch modal's progress listener.
+function runRemoveBg({ jobs, background, quality, progressChannel, onDone }) {
+  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = resourcePath('remove_bg.py');
+
+  return new Promise((resolve, reject) => {
+    const py = spawn(pyCmd, [scriptPath]);
+    py.stdin.write(JSON.stringify({ jobs, background, quality }));
+    py.stdin.end();
+
+    let buf = '';
+    py.stdout.on('data', (data) => {
+      const lines = (buf + data.toString()).split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (progressChannel) {
+            if (msg.status   !== undefined) mainWindow?.webContents.send(progressChannel, { type: 'status',   text: msg.status });
+            if (msg.scanning !== undefined) mainWindow?.webContents.send(progressChannel, { type: 'scanning', path: msg.scanning });
+            if (msg.done     !== undefined) mainWindow?.webContents.send(progressChannel, { type: 'done',     path: msg.done, ok: msg.ok });
+          }
+          if (msg.done !== undefined && msg.ok) onDone?.(msg.done);
+          if (msg.summary) resolve(msg.summary);
+          if (msg.error)   reject(new Error(msg.error));
+        } catch {}
+      }
+    });
+
+    py.stderr.on('data', d => console.error('[remove_bg]', d.toString()));
+    py.on('close', code => { if (code !== 0) reject(new Error(`remove_bg.py exited with code ${code}`)); });
+  });
+}
+
+// One-off cut-out for the preview modal's toggle: renders to a temp file,
+// hands back a data URL and leaves the user's folder untouched.
+ipcMain.handle('preview-background', async (event, { imagePath, background, quality }) => {
+  if (driveFs.isDrivePath(imagePath)) {
+    return { success: false, error: 'Background removal is not available for Google Drive folders.' };
+  }
+  const out = path.join(app.getPath('temp'), `batchframe-cutout-${Date.now()}.png`);
+  try {
+    await runRemoveBg({
+      jobs: [{ in: imagePath, out }],
+      background,
+      quality,
+      progressChannel: null,
+    });
+    const data = await fs.readFile(out);
+    return { success: true, dataUrl: `data:image/png;base64,${Buffer.from(data).toString('base64')}` };
+  } catch (error) {
+    console.error('Preview background error:', error);
+    return { success: false, error: error.message };
+  } finally {
+    try { await fs.unlink(out); } catch { /* never got written */ }
+  }
+});
+
+ipcMain.handle('remove-background', async (event, { imagePaths, saveMode, background, quality }) => {
+  const overwrite = saveMode === 'overwrite';
+
+  // Python reads and writes the files directly, so Drive-backed paths (which
+  // only exist behind driveFs) can't be handled here.
+  if (imagePaths.some(p => driveFs.isDrivePath(p))) {
+    return { written: 0, failed: 0, error: 'Background removal is not available for Google Drive folders.' };
+  }
+
+  // Keep the source's format: a cut-out from a .jpg should come back a .jpg.
+  // The one thing that forces a change is transparency — a transparent cut-out
+  // needs an alpha channel, which JPEG has no room for. On a white background
+  // there is nothing to preserve, so every format is fair game.
+  const transparent = background !== 'white';
+  const KEEPABLE = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+  const HOLDS_ALPHA = new Set(['.png', '.webp']);
+
+  const jobs = imagePaths.map(p => {
+    const dir  = path.dirname(p);
+    const ext  = path.extname(p);
+    const low  = ext.toLowerCase();
+    const keep = KEEPABLE.has(low) && (!transparent || HOLDS_ALPHA.has(low));
+    const base = path.basename(p, ext);
+    return { in: p, out: path.join(dir, `${base}${overwrite ? '' : '_cutout'}${keep ? ext : '.png'}`) };
+  });
+
+  // Only files Python reports as actually written get cleaned up after — a
+  // pre-existing _cutout.png from an earlier run must not be mistaken for one
+  // this run produced.
+  const succeeded = new Set();
+
+  const outcomes = await runRemoveBg({
+    jobs,
+    background,
+    quality,
+    progressChannel: 'bg-progress',
+    onDone: (p) => succeeded.add(p),
+  });
+
+  // The renamed/modified bookkeeping mirrors save-cropped-image: in overwrite
+  // mode a non-PNG source has been superseded by the .png next to it, so the
+  // original file has to go and the manifest has to learn the new name.
+  for (const job of jobs) {
+    if (!succeeded.has(job.in)) continue;
+    if (overwrite && path.resolve(job.in) !== path.resolve(job.out)) {
+      try { await fs.unlink(job.in); } catch { /* original already gone */ }
+      await markManifestRenamed(job.in, job.out);
+    }
+    await markManifestModified(job.out);
+  }
+
+  return outcomes;
 });
 
 ipcMain.handle('find-duplicates', async (event, { imagePaths }) => {

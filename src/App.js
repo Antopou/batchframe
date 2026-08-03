@@ -11,12 +11,14 @@ import MetadataModal from './components/MetadataModal';
 import TextPreviewModal from './components/TextPreviewModal';
 import RenameModal from './components/RenameModal';
 import AutoCropModal from './components/AutoCropModal';
+import RemoveBgModal from './components/RemoveBgModal';
 
 import DriveButton from './components/DriveButton';
 import DriveDestinationPicker from './components/DriveDestinationPicker';
 import LocalDestinationPicker from './components/LocalDestinationPicker';
 import RemoteButton from './components/RemoteButton';
 import { boxToCropRect } from './utils/faceCrop';
+import { encodeCanvas } from './utils/imageFormat';
 
 const LAST_FOLDER_KEY = 'batchframe-last-folder';
 const CONFIRM_REQUIRED_KEY = 'batchframe-confirm-required';
@@ -189,6 +191,10 @@ function App() {
   const [autoCropRunning, setAutoCropRunning]   = useState(false);
   const [autoCropProgress, setAutoCropProgress] = useState({ current: 0, total: 0, text: '' });
   const [autoCropResult, setAutoCropResult]     = useState(null); // { cropped, skipped, failed, error } | null
+  const [removeBgModal, setRemoveBgModal]       = useState(null); // { paths: [...] } | null
+  const [removeBgRunning, setRemoveBgRunning]   = useState(false);
+  const [removeBgProgress, setRemoveBgProgress] = useState({ current: 0, total: 0, text: '' });
+  const [removeBgResult, setRemoveBgResult]     = useState(null); // { written, failed, error } | null
 
   // Copy state
   const [isCopying, setIsCopying]       = useState(false);
@@ -1249,8 +1255,14 @@ function App() {
   const handleOpenInPhotoshop = useCallback(() => {
     if (isDriveLive) return; // Photoshop would edit a temp copy, not Drive
     if (!photoshopPath || selectedImages.size === 0) return;
-    window.electronAPI.openInApp([...selectedImages], photoshopPath);
-  }, [photoshopPath, selectedImages, isDriveLive]);
+    // A Set iterates in click order, so shift-selecting 1→10 from an anchor at 10
+    // would hand Photoshop 10, 1, 2… Send them in the order the grid shows
+    // instead, so the current sort (name / date / size / custom) is what opens.
+    const ordered = [...selectedImages].sort((a, b) => (
+      (pathToIndex.get(a) ?? Infinity) - (pathToIndex.get(b) ?? Infinity)
+    ));
+    window.electronAPI.openInApp(ordered, photoshopPath);
+  }, [photoshopPath, selectedImages, isDriveLive, pathToIndex]);
 
   // ── Move selected to folder ────────────────────────────────────
   const performMoveToDest = useCallback(async (dest) => {
@@ -1410,8 +1422,7 @@ function App() {
     canvas.width = sw;
     canvas.height = sh;
     canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-    const isJpg = ext === 'jpg' || ext === 'jpeg';
-    return isJpg ? canvas.toDataURL('image/jpeg', 0.95) : canvas.toDataURL('image/png');
+    return encodeCanvas(canvas, name);
   }, []);
 
   const handleAutoCropFace = useCallback(async (ratio) => {
@@ -1470,6 +1481,55 @@ function App() {
     setAutoCropResult(null);
     setAutoCropProgress({ current: 0, total: 0, text: '' });
   }, [autoCropRunning]);
+
+  // ── Batch background removal (character cut-out) ───────────────
+  // Same selection rules as auto-crop: the whole selection when the clicked
+  // image is part of a multi-selection, otherwise just that one image.
+  const handleOpenRemoveBg = useCallback((image) => {
+    const isSelected = image && selectedImages.has(image.path);
+    const base = isSelected && selectedImages.size > 1 ? [...selectedImages] : (image ? [image.path] : [...selectedImages]);
+    const paths = base.filter(p => !lockedImages.has(p));
+    if (paths.length === 0) return;
+    setRemoveBgResult(null);
+    setRemoveBgProgress({ current: 0, total: 0, text: '' });
+    setRemoveBgModal({ paths });
+  }, [selectedImages, lockedImages]);
+
+  // Unlike auto-crop there is no JS-side pixel phase: Python holds the RGBA
+  // result already and writes the PNG itself, so this is a single await.
+  const handleRemoveBg = useCallback(async (saveMode, background, quality) => {
+    const paths = removeBgModal?.paths || [];
+    if (paths.length === 0 || !window.electronAPI?.removeBackground) return;
+    setRemoveBgRunning(true);
+    setRemoveBgResult(null);
+
+    let processed = 0;
+    setRemoveBgProgress({ current: 0, total: paths.length, text: 'Loading model…' });
+    window.electronAPI.onBgProgress?.((p) => {
+      if (p.type === 'status') setRemoveBgProgress(prev => ({ ...prev, text: p.text }));
+      else if (p.type === 'done') setRemoveBgProgress(prev => ({ ...prev, current: ++processed }));
+    });
+
+    try {
+      const summary = await window.electronAPI.removeBackground(paths, saveMode, background, quality);
+      setRemoveBgResult({ written: summary?.written || 0, failed: summary?.failed || 0, error: summary?.error });
+    } catch (err) {
+      setRemoveBgResult({ written: 0, failed: paths.length, error: err.message });
+    } finally {
+      window.electronAPI.removeBgListeners?.();
+      setRemoveBgRunning(false);
+    }
+
+    setSelectedImages(new Set());
+    if (folderPath) await loadElectronFolder(folderPath, false);
+  }, [removeBgModal, folderPath, loadElectronFolder]);
+
+  const handleCloseRemoveBg = useCallback(() => {
+    if (removeBgRunning) return;
+    setRemoveBgModal(null);
+    setRemoveBgResult(null);
+    setRemoveBgProgress({ current: 0, total: 0, text: '' });
+  }, [removeBgRunning]);
 
   // ── Invert selection (across all filtered images) ─────────────
   const handleInvertSelection = useCallback(() => {
@@ -2201,7 +2261,7 @@ function App() {
       if (previewImage) return;
 
       // Other modals also own the keyboard
-      if (confirmDialog || renameModal || autoCropModal || metadataModal || drivePickAction || textModal) return;
+      if (confirmDialog || renameModal || autoCropModal || removeBgModal || metadataModal || drivePickAction || textModal) return;
 
       if (e.key === 'Escape') {
 
@@ -2483,7 +2543,7 @@ function App() {
       window.removeEventListener('wheel', cancelAnim);
       cancelAnim();
     };
-  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode, selectedFolders, handleOpenLastFolder, handleNavigateToFolder, handleNavigateUp, handleNavigateForward, handleOpenPreview, confirmDialog, renameModal, autoCropModal, metadataModal]);
+  }, [handleDeleteSelected, handleKeepSelected, handleLockSelected, handleUnlockSelected, handleDeselectAll, handleSelectAll, handleNavigateFolder, handleCopySelected, handleMoveSelected, handleOpenBulkRename, handleUseSelectedAsRefs, handleOpenInPhotoshop, handleInvertSelection, selectedImages, previewImage, viewMode, selectedFolders, handleOpenLastFolder, handleNavigateToFolder, handleNavigateUp, handleNavigateForward, handleOpenPreview, confirmDialog, renameModal, autoCropModal, removeBgModal, metadataModal]);
 
   // ── Ctrl+Wheel zoom ─────────────────────────────────────────────
   useEffect(() => {
@@ -2626,6 +2686,13 @@ function App() {
         icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>,
         onClick: () => handleOpenAutoCrop(image),
       },
+      {
+        label: (isSelected && selectedImages.size > 1)
+          ? `Remove background from ${selectedImages.size}`
+          : 'Remove background',
+        icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12a8 8 0 1 0-8 8"/><path d="M12 4v16"/><path d="M4 12h8"/><path d="m16 16 5 5"/><path d="m21 16-5 5"/></svg>,
+        onClick: () => handleOpenRemoveBg(image),
+      },
       { separator: true },
       {
         label: isSelected ? 'Deselect' : 'Select',
@@ -2762,6 +2829,7 @@ function App() {
         onFindSource={handleFindSource}
         onCluster={handleCluster}
         onShuffle={handleShuffle}
+        onRemoveBackground={() => handleOpenRemoveBg(null)}
         activeAiAction={activeAiAction}
         customOrderActive={!!customOrder}
         onClearOrder={() => { setCustomOrder(null); setClusterAssignments(null); }}
@@ -2937,6 +3005,17 @@ function App() {
           result={autoCropResult}
           onRun={handleAutoCropFace}
           onClose={handleCloseAutoCrop}
+        />
+      )}
+
+      {removeBgModal && (
+        <RemoveBgModal
+          count={removeBgModal.paths.length}
+          running={removeBgRunning}
+          progress={removeBgProgress}
+          result={removeBgResult}
+          onRun={handleRemoveBg}
+          onClose={handleCloseRemoveBg}
         />
       )}
       {drivePickAction && (

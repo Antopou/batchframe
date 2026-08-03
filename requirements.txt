@@ -3,6 +3,13 @@
 
 # Primary engine: anime character-identity matching (CCIP) + anime face/head
 # detection. ONNX-based; models auto-download from HuggingFace on first run.
+#
+# Also covers background removal (remove_bg.py) without any extra package.
+# imgutils' own isnetis anime segmenter is the primary engine there, and the
+# onnxruntime / huggingface_hub / numpy / scipy / Pillow it pulls in are enough
+# to run the two support models, both fetched from HuggingFace on first use:
+# RMBG-1.4 for the tight close-ups isnetis gives up on, and BiRefNet for the
+# optional "Best" quality mode.
 dghs-imgutils
 
 # Offline fallback engine: whole-image CLIP embedding. Used only if imgutils /

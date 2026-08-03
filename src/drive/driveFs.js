@@ -15,6 +15,7 @@ const path = require('path');
 const { app, net } = require('electron');
 const driveApi = require('./driveApi');
 const { runPool } = require('./syncEngine');
+const { extForMime } = require('../utils/cropFormat');
 
 const SCHEME = 'drive://';
 const LISTING_TTL_MS = 8000;
@@ -496,9 +497,10 @@ async function saveCroppedImage(auth, { originalPath, dataUrl }) {
     const fileId = driveId(originalPath);
     const meta = await metaFor(auth, fileId);
     const origExt = path.extname(meta.name || '');
-    const keepJpg = /^\.jpe?g$/i.test(origExt);
-    const ext = keepJpg ? origExt : '.png';
-    const mimeType = keepJpg ? 'image/jpeg' : 'image/png';
+    // Follow the format the renderer produced rather than forcing PNG, so a
+    // cropped .webp stays a .webp instead of being replaced by a larger file.
+    const ext = extForMime(match[1], origExt);
+    const mimeType = `image/${match[1].toLowerCase()}`;
     const base = path.basename(meta.name || 'image', origExt);
     const newName = `${base}${ext}`;
 

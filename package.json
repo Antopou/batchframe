@@ -73,6 +73,7 @@
       "remove_subs.py",
       "find_source.py",
       "cluster_images.py",
+      "ai_similar.py",
       "requirements.txt",
       {
         "from": ".env",

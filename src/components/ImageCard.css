@@ -376,6 +376,36 @@
   font-weight: 500;
 }
 
+/* ── Similarity badge (AI ▸ Similar) ──
+   Top-LEFT on purpose: the overlay row (checkbox, cluster chip, order number)
+   and the AI scan badge all live top-right. */
+.similar-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+  padding: 2px 5px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.similar-badge.similar-close {
+  background: rgba(24, 92, 150, 0.85);
+  color: #8fd4ff;
+  border-color: rgba(120, 200, 255, 0.35);
+}
+.similar-badge.similar-ref {
+  background: rgba(210, 150, 20, 0.9);
+  color: #fff6e0;
+  border-color: rgba(255, 210, 120, 0.45);
+  letter-spacing: 0.4px;
+}
+
 /* ── Dimension badge ── */
 .dimension-badge {
   position: absolute;

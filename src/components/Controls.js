@@ -117,6 +117,7 @@ function Controls({
   searchQuery,
   onSearchQueryChange,
   filteredCount,
+  unfilteredCount,
   onMoveSelected,
   isMoving,
   onCopySelected,
@@ -136,6 +137,7 @@ function Controls({
   scanStatus,
   onAIScan,
   onFindDuplicates,
+  onFindSimilar,
   onFindSource,
   onCluster,
   onShuffle,
@@ -165,9 +167,10 @@ function Controls({
   const [showAIMenu, setShowAIMenu] = useState(false);
   // Keyboard-driven AI menu navigation. -1 = no keyboard focus.
   // Order matches the sub-buttons rendered below:
-  // 0=Scan, 1=Dupes, 2=Source, 3=Cluster, 4=Remove BG, 5=Remove Subs, 6=Shuffle.
+  // 0=Scan, 1=Dupes, 2=Source, 3=Cluster, 4=Similar, 5=Remove BG,
+  // 6=Remove Subs, 7=Shuffle.
   const [aiKbFocus, setAiKbFocus] = useState(-1);
-  const AI_ITEMS_COUNT = 7;
+  const AI_ITEMS_COUNT = 8;
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -189,12 +192,21 @@ function Controls({
     const handleKeyDown = (e) => {
       if ((e.key === 'f' || e.key === 'F') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        searchInputRef.current?.focus();
+        const input = searchInputRef.current;
+        if (!input) return;
+        // First press focuses the search box; pressing it again while already
+        // focused clears the query so it can be reset without the mouse.
+        // A disabled input can never take focus, so treat it as "already there"
+        // and let the shortcut clear a stale query instead of doing nothing.
+        if (searchQuery && (input.disabled || document.activeElement === input)) {
+          onSearchQueryChange('');
+        }
+        input.focus();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [searchQuery, onSearchQueryChange]);
 
   const handleBrowsePsPath = useCallback(async () => {
     if (!window.electronAPI?.selectFile) return;
@@ -278,9 +290,10 @@ function Controls({
             case 1: setShowAIScan(false); onFindDuplicates?.(); break;
             case 2: setShowAIScan(false); onFindSource?.(); break;
             case 3: setShowAIScan(false); onCluster?.(); break;
-            case 4: if (selectedCount > 0) { setShowAIScan(false); onRemoveBackground?.(); } break;
-            case 5: if (selectedCount > 0) { setShowAIScan(false); onRemoveSubtitles?.(); } break;
-            case 6: setShowAIScan(false); onShuffle?.(); break;
+            case 4: if (selectedCount > 0) { setShowAIScan(false); onFindSimilar?.(); } break;
+            case 5: if (selectedCount > 0) { setShowAIScan(false); onRemoveBackground?.(); } break;
+            case 6: if (selectedCount > 0) { setShowAIScan(false); onRemoveSubtitles?.(); } break;
+            case 7: setShowAIScan(false); onShuffle?.(); break;
             default: break;
           }
         } else {
@@ -305,7 +318,7 @@ function Controls({
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [driveLive, showAIMenu, aiKbFocus, loading, totalCount, selectedCount, onFindDuplicates, onFindSource, onCluster, onShuffle, onRemoveBackground, onRemoveSubtitles]);
+  }, [driveLive, showAIMenu, aiKbFocus, loading, totalCount, selectedCount, onFindDuplicates, onFindSimilar, onFindSource, onCluster, onShuffle, onRemoveBackground, onRemoveSubtitles]);
 
   useEffect(() => {
     if (activeAiAction && activeAiAction !== 'scan') {
@@ -472,14 +485,21 @@ function Controls({
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 e.stopPropagation();
-                e.target.blur();
+                if (searchQuery) {
+                  onSearchQueryChange('');
+                } else {
+                  e.target.blur();
+                }
               } else if (e.key === 'Enter') {
                 e.stopPropagation();
               }
             }}
             placeholder="Search by name…"
             className="search-input"
-            disabled={loading || totalCount === 0}
+            // totalCount is the *filtered* count, so it hits 0 as soon as a query
+            // matches nothing — disabling on it would trap the user in a query
+            // they can no longer edit. Gate on the unfiltered folder contents.
+            disabled={loading || (unfilteredCount ?? totalCount) === 0}
           />
           {searchQuery && (
             <button onClick={() => onSearchQueryChange('')} className="search-clear" title="Clear">×</button>
@@ -724,7 +744,17 @@ function Controls({
                     Cluster
                   </button>
                   <button
-                    className={`action-btn ai-sub${aiKbFocus === 4 ? ' kb-focused' : ''}`}
+                    className={`action-btn ai-sub${activeAiAction === 'similar' ? ' ai-busy' : ''}${aiKbFocus === 4 ? ' kb-focused' : ''}`}
+                    onClick={() => { setShowAIScan(false); onFindSimilar(); setShowAIMenu(false); }}
+                    title="Score every image against the selected one by colour + composition — sorts most-similar first"
+                    disabled={loading || selectedCount === 0}
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="8" height="8" rx="2" /><rect x="13" y="13" width="8" height="8" rx="2" /><path d="M11 7h4a2 2 0 0 1 2 2v2" /></svg>
+                    Similar
+                  </button>
+                  <button
+                    className={`action-btn ai-sub${aiKbFocus === 5 ? ' kb-focused' : ''}`}
                     onClick={() => { setShowAIScan(false); onRemoveBackground(); setShowAIMenu(false); }}
                     title="Cut the character out onto transparency — works on the selection"
                     disabled={loading || selectedCount === 0}
@@ -734,7 +764,7 @@ function Controls({
                     Remove BG
                   </button>
                   <button
-                    className={`action-btn ai-sub${aiKbFocus === 5 ? ' kb-focused' : ''}`}
+                    className={`action-btn ai-sub${aiKbFocus === 6 ? ' kb-focused' : ''}`}
                     onClick={() => { setShowAIScan(false); onRemoveSubtitles(); setShowAIMenu(false); }}
                     title="Paint out hardcoded subtitles — works on the selection"
                     disabled={loading || selectedCount === 0}
@@ -744,7 +774,7 @@ function Controls({
                     Remove Subs
                   </button>
                   <button
-                    className={`action-btn ai-sub${aiKbFocus === 6 ? ' kb-focused' : ''}`}
+                    className={`action-btn ai-sub${aiKbFocus === 7 ? ' kb-focused' : ''}`}
                     onClick={() => { setShowAIScan(false); onShuffle(); setShowAIMenu(false); }}
                     title="Randomize order to remove first-image bias"
                     disabled={loading || totalCount === 0}

@@ -3,7 +3,7 @@ import './ImageCard.css';
 
 const imageCache = new Map();
 
-function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardClick, onToggleLock, onDragMouseDown, onDragMouseEnter, onPreview, size, imageFitMode, orderNumber, orderSelectMode, onContextMenu, aiScore, aiCharacter, aiHit, isScanning, driveState, onDragStartImage, clusterId }) {
+function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardClick, onToggleLock, onDragMouseDown, onDragMouseEnter, onPreview, size, imageFitMode, orderNumber, orderSelectMode, onContextMenu, aiScore, aiCharacter, aiHit, isScanning, driveState, onDragStartImage, clusterId, similarScore, isSimilarRef }) {
   const [src, setSrc] = useState(image.previewSrc || '');
   const [imageError, setImageError] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -210,6 +210,16 @@ function ImageCard({ image, imageIndex, isSelected, isLocked, isAnchor, onCardCl
         <div className={`ai-score-badge${aiHit ? ' ai-hit' : ''}`} title={`AI similarity: ${(aiScore * 100).toFixed(1)}%${aiCharacter ? ` (${aiCharacter})` : ''}`}>
           {aiCharacter && <span className="ai-badge-char">{aiCharacter}</span>}
           {Math.round(aiScore * 100)}%
+        </div>
+      )}
+      {similarScore != null && (
+        <div
+          className={`similar-badge${isSimilarRef ? ' similar-ref' : ''}${similarScore >= 0.7 ? ' similar-close' : ''}`}
+          title={isSimilarRef
+            ? 'Reference image — everything else is scored against this'
+            : `${(similarScore * 100).toFixed(1)}% similar to the reference (colour + composition)`}
+        >
+          {isSimilarRef ? 'REF' : `${Math.round(similarScore * 100)}%`}
         </div>
       )}
       {displayWidth && displayHeight && (

@@ -33,6 +33,19 @@ function clamp(value) {
   return Math.max(PREVIEW_MIN, Math.min(PREVIEW_MAX, value));
 }
 
+// Default grid density. ImageGrid derives its column count from the thumbnail
+// width — floor((gridW + GAP) / (previewSize + GAP)) — so we invert that to get
+// the thumbnail size that fills a row with DEFAULT_GRID_COLS items.
+// GRID_GAP / GRID_PAD_H mirror GAP / PAD_H in ImageGrid.js.
+const DEFAULT_GRID_COLS = 10;
+const GRID_GAP = 10;
+const GRID_PAD_H = 40;
+
+function fitPreviewSize() {
+  const gridW = Math.max(320, window.innerWidth - GRID_PAD_H);
+  return clamp(Math.floor((gridW + GRID_GAP) / DEFAULT_GRID_COLS) - GRID_GAP);
+}
+
 function App() {
   const fileInputRef = useRef(null);
   const gridRef = useRef(null);
@@ -41,7 +54,23 @@ function App() {
   const [images, setImages] = useState([]);
   const [selectedImages, setSelectedImages] = useState(new Set());
   const [selectedFolders, setSelectedFolders] = useState(new Set());
-  const [previewSize, setPreviewSize] = useState(150);
+  const [previewSize, setPreviewSize] = useState(fitPreviewSize);
+  // Last size we picked automatically. While previewSize still matches it, the
+  // grid keeps re-fitting to DEFAULT_GRID_COLS as the window settles or resizes;
+  // once the user sets their own size the two diverge and we stop touching it.
+  const autoPreviewSizeRef = useRef(previewSize);
+
+  useEffect(() => {
+    if (previewSize !== autoPreviewSizeRef.current) return; // user chose a size
+    const refit = () => {
+      const next = fitPreviewSize();
+      autoPreviewSizeRef.current = next;
+      setPreviewSize(next);
+    };
+    refit(); // the window may not have its final size on first paint
+    window.addEventListener('resize', refit);
+    return () => window.removeEventListener('resize', refit);
+  }, [previewSize]);
   const [imageFitMode, setImageFitMode] = useState('contain');
   const [viewMode, setViewMode] = useState(() => {
     const v = localStorage.getItem('viewMode');
@@ -125,6 +154,17 @@ function App() {
   const [customOrder, setCustomOrder] = useState(null);
   const [clusterAssignments, setClusterAssignments] = useState(null);
 
+  // Similar (AI ▸ Similar): how closely each image matches one reference image.
+  // similarScores: { [path]: 0..1 }, similarRef: the reference image's path.
+  // Non-null only while a comparison's results are on screen.
+  const [similarScores, setSimilarScores] = useState(null);
+  const [similarRef, setSimilarRef] = useState(null);
+
+  const clearSimilar = useCallback(() => {
+    setSimilarScores(null);
+    setSimilarRef(null);
+  }, []);
+
   // Clear custom order (and cluster metadata) whenever the user changes sort.
   const sortBySignatureRef = useRef(`${sortBy}|${sortDir}`);
   useEffect(() => {
@@ -133,8 +173,9 @@ function App() {
       sortBySignatureRef.current = sig;
       setCustomOrder(null);
       setClusterAssignments(null);
+      clearSimilar();
     }
-  }, [sortBy, sortDir]);
+  }, [sortBy, sortDir, clearSimilar]);
 
   // Order-select state
   const [orderSelectMode, setOrderSelectMode] = useState(false);
@@ -219,7 +260,7 @@ function App() {
   const [aiThreshold, setAiThreshold]     = useState(0.80);
   const [scanning, setScanning]           = useState(false);
   // Which AI action is currently running, for per-button spinner outline.
-  // 'source' | 'cluster' | 'dupes' | 'scan' | null
+  // 'source' | 'cluster' | 'dupes' | 'scan' | 'similar' | null
   const [activeAiAction, setActiveAiAction] = useState(null);
   const [scanProgress, setScanProgress]   = useState({ done: 0, total: 0 });
   const [profilesVersion, setProfilesVersion] = useState(0);
@@ -1776,6 +1817,79 @@ function App() {
     }
   }, []);
 
+  // ── Similar: score every image against one reference ────────────
+  // Dupes finds near-identical copies; Cluster groups without numbers. This
+  // answers "how close does this one look to that one" — mostly palette, with
+  // a nudge from composition (see ai_similar.py). Results reorder the grid
+  // most-similar-first and put a % badge on every tile.
+  const handleFindSimilar = useCallback(async () => {
+    const current = filteredImagesRef.current || [];
+    if (current.length < 2) {
+      showNotice({ title: 'Similar', message: 'Need at least 2 images in the current view.' });
+      return;
+    }
+
+    // Reference = the selected image. With several selected we take the first
+    // in view order so the choice is predictable rather than Set-order luck.
+    const refImage = current.find(i => selectedImages.has(i.path));
+    if (!refImage) {
+      showNotice({
+        title: 'Similar',
+        message: 'Select the image you want to match against first, then run Similar.',
+      });
+      return;
+    }
+
+    const paths = current.map(i => i.path);
+
+    setScanning(true);
+    setActiveAiAction('similar');
+    setScanProgress({ done: 0, total: paths.length });
+
+    window.electronAPI.onScanProgress((data) => {
+      if (data.type === 'status') {
+        setScanStatus(data.text);
+      } else if (data.type === 'scanning') {
+        setScanStatus('');
+        setScanningPath(data.path);
+      }
+    });
+
+    try {
+      const scores = await window.electronAPI.findSimilar(refImage.path, paths);
+      if (!scores || Object.keys(scores).length === 0) {
+        showNotice({ title: 'Similar', message: 'Could not compare these images.' });
+        return;
+      }
+
+      // Most similar first; the reference itself (1.0) leads. Unreadable images
+      // get no score — park them at the end rather than dropping them.
+      const ordered = [...paths].sort((a, b) => (scores[b] ?? -1) - (scores[a] ?? -1));
+      setCustomOrder(ordered);
+      setClusterAssignments(null);
+      setSimilarScores(scores);
+      setSimilarRef(refImage.path);
+
+      const close = paths.filter(p => p !== refImage.path && (scores[p] ?? 0) >= 0.7).length;
+      showNotice({
+        title: 'Similar complete',
+        variant: 'success',
+        message: `Compared ${paths.length - 1} images against ${refImage.name}.\n`
+          + `${close} are 70%+ similar. The grid is sorted most-similar first — each tile shows its %.`,
+      });
+    } catch (err) {
+      console.error('Find similar failed:', err);
+      showNotice({ title: 'Similar failed', message: err.message, variant: 'error' });
+    } finally {
+      window.electronAPI.removeScanListeners();
+      setScanningPath(null);
+      setScanStatus('');
+      setScanning(false);
+      setScanProgress({ done: 0, total: 0 });
+      setActiveAiAction(null);
+    }
+  }, [selectedImages, showNotice]);
+
   // ── Find Source: match edited images back to their raw sources ──
   // Current folder = raws. User picks the edited folder. Script hashes
   // both, matches each edited to its nearest raw (dhash + Hamming), and
@@ -1915,6 +2029,8 @@ function App() {
     const current = filteredImagesRef.current;
     if (!current || current.length < 2) return;
 
+    clearSimilar(); // shuffling throws away the most-similar-first ordering
+
     const shuffleArr = (arr) => {
       for (let i = arr.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -1946,7 +2062,7 @@ function App() {
     shuffleArr(paths);
     setCustomOrder(paths);
     setClusterAssignments(null);
-  }, [clusterAssignments]);
+  }, [clusterAssignments, clearSimilar]);
 
   const handleAddToRefs = useCallback(async (imagePaths) => {
     if (!window.electronAPI?.addToRefs || !activeCharacter) return;
@@ -2833,6 +2949,7 @@ function App() {
         onFolderPathEdit={handleFolderPathEdit}
         selectedCount={selectedImages.size + selectedFolders.size}
         totalCount={filteredImages.length + filteredSubfolders.length}
+        unfilteredCount={images.length + subfolders.length}
         lockedCount={lockedImages.size}
         onSelectAll={handleSelectAll}
         onDeselectAll={handleDeselectAll}
@@ -2899,6 +3016,7 @@ function App() {
         scanStatus={scanStatus}
         onAIScan={handleAIScan}
         onFindDuplicates={handleFindDuplicates}
+        onFindSimilar={handleFindSimilar}
         onFindSource={handleFindSource}
         onCluster={handleCluster}
         onShuffle={handleShuffle}
@@ -2906,7 +3024,7 @@ function App() {
         onRemoveSubtitles={() => handleOpenSubs(null)}
         activeAiAction={activeAiAction}
         customOrderActive={!!customOrder}
-        onClearOrder={() => { setCustomOrder(null); setClusterAssignments(null); }}
+        onClearOrder={() => { setCustomOrder(null); setClusterAssignments(null); clearSimilar(); }}
         onClearAiScores={handleClearAiScores}
         profilesVersion={profilesVersion}
         onClearRefs={handleClearRefs}
@@ -2973,6 +3091,8 @@ function App() {
         onFolderContextMenu={handleFolderContextMenu}
         aiScores={aiScores}
         aiThreshold={aiThreshold}
+        similarScores={similarScores}
+        similarRef={similarRef}
         scanningPath={scanningPath}
         driveStatesByPath={driveStatesByPath}
         viewMode={viewMode}

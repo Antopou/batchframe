@@ -1253,6 +1253,36 @@ ipcMain.handle('find-duplicates', async (event, { imagePaths }) => {
   });
 });
 
+ipcMain.handle('find-similar', async (event, { referencePath, imagePaths }) => {
+  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = resourcePath('ai_similar.py');
+
+  return new Promise((resolve, reject) => {
+    const py = spawn(pyCmd, [scriptPath]);
+    py.stdin.write(JSON.stringify({ referencePath, imagePaths }));
+    py.stdin.end();
+
+    let buf = '';
+    py.stdout.on('data', (data) => {
+      const lines = (buf + data.toString()).split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (msg.status   !== undefined) mainWindow?.webContents.send('scan-progress', { type: 'status',   text: msg.status });
+          if (msg.scanning !== undefined) mainWindow?.webContents.send('scan-progress', { type: 'scanning', path: msg.scanning });
+          if (msg.scores)  resolve(msg.scores);
+          if (msg.error)   reject(new Error(msg.error));
+        } catch {}
+      }
+    });
+
+    py.stderr.on('data', d => console.error('[ai_similar]', d.toString()));
+    py.on('close', code => { if (code !== 0) reject(new Error(`ai_similar.py exited with code ${code}`)); });
+  });
+});
+
 ipcMain.handle('find-source-match', async (event, { editedPaths, rawPaths, threshold }) => {
   const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
   const scriptPath = resourcePath('find_source.py');

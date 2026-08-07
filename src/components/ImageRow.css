@@ -157,6 +157,23 @@
   font-size: 10.5px;
 }
 
+/* Similarity chip (AI ▸ Similar) — blue so it reads apart from the green
+   character-scan chip above. */
+.image-row-similar {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(56, 152, 236, 0.14);
+  border: 1px solid rgba(120, 200, 255, 0.3);
+  color: #8fd4ff;
+  font-weight: 600;
+}
+.image-row-similar.is-ref {
+  background: rgba(210, 150, 20, 0.18);
+  border-color: rgba(255, 210, 120, 0.4);
+  color: #ffd88a;
+  letter-spacing: 0.4px;
+}
+
 .image-row-actions {
   display: flex; align-items: center; gap: 8px;
   flex-shrink: 0;

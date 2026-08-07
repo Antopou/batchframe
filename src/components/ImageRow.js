@@ -8,6 +8,7 @@ function ImageRow({
   onDragMouseDown, onDragMouseEnter, onPreview,
   orderNumber, orderSelectMode, onContextMenu,
   aiScore, aiCharacter, aiHit, isScanning, driveState, onDragStartImage,
+  similarScore, isSimilarRef,
   detail = 'thumb',
 }) {
   const [src, setSrc] = useState(image.previewSrc || '');
@@ -106,6 +107,14 @@ function ImageRow({
               <span className={`image-row-ai${aiHit ? ' hit' : ''}`}>
                 {aiCharacter && <span className="image-row-ai-char">{aiCharacter}</span>}
                 {Math.round(aiScore * 100)}%
+              </span>
+            )}
+            {similarScore != null && (
+              <span
+                className={`image-row-similar${isSimilarRef ? ' is-ref' : ''}`}
+                title={isSimilarRef ? 'Reference image' : 'Similarity to the reference'}
+              >
+                {isSimilarRef ? 'REF' : `${Math.round(similarScore * 100)}% similar`}
               </span>
             )}
           </div>

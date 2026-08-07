@@ -33,6 +33,8 @@ const ImageGrid = forwardRef(function ImageGrid({
   onFolderContextMenu,
   aiScores,
   aiThreshold,
+  similarScores,
+  similarRef,
   scanningPath,
   driveStatesByPath,
   viewMode = 'grid',
@@ -52,7 +54,11 @@ const ImageGrid = forwardRef(function ImageGrid({
 }, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(0);
-  const [gridW, setGridW] = useState(0);
+  // Seed from the window instead of 0: at 0 the column math below yields a
+  // single full-width column, so the first frame paints one giant thumbnail
+  // per row before the real measurement snaps it back. The window width is a
+  // close enough stand-in (off by a scrollbar at most) that nothing jumps.
+  const [gridW, setGridW] = useState(() => Math.max(320, window.innerWidth - PAD_H));
   const viewportRef = useRef(null);
   const scrollRaf = useRef(null);
   const [anchorIndex, setAnchorIndex] = useState(null);
@@ -182,7 +188,9 @@ const ImageGrid = forwardRef(function ImageGrid({
     if (!vp) return;
     const measure = () => {
       setViewportH(vp.clientHeight);
-      setGridW(vp.clientWidth - PAD_H);
+      // A hidden or not-yet-laid-out viewport reports 0 — keep the last good
+      // width rather than collapsing the grid to one column.
+      if (vp.clientWidth > 0) setGridW(vp.clientWidth - PAD_H);
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -347,6 +355,8 @@ const ImageGrid = forwardRef(function ImageGrid({
       isScanning: image.path === scanningPath,
       driveState: driveStatesByPath?.[image.path] || null,
       clusterId: clusterAssignments ? clusterAssignments[image.path] : null,
+      similarScore: similarScores ? similarScores[image.path] ?? null : null,
+      isSimilarRef: similarRef != null && image.path === similarRef,
     };
 
     const isCursor = cursorIndex !== undefined && cursorIndex !== null && imageIndex === (cursorIndex - folderCount);

@@ -97,9 +97,16 @@
 }
 
 .filmstrip-thumb {
+  /* Fixed height, width follows the image's own ratio so portrait and square
+     thumbs aren't cropped into a landscape box. */
   flex: 0 0 auto;
   height: 52px;
-  width: 92px;
+  width: auto;
+  min-width: 32px;
+  max-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(0, 0, 0, 0.5);
   border: 2px solid transparent;
   border-radius: 8px;
@@ -123,13 +130,15 @@
 }
 
 .filmstrip-thumb img {
-  width: 100%;
+  display: block;
+  width: auto;
   height: 100%;
-  object-fit: cover;
+  max-width: 116px;
+  object-fit: contain;
 }
 
 .filmstrip-placeholder {
-  width: 100%;
+  width: 88px;
   height: 100%;
 }
 

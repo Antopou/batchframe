@@ -1416,7 +1416,7 @@ ipcMain.handle('save-text-file', async (event, filePath, text) => {
 //   prod → <dir containing the app executable>/drive-cache/
 function driveCacheBaseDir() {
   const base = app.getPath('home');
-  return path.join(base, 'Drive');
+  return path.join(base, 'Drives');
 }
 
 ipcMain.handle('drive-status', async () => {

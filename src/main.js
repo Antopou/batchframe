@@ -18,6 +18,51 @@ function resourcePath(name) {
     : path.join(process.resourcesPath, name);
 }
 
+// Every Python side-car is spawned through here. Two things go wrong often
+// enough to be worth centralising: an interpreter that dies before it drains
+// stdin (missing deps, or macOS's Xcode-licence stub) turns our write into an
+// EPIPE, which Node escalates to an uncaught exception that kills the whole
+// main process; and a bare exit code tells the user nothing about which of
+// those it was. Pipe errors are swallowed and the diagnosis is deferred to
+// py.failure(code), built from whatever the child managed to print.
+function spawnPython(scriptName, payload) {
+  const pyCmd = process.platform === 'win32' ? 'python' : 'python3';
+  const py = spawn(pyCmd, [resourcePath(scriptName)]);
+
+  let stderr = '';
+  let spawnError = null;
+
+  py.stderr.on('data', (d) => {
+    const text = d.toString();
+    stderr += text;
+    console.error(`[${scriptName}]`, text);
+  });
+  // Both fire before 'close'; the site's close handler does the rejecting.
+  py.on('error', (err) => { spawnError = err; });
+  py.stdin.on('error', () => {});
+
+  py.stdin.write(JSON.stringify(payload));
+  py.stdin.end();
+
+  py.failure = (code) => new Error(pythonFailure(scriptName, code, stderr, spawnError));
+  return py;
+}
+
+function pythonFailure(scriptName, code, stderr, spawnError) {
+  if (spawnError?.code === 'ENOENT') {
+    return 'Python 3 was not found. Install Python 3, then install this app\'s dependencies with: python3 -m pip install --user -r requirements.txt';
+  }
+  if (/xcodebuild -license|Xcode license/i.test(stderr)) {
+    return 'macOS\'s built-in python3 is locked behind the Xcode licence. Run "sudo xcodebuild -license" in a Terminal and accept it, or install Python 3 from python.org, then try again.';
+  }
+  const missing = stderr.match(/ModuleNotFoundError: No module named '([^']+)'/);
+  if (missing) {
+    return `Python is missing the "${missing[1]}" package. Install the dependencies with: python3 -m pip install --user -r requirements.txt`;
+  }
+  const tail = stderr.trim().split('\n').filter(Boolean).slice(-2).join(' ');
+  return `${scriptName} exited with code ${code}${tail ? ` — ${tail}` : ''}`;
+}
+
 const driveOauth = require('./drive/oauthClient');
 const driveApi = require('./drive/driveApi');
 const driveManifest = require('./drive/manifest');
@@ -922,13 +967,8 @@ ipcMain.handle('clear-refs', async (_, character) => {
 });
 
 ipcMain.handle('scan-character', async (event, { imagePaths, characters, clipGate }) => {
-  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = resourcePath('ai_scan.py');
-
   return new Promise((resolve, reject) => {
-    const py = spawn(pyCmd, [scriptPath]);
-    py.stdin.write(JSON.stringify({ imagePaths, characters, clipGate }));
-    py.stdin.end();
+    const py = spawnPython('ai_scan.py', { imagePaths, characters, clipGate });
 
     let buf = '';
     py.stdout.on('data', (data) => {
@@ -947,19 +987,13 @@ ipcMain.handle('scan-character', async (event, { imagePaths, characters, clipGat
       }
     });
 
-    py.stderr.on('data', d => console.error('[ai_scan]', d.toString()));
-    py.on('close', code => { if (code !== 0) reject(new Error(`ai_scan.py exited with code ${code}`)); });
+    py.on('close', code => { if (code !== 0) reject(py.failure(code)); });
   });
 });
 
 ipcMain.handle('detect-faces', async (event, { imagePaths }) => {
-  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = resourcePath('ai_detect.py');
-
   return new Promise((resolve, reject) => {
-    const py = spawn(pyCmd, [scriptPath]);
-    py.stdin.write(JSON.stringify({ imagePaths }));
-    py.stdin.end();
+    const py = spawnPython('ai_detect.py', { imagePaths });
 
     let buf = '';
     py.stdout.on('data', (data) => {
@@ -978,21 +1012,15 @@ ipcMain.handle('detect-faces', async (event, { imagePaths }) => {
       }
     });
 
-    py.stderr.on('data', d => console.error('[ai_detect]', d.toString()));
-    py.on('close', code => { if (code !== 0) reject(new Error(`ai_detect.py exited with code ${code}`)); });
+    py.on('close', code => { if (code !== 0) reject(py.failure(code)); });
   });
 });
 
 // Shared driver for remove_bg.py. `progressChannel` is null for one-off preview
 // runs, which must not push events at the batch modal's progress listener.
 function runRemoveBg({ jobs, background, quality, progressChannel, onDone }) {
-  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = resourcePath('remove_bg.py');
-
   return new Promise((resolve, reject) => {
-    const py = spawn(pyCmd, [scriptPath]);
-    py.stdin.write(JSON.stringify({ jobs, background, quality }));
-    py.stdin.end();
+    const py = spawnPython('remove_bg.py', { jobs, background, quality });
 
     let buf = '';
     py.stdout.on('data', (data) => {
@@ -1014,8 +1042,7 @@ function runRemoveBg({ jobs, background, quality, progressChannel, onDone }) {
       }
     });
 
-    py.stderr.on('data', d => console.error('[remove_bg]', d.toString()));
-    py.on('close', code => { if (code !== 0) reject(new Error(`remove_bg.py exited with code ${code}`)); });
+    py.on('close', code => { if (code !== 0) reject(py.failure(code)); });
   });
 }
 
@@ -1114,13 +1141,8 @@ function neighboursOf(target, ordered) {
 }
 
 function runRemoveSubs({ jobs, area, fill, progressChannel, onDone }) {
-  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = resourcePath('remove_subs.py');
-
   return new Promise((resolve, reject) => {
-    const py = spawn(pyCmd, [scriptPath]);
-    py.stdin.write(JSON.stringify({ jobs, area, fill }));
-    py.stdin.end();
+    const py = spawnPython('remove_subs.py', { jobs, area, fill });
 
     let buf = '';
     py.stdout.on('data', (data) => {
@@ -1143,8 +1165,7 @@ function runRemoveSubs({ jobs, area, fill, progressChannel, onDone }) {
       }
     });
 
-    py.stderr.on('data', d => console.error('[remove_subs]', d.toString()));
-    py.on('close', code => { if (code !== 0) reject(new Error(`remove_subs.py exited with code ${code}`)); });
+    py.on('close', code => { if (code !== 0) reject(py.failure(code)); });
   });
 }
 
@@ -1222,14 +1243,9 @@ ipcMain.handle('remove-subtitles', async (event, { imagePaths, saveMode, area, f
 });
 
 ipcMain.handle('find-duplicates', async (event, { imagePaths }) => {
-  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = resourcePath('ai_duplicates.py');
-
   return new Promise((resolve, reject) => {
-    const py = spawn(pyCmd, [scriptPath]);
-    // Send a threshold of 5 (Hamming distance) for strict duplicate matching
-    py.stdin.write(JSON.stringify({ imagePaths, threshold: 5 }));
-    py.stdin.end();
+    // A threshold of 5 (Hamming distance) keeps matching strict.
+    const py = spawnPython('ai_duplicates.py', { imagePaths, threshold: 5 });
 
     let buf = '';
     py.stdout.on('data', (data) => {
@@ -1248,19 +1264,13 @@ ipcMain.handle('find-duplicates', async (event, { imagePaths }) => {
       }
     });
 
-    py.stderr.on('data', d => console.error('[ai_duplicates]', d.toString()));
-    py.on('close', code => { if (code !== 0) reject(new Error(`ai_duplicates.py exited with code ${code}`)); });
+    py.on('close', code => { if (code !== 0) reject(py.failure(code)); });
   });
 });
 
 ipcMain.handle('find-similar', async (event, { referencePath, imagePaths }) => {
-  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = resourcePath('ai_similar.py');
-
   return new Promise((resolve, reject) => {
-    const py = spawn(pyCmd, [scriptPath]);
-    py.stdin.write(JSON.stringify({ referencePath, imagePaths }));
-    py.stdin.end();
+    const py = spawnPython('ai_similar.py', { referencePath, imagePaths });
 
     let buf = '';
     py.stdout.on('data', (data) => {
@@ -1278,19 +1288,13 @@ ipcMain.handle('find-similar', async (event, { referencePath, imagePaths }) => {
       }
     });
 
-    py.stderr.on('data', d => console.error('[ai_similar]', d.toString()));
-    py.on('close', code => { if (code !== 0) reject(new Error(`ai_similar.py exited with code ${code}`)); });
+    py.on('close', code => { if (code !== 0) reject(py.failure(code)); });
   });
 });
 
 ipcMain.handle('find-source-match', async (event, { editedPaths, rawPaths, threshold }) => {
-  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = resourcePath('find_source.py');
-
   return new Promise((resolve, reject) => {
-    const py = spawn(pyCmd, [scriptPath]);
-    py.stdin.write(JSON.stringify({ editedPaths, rawPaths, threshold: threshold ?? 8 }));
-    py.stdin.end();
+    const py = spawnPython('find_source.py', { editedPaths, rawPaths, threshold: threshold ?? 8 });
 
     let buf = '';
     py.stdout.on('data', (data) => {
@@ -1308,19 +1312,13 @@ ipcMain.handle('find-source-match', async (event, { editedPaths, rawPaths, thres
       }
     });
 
-    py.stderr.on('data', d => console.error('[find_source]', d.toString()));
-    py.on('close', code => { if (code !== 0) reject(new Error(`find_source.py exited with code ${code}`)); });
+    py.on('close', code => { if (code !== 0) reject(py.failure(code)); });
   });
 });
 
 ipcMain.handle('cluster-images', async (event, { imagePaths, numClusters }) => {
-  const pyCmd      = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = resourcePath('cluster_images.py');
-
   return new Promise((resolve, reject) => {
-    const py = spawn(pyCmd, [scriptPath]);
-    py.stdin.write(JSON.stringify({ imagePaths, numClusters: numClusters ?? null }));
-    py.stdin.end();
+    const py = spawnPython('cluster_images.py', { imagePaths, numClusters: numClusters ?? null });
 
     let buf = '';
     py.stdout.on('data', (data) => {
@@ -1338,8 +1336,7 @@ ipcMain.handle('cluster-images', async (event, { imagePaths, numClusters }) => {
       }
     });
 
-    py.stderr.on('data', d => console.error('[cluster_images]', d.toString()));
-    py.on('close', code => { if (code !== 0) reject(new Error(`cluster_images.py exited with code ${code}`)); });
+    py.on('close', code => { if (code !== 0) reject(py.failure(code)); });
   });
 });
 

@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './DriveFolderPicker.css';
 import ContextMenu from './ContextMenu';
 
-// Destination picker for move/copy of local files. Mirrors DriveFolderPicker's
+// Destination picker for move/copy of local files, and for downloads out of a
+// live Drive folder. Mirrors DriveFolderPicker's
 // open-panel look: `~ / <last dirs> ❯` prompt, folder-only list, keyboard
 // navigation. Backspace at the top prepends the parent folder (from the
 // getSubfolders response) so users can walk up past the start folder.
@@ -346,10 +347,10 @@ function LocalDestinationPicker({ action, startPath, sourcePath, onSelect, onClo
               title={
                 (isSameAsSource && action !== 'open')
                   ? 'Destination equals source'
-                  : `${action === 'move' ? 'Move' : action === 'copy' ? 'Copy' : 'Open'} ${action === 'open' ? 'from' : 'into'} ${current.name} (Cmd/Ctrl + Enter)`
+                  : `${action === 'move' ? 'Move' : action === 'copy' ? 'Copy' : action === 'download' ? 'Download' : 'Open'} ${action === 'open' ? 'from' : 'into'} ${current.name} (Cmd/Ctrl + Enter)`
               }
             >
-              {action === 'move' ? '[ move here ]' : action === 'copy' ? '[ copy here ]' : '[ open folder ]'}
+              {action === 'move' ? '[ move here ]' : action === 'copy' ? '[ copy here ]' : action === 'download' ? '[ download here ]' : '[ open folder ]'}
             </button>
           </div>
         </div>

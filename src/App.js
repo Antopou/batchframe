@@ -23,6 +23,7 @@ import { encodeCanvas } from './utils/imageFormat';
 
 const LAST_FOLDER_KEY = 'batchframe-last-folder';
 const CONFIRM_REQUIRED_KEY = 'batchframe-confirm-required';
+const DOWNLOAD_FOLDER_KEY = 'batchframe-download-folder';
 const PREVIEW_MIN = 80;
 const PREVIEW_MAX = 300;
 const PREVIEW_STEP = 12;
@@ -249,6 +250,11 @@ function App() {
   const [isCopying, setIsCopying]       = useState(false);
   const [copyProgress, setCopyProgress] = useState({ current: 0, total: 0 });
 
+  // Download state (live Drive selection → a local folder)
+  const [isDownloading, setIsDownloading]         = useState(false);
+  const [downloadProgress, setDownloadProgress]   = useState({ current: 0, total: 0 });
+  const [downloadStartPath, setDownloadStartPath] = useState('');
+
   // Aspect ratio filter state
   const [aspectFilter, setAspectFilter] = useState('all');
 
@@ -357,11 +363,15 @@ function App() {
     if (window.electronAPI.onCopyProgress) {
       window.electronAPI.onCopyProgress((data) => setCopyProgress(data));
     }
+    if (window.electronAPI.onDownloadProgress) {
+      window.electronAPI.onDownloadProgress((data) => setDownloadProgress(data));
+    }
 
     return () => {
       window.electronAPI.removeDeleteListeners();
       if (window.electronAPI.removeMoveListeners) window.electronAPI.removeMoveListeners();
       if (window.electronAPI.removeCopyListeners) window.electronAPI.removeCopyListeners();
+      if (window.electronAPI.removeDownloadListeners) window.electronAPI.removeDownloadListeners();
     };
   }, []);
 
@@ -1389,6 +1399,49 @@ function App() {
     setDrivePickAction('copy');
   }, [selectedImages, selectedFolders]);
 
+  // ── Download selected (live Drive → local folder) ──────────────
+  // Locks don't apply: a download leaves the Drive files untouched.
+  const performDownloadToDest = useCallback(async (dest) => {
+    const filePaths = [...selectedImages];
+    if (filePaths.length === 0) return;
+    localStorage.setItem(DOWNLOAD_FOLDER_KEY, dest);
+    setIsDownloading(true);
+    setDownloadProgress({ current: 0, total: filePaths.length });
+    try {
+      const result = await window.electronAPI.downloadImages(filePaths, dest);
+      const count = result.downloaded.length;
+      if (result.failed.length > 0) {
+        console.error('Some downloads failed:', result.failed);
+        showNotice({
+          title: count === 0 ? 'Download failed' : 'Download incomplete',
+          message: `${count} of ${filePaths.length} downloaded to ${dest}. ${result.failed.length} failed — ${result.failed[0].error}`,
+          variant: 'error',
+        });
+      } else if (confirmRequired) {
+        showNotice({
+          title: 'Download complete',
+          message: `${count} image${count !== 1 ? 's' : ''} saved to ${dest}`,
+          variant: 'success',
+        });
+      }
+    } catch (err) {
+      console.error('Download failed:', err);
+      showNotice({ title: 'Download failed', message: err.message, variant: 'error' });
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress({ current: 0, total: 0 });
+    }
+  }, [selectedImages, confirmRequired, showNotice]);
+
+  const handleDownloadSelected = useCallback(async () => {
+    if (!window.electronAPI || !isDriveLive || selectedImages.size === 0) return;
+    // Reopen the picker where the last download went, unless that folder is gone.
+    const saved = localStorage.getItem(DOWNLOAD_FOLDER_KEY);
+    const exists = saved ? await window.electronAPI.pathExists(saved) : false;
+    setDownloadStartPath(exists ? saved : '');
+    setDrivePickAction('download');
+  }, [isDriveLive, selectedImages]);
+
   const handleDrivePickCreateFolder = useCallback(async ({ parentId, name }) => {
     try {
       const r = await window.electronAPI.drive.createFolder({ parentId, name });
@@ -1417,20 +1470,17 @@ function App() {
     const action = drivePickAction;
     setDrivePickAction(null);
     if (!action || !destPath) return;
+    if (action === 'download') {
+      await performDownloadToDest(destPath);
+      return;
+    }
     lastTargetRef.current = { base: folderPath, target: destPath };
     if (action === 'move') await performMoveToDest(destPath);
     else if (action === 'copy') await performCopyToDest(destPath);
     else if (action === 'open') {
       await loadElectronFolder(destPath, true, true);
     }
-  }, [drivePickAction, folderPath, performMoveToDest, performCopyToDest, loadElectronFolder]);
-
-  // ── Export selected paths to .txt ─────────────────────────────
-  const handleExportPaths = useCallback(async () => {
-    const paths = [...selectedImages];
-    if (paths.length === 0) return;
-    await window.electronAPI.exportPaths(paths);
-  }, [selectedImages]);
+  }, [drivePickAction, folderPath, performMoveToDest, performCopyToDest, performDownloadToDest, loadElectronFolder]);
 
   // ── Batch auto-crop to face ────────────────────────────────────
   // Open the modal for the current selection (minus locked), or a single image.
@@ -3000,8 +3050,10 @@ function App() {
         isMoving={isMoving}
         onCopySelected={handleCopySelected}
         isCopying={isCopying}
+        onDownloadSelected={handleDownloadSelected}
+        isDownloading={isDownloading}
+        selectedImageCount={selectedImages.size}
         driveLabels={driveLabelsRef.current}
-        onExportPaths={handleExportPaths}
         onInvertSelection={handleInvertSelection}
         onSelectAllFiltered={handleSelectAllFiltered}
         aspectFilter={aspectFilter}
@@ -3081,9 +3133,9 @@ function App() {
         previewSize={previewSize}
         imageFitMode={imageFitMode}
         loading={loading}
-        isDeleting={isDeleting || isMoving || isCopying}
-        deleteProgress={isCopying ? copyProgress : (isMoving ? moveProgress : deleteProgress)}
-        actionText={isCopying ? "Copying" : (isMoving ? "Moving" : "Deleting")}
+        isDeleting={isDeleting || isMoving || isCopying || isDownloading}
+        deleteProgress={isDownloading ? downloadProgress : isCopying ? copyProgress : (isMoving ? moveProgress : deleteProgress)}
+        actionText={isDownloading ? "Downloading" : isCopying ? "Copying" : (isMoving ? "Moving" : "Deleting")}
         orderedSelection={orderedSelection}
         orderSelectMode={orderSelectMode}
         onContextMenu={handleContextMenu}
@@ -3227,7 +3279,15 @@ function App() {
         />
       )}
       {drivePickAction && (
-        isDriveLive ? (
+        drivePickAction === 'download' ? (
+          <LocalDestinationPicker
+            action="download"
+            startPath={downloadStartPath}
+            sourcePath={null}
+            onSelect={handleLocalPickSelected}
+            onClose={() => setDrivePickAction(null)}
+          />
+        ) : isDriveLive ? (
           <DriveDestinationPicker
             action={drivePickAction}
             sourceFolderId={folderPath ? folderPath.replace(/^drive:\/\//, '').split('/').filter(Boolean).pop() : null}

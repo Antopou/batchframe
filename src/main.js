@@ -784,15 +784,15 @@ ipcMain.handle('copy-images', async (event, { filePaths, destFolder }) => {
   return results;
 });
 
-ipcMain.handle('export-paths', async (event, { filePaths }) => {
-  const result = await dialog.showSaveDialog(mainWindow, {
-    title: 'Export selected paths',
-    defaultPath: 'selected_images.txt',
-    filters: [{ name: 'Text files', extensions: ['txt'] }],
-  });
-  if (result.canceled || !result.filePath) return { success: false, canceled: true };
-  await fs.writeFile(result.filePath, filePaths.join('\n'), 'utf8');
-  return { success: true, filePath: result.filePath };
+// Live mode only: the selection's bytes come down from Drive into a local
+// folder (local → local is just copy-images). The destination must be an
+// absolute local path, or files would land in the process's cwd.
+ipcMain.handle('download-images', async (event, { filePaths, destFolder }) => {
+  if (!path.isAbsolute(destFolder || '') || !filePaths.every(driveFs.isDrivePath)) {
+    return { success: false, downloaded: [], failed: filePaths.map((p) => ({ src: p, error: 'Download takes Drive files into a local folder' })) };
+  }
+  return driveFs.downloadImages(await liveAuth(), { filePaths, destFolder },
+    (p) => event.sender.send('download-progress', p));
 });
 
 // ── Folder watcher (auto-reload on external changes, e.g. Photoshop save) ──

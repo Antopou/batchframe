@@ -122,7 +122,9 @@ function Controls({
   isMoving,
   onCopySelected,
   isCopying,
-  onExportPaths,
+  onDownloadSelected,
+  isDownloading,
+  selectedImageCount,
   onInvertSelection,
   onSelectAllFiltered,
   aspectFilter,
@@ -513,8 +515,13 @@ function Controls({
 
         <div className="selection-stats">
           <div className="button-group mini">
-            {selectedCount > 0 && !browserMode && (
-              <button onClick={onExportPaths} className="icon-btn-modern sm" disabled={loading} title={`Export ${selectedCount} paths to .txt`}>
+            {selectedImageCount > 0 && !browserMode && driveLive && (
+              <button
+                onClick={onDownloadSelected}
+                className="icon-btn-modern sm"
+                disabled={loading || isDownloading}
+                title={`Download ${selectedImageCount} image${selectedImageCount !== 1 ? 's' : ''} to a local folder`}
+              >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                 </svg>

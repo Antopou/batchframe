@@ -484,6 +484,64 @@ async function copyImages(auth, { filePaths, destFolder }, onProgress) {
   return results;
 }
 
+// Drive accepts names a local filesystem won't — '/' included — and a name
+// like '../x' must never resolve outside the chosen folder.
+function localFileName(name, fallback) {
+  const clean = String(name || '').replace(/[/\\:*?"<>|\x00-\x1f]/g, '_').replace(/[. ]+$/, '');
+  return clean || fallback;
+}
+
+// Same " (n)" suffix as a local copy, checked against the disk and against
+// names already claimed in this batch (Drive allows duplicate names in one
+// folder). The claim is recorded before the disk check so concurrent jobs
+// can't settle on the same name; keys are lowercased because macOS and
+// Windows treat "A.png" and "a.png" as one file.
+async function claimLocalPath(dir, name, reserved) {
+  const ext = path.extname(name);
+  const base = path.basename(name, ext);
+  for (let n = 0; ; n += 1) {
+    const candidate = n === 0 ? name : `${base} (${n})${ext}`;
+    const key = candidate.toLowerCase();
+    if (reserved.has(key)) continue;
+    reserved.add(key);
+    const abs = path.join(dir, candidate);
+    const taken = await fsp.access(abs).then(() => true, () => false);
+    if (!taken) return abs;
+  }
+}
+
+// download-images({ filePaths, destFolder }) → { success, downloaded, failed }
+// The one live op that brings real bytes down: each file lands in a local
+// folder under its Drive name. A revision already in the byte cache (opened
+// in the preview) is copied from there rather than fetched again.
+async function downloadImages(auth, { filePaths, destFolder }, onProgress) {
+  const results = { success: true, downloaded: [], failed: [] };
+  const reserved = new Set();
+  let done = 0;
+  await fsp.mkdir(destFolder, { recursive: true });
+  const jobs = filePaths.map((src) => async () => {
+    let dest = null;
+    try {
+      const fileId = driveId(src);
+      const meta = await metaFor(auth, fileId);
+      dest = await claimLocalPath(destFolder, localFileName(meta.name, fileId), reserved);
+      const cached = path.join(byteCacheDir(), byteCacheName(fileId, meta));
+      const fromCache = await fsp.copyFile(cached, dest).then(() => true, () => false);
+      if (!fromCache) await driveApi.downloadFile(auth, fileId, dest);
+      results.downloaded.push(dest);
+    } catch (err) {
+      // A failed transfer must not leave a truncated file in the user's folder.
+      if (dest) await fsp.unlink(dest).catch(() => {});
+      results.failed.push({ src, error: err.message });
+    }
+    done += 1;
+    onProgress?.({ current: done, total: filePaths.length });
+  });
+  await runPool(jobs, OP_CONCURRENCY);
+  if (results.failed.length > 0) results.success = false;
+  return results;
+}
+
 // save-cropped-image({ originalPath, dataUrl }) → { success, path }
 // Same format policy as the local handler: jpg stays jpg, everything else
 // becomes png. The Drive fileId survives a media update, so the path is
@@ -635,6 +693,7 @@ module.exports = {
   deleteImages,
   moveImages,
   copyImages,
+  downloadImages,
   saveCroppedImage,
   createFolder,
   renameFolder,

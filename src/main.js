@@ -449,6 +449,26 @@ ipcMain.handle('get-subfolders', async (event, folderPath) => {
   }
 });
 
+// The folders beside this one, for episode-style prev/next. Reads the real
+// parent even when this folder is the opened root — the renderer's Up stops
+// there, but stepping to the next episode shouldn't.
+ipcMain.handle('get-sibling-folders', async (event, folderPath) => {
+  if (driveFs.isDrivePath(folderPath)) {
+    return driveFs.getSiblingFolders(await liveAuth(), folderPath);
+  }
+  const parentPath = folderPath ? path.dirname(folderPath) : folderPath;
+  if (!parentPath || parentPath === folderPath) return { name: null, siblings: [] };
+  try {
+    const entries = await fs.readdir(parentPath, { withFileTypes: true });
+    const siblings = entries
+      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+      .map(e => ({ name: e.name, path: path.join(parentPath, e.name) }));
+    return { name: path.basename(folderPath), siblings };
+  } catch {
+    return { name: null, siblings: [] };
+  }
+});
+
 ipcMain.handle('create-folder', async (event, { parentPath, name }) => {
   if (driveFs.isDrivePath(parentPath)) {
     return driveFs.createFolder(await liveAuth(), { parentPath, name });

@@ -28,6 +28,7 @@ try {
     emptyTrash: (folderPath) => invoke('empty-trash', folderPath),
     getImageData: (imagePath, variant) => invoke('get-image-data', imagePath, variant),
     getSubfolders: (folderPath) => invoke('get-subfolders', folderPath),
+    getSiblingFolders: (folderPath) => invoke('get-sibling-folders', folderPath),
     getFolderPreview: (folderPath, limit) => invoke('get-folder-preview', { folderPath, limit }),
     createFolder: (parentPath, name) => invoke('create-folder', { parentPath, name }),
     renameFolder: (oldPath, newName) => invoke('rename-folder', { oldPath, newName }),

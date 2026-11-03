@@ -31,7 +31,10 @@ function RenameInput({ folder, onCommit, onCancel }) {
   );
 }
 
-function FolderThumbnail({ folder, preview, onClick, onContextMenu, size, orderNumber, orderSelectMode, isEditing, onRenameCommit, onRenameCancel, isSelected, onLongPress }) {
+// number: digits from the folder's name ("07" for an episode folder), shown in
+// place of the folder icon — or as a badge over the previews — so a run of
+// near-identical names can be told apart without counting tiles.
+function FolderThumbnail({ folder, preview, number, onClick, onContextMenu, size, orderNumber, orderSelectMode, isEditing, onRenameCommit, onRenameCancel, isSelected, onLongPress }) {
   const tiles = (preview || []).filter(p => p && p.dataUrl).slice(0, 4);
   const hasTiles = tiles.length > 0;
   
@@ -82,12 +85,17 @@ function FolderThumbnail({ folder, preview, onClick, onContextMenu, size, orderN
               <img src={p.dataUrl} alt="" loading="lazy" draggable={false} />
             </div>
           ))}
+          {number && <span className="folder-thumb-number-badge">{number}</span>}
         </div>
       ) : (
-        <div className="folder-thumb-empty">
-          <svg viewBox="0 0 24 24" width="34%" height="34%" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
-          </svg>
+        <div className={`folder-thumb-empty ${number ? 'has-number' : ''}`}>
+          {number ? (
+            <span className="folder-thumb-number">{number}</span>
+          ) : (
+            <svg viewBox="0 0 24 24" width="34%" height="34%" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+            </svg>
+          )}
         </div>
       )}
       <div className="folder-thumb-label">

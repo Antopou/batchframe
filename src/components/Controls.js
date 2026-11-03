@@ -133,6 +133,7 @@ function Controls({
   onAutoReloadChange,
   onBulkRename,
   onNavigateFolder,
+  folderNav,
   aiScores,
   scanning,
   scanProgress,
@@ -381,8 +382,11 @@ function Controls({
     };
   }, [isEditing]);
 
-  const folderName = folderLabel || (folderPath ? folderPath.replace(/\\/g, '/').split('/').pop() : '');
-  const hasNumericSuffix = !driveLive && /\d+$/.test(folderName);
+  // Prev/next episode folder. Both buttons show once either side exists, so
+  // `>` doesn't shift under the cursor when `<` appears; they stay put but
+  // inert while the next folder's lookup is in flight.
+  const showFolderNav = !!(folderNav?.prev || folderNav?.next);
+  const folderNavReady = folderNav?.forPath === folderPath;
 
   return (
     <div className="controls-modern">
@@ -399,21 +403,21 @@ function Controls({
             </button>
           )}
           {!browserMode && driveSlot}
-          {!browserMode && hasNumericSuffix && (
+          {!browserMode && showFolderNav && (
             <>
               <button
                 onClick={() => onNavigateFolder(-1)}
                 className="btn-modern secondary icon-only"
-                disabled={loading}
-                title="Previous folder (−1)"
+                disabled={loading || !folderNavReady || !folderNav.prev}
+                title={folderNav.prev ? `Previous: ${folderNav.prev.name}` : 'No previous folder'}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
               </button>
               <button
                 onClick={() => onNavigateFolder(1)}
                 className="btn-modern secondary icon-only"
-                disabled={loading}
-                title="Next folder (+1)"
+                disabled={loading || !folderNavReady || !folderNav.next}
+                title={folderNav.next ? `Next: ${folderNav.next.name}` : 'No next folder'}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
               </button>

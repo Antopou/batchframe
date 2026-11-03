@@ -41,6 +41,7 @@ const ImageGrid = forwardRef(function ImageGrid({
   listDetail = 'thumb',
   subfolders = [],
   folderPreviews,
+  folderNumbers,
   onFolderClick,
   editingFolderPath,
   onRenameCommit,
@@ -321,6 +322,7 @@ const ImageGrid = forwardRef(function ImageGrid({
           key={`folder:${f.path}`}
           folder={f}
           preview={preview}
+          number={folderNumbers?.get(f.path)}
           onClick={onFolderClick}
           onContextMenu={onFolderContextMenu}
           isEditing={editingFolderPath === f.path}
@@ -405,6 +407,7 @@ const ImageGrid = forwardRef(function ImageGrid({
               key={`folder-empty:${f.path}`}
               folder={f}
               preview={folderPreviews?.get?.(f.path) || []}
+              number={folderNumbers?.get(f.path)}
               onClick={onFolderClick}
               onContextMenu={onFolderContextMenu}
             />

@@ -83,6 +83,42 @@
   opacity: 0.55;
 }
 
+/* A numbered folder (an episode, in a run of episodes) shows its number where
+   the folder icon would be: plain neutral text, sized with the tile. */
+.folder-thumb-empty.has-number {
+  container-type: inline-size;
+  opacity: 1;
+}
+
+.folder-thumb-number {
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(18px, 19cqw, 32px);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.86);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The same number over the preview mosaic, matching the image tiles' badges. */
+.folder-thumb-number-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.65);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  z-index: 1;
+}
+
 .folder-thumb-label {
   display: flex;
   align-items: center;

@@ -119,6 +119,7 @@ Power users can navigate entirely via the keyboard (when not focused on a text i
 - **Escape** - Deselect all images
 - **Ctrl+Shift+O / Cmd+Shift+O** - Sign out of Google Drive
 - **Space / Shift+Space** - Scroll page up/down continuously
+- **Alt + ← / →** - Previous / next episode folder (same as the `<` `>` toolbar buttons): steps to the nearest sibling on the number that changes between their names, wherever it sits — `… - 07 [1080p]` → `… - 08 [1080p]`. The buttons only appear when such a folder exists, in local and Live Drive folders alike.
 - **Ctrl+Cmd+F** - Toggle window fullscreen (also in the View menu, where the platform default applies)
 
 ## Installation & Setup

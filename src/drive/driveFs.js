@@ -298,6 +298,34 @@ async function getSubfolders(auth, folderPath) {
   }
 }
 
+// get-sibling-folders → { name, siblings: [{ name, path }] }
+// The folders beside this one, for episode-style prev/next. When the parent is
+// on the path, siblings keep the hierarchical scheme. A folder opened as the
+// root has no parent there, so Drive is asked for it and the siblings come
+// back as roots of their own, like a fresh live open.
+async function getSiblingFolders(auth, folderPath) {
+  try {
+    const id = driveId(folderPath);
+    const parentPath = parentDrivePath(folderPath);
+    const parentId = parentPath
+      ? driveId(parentPath)
+      : (await metaFor(auth, id)).parents?.[0];
+    if (!parentId) return { name: null, siblings: [] };
+    const folders = (await listCached(auth, parentId))
+      .filter((f) => f.mimeType === driveApi.FOLDER_MIME);
+    return {
+      name: folders.find((f) => f.id === id)?.name ?? null,
+      siblings: folders.map((f) => ({
+        name: f.name,
+        path: parentPath ? joinDrive(parentPath, f.id) : SCHEME + f.id,
+      })),
+    };
+  } catch (err) {
+    console.error('driveFs.getSiblingFolders failed:', err);
+    return { name: null, siblings: [] };
+  }
+}
+
 // get-folder-preview → [{ name, path, dataUrl }]
 async function getFolderPreview(auth, folderPath, limit = 4) {
   try {
@@ -686,6 +714,7 @@ module.exports = {
   materialize,
   getImages,
   getSubfolders,
+  getSiblingFolders,
   getFolderPreview,
   getImageData,
   pathExists,

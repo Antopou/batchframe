@@ -20,6 +20,7 @@ import LocalDestinationPicker from './components/LocalDestinationPicker';
 import RemoteButton from './components/RemoteButton';
 import { boxToCropRect } from './utils/faceCrop';
 import { encodeCanvas } from './utils/imageFormat';
+import { findSequenceNeighbours, sequenceNumbers } from './utils/folderSequence';
 
 const LAST_FOLDER_KEY = 'batchframe-last-folder';
 const CONFIRM_REQUIRED_KEY = 'batchframe-confirm-required';
@@ -100,6 +101,10 @@ function App() {
   // Subfolder navigation state
   const [subfolders, setSubfolders] = useState([]);
   const [parentFolderPath, setParentFolderPath] = useState(null);
+  // Episode-style prev/next: { forPath, prev, next } — the nearest existing
+  // siblings on the number that varies between their names. forPath is the
+  // folder the lookup ran for, so a result never outlives its folder.
+  const [folderNeighbours, setFolderNeighbours] = useState(null);
 
   // Folder management state (context menu + inline rename)
   const [folderMenu, setFolderMenu] = useState(null);
@@ -516,6 +521,10 @@ function App() {
     return result;
   }, [sortedSubfolders, searchQuery]);
 
+  // Number shown on each folder tile ("07" for an episode folder). Worked out
+  // across every subfolder, not the filtered few, so searching can't change it.
+  const folderNumbers = useMemo(() => sequenceNumbers(subfolders), [subfolders]);
+
   // ── Search + aspect filter ──────────────────────────────────────
   const filteredImages = useMemo(() => {
     let result = sortedImages;
@@ -759,15 +768,16 @@ function App() {
     }
   }, [loadFolderPreviews]);
 
-  // Navigate to a folder from the subfolder bar and reset the grid scroll to top
+  // Navigate to a folder from the subfolder bar and reset the grid scroll to top.
+  // asRoot makes the target the opened root, as if it had been opened directly.
   const handleNavigateToFolder = useCallback(async (pathToLoad, opts = {}) => {
-    const { isBack, isForward } = opts;
+    const { isBack, isForward, asRoot } = opts;
     if (isBack) {
       setForwardHistory(prev => [...prev, folderPathRef.current]);
     } else if (!isForward) {
       setForwardHistory([]);
     }
-    await loadElectronFolder(pathToLoad, true);
+    await loadElectronFolder(pathToLoad, true, !!asRoot);
     setTimeout(() => gridRef.current?.scrollToTop(), 0);
   }, [loadElectronFolder]);
 
@@ -2127,20 +2137,31 @@ function App() {
     handleAddToRefs([...selectedImages]);
   }, [selectedImages, handleAddToRefs, isDriveLive]);
 
+  // Episode-style prev/next. Runs alongside the folder load (folderPath is set
+  // before the listing lands); a lookup overtaken by another folder is dropped.
+  useEffect(() => {
+    if (!folderPath || !window.electronAPI?.getSiblingFolders) return;
+    let cancelled = false;
+    window.electronAPI.getSiblingFolders(folderPath)
+      .then(({ name, siblings }) => findSequenceNeighbours(name, siblings))
+      .catch(() => ({ prev: null, next: null }))
+      .then((found) => {
+        if (!cancelled) setFolderNeighbours({ forPath: folderPath, ...found });
+      });
+    return () => { cancelled = true; };
+  }, [folderPath]);
+
   const handleNavigateFolder = useCallback((delta) => {
-    if (!folderPath) return;
-    const sep = folderPath.includes('\\') ? '\\' : '/';
-    const lastSep = folderPath.lastIndexOf(sep);
-    const parent = folderPath.slice(0, lastSep);
-    const name   = folderPath.slice(lastSep + 1);
-    const match  = name.match(/^(.*?)(\d+)$/);
-    if (!match) return;
-    const [, prefix, numStr] = match;
-    const next = parseInt(numStr, 10) + delta;
-    if (next < 0) return;
-    const newName = prefix + String(next).padStart(numStr.length, '0');
-    handleNavigateToFolder(parent + sep + newName);
-  }, [folderPath, handleNavigateToFolder]);
+    // Inert until this folder's lookup lands, so a quick double-step can't
+    // follow the previous folder's neighbours.
+    if (folderNeighbours?.forPath !== folderPath) return;
+    const target = delta < 0 ? folderNeighbours.prev : folderNeighbours.next;
+    if (!target) return;
+    if (target.path.startsWith('drive://')) setDriveLabel(target.path, target.name);
+    // Stepping off the opened root re-roots on the sibling — otherwise Up
+    // would vanish inside its subfolders, which sit outside the old root.
+    handleNavigateToFolder(target.path, { asRoot: folderPath === rootFolderPathRef.current });
+  }, [folderNeighbours, folderPath, handleNavigateToFolder, setDriveLabel]);
 
   const handleClearRefs = useCallback(async (character) => {
     if (!window.electronAPI?.clearRefs) return;
@@ -3062,6 +3083,7 @@ function App() {
         onAutoReloadChange={handleAutoReloadChange}
         onBulkRename={handleOpenBulkRename}
         onNavigateFolder={handleNavigateFolder}
+        folderNav={folderNeighbours}
         aiScores={aiScores}
         scanning={scanning}
         scanProgress={scanProgress}
@@ -3151,6 +3173,7 @@ function App() {
         listDetail={listDetail}
         subfolders={filteredSubfolders}
         folderPreviews={folderPreviews}
+        folderNumbers={folderNumbers}
         onFolderClick={handleFolderClick}
         editingFolderPath={editingFolderPath}
         onRenameCommit={handleRenameFolderCommit}
